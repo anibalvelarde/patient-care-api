@@ -4,8 +4,8 @@ using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
-public class PatientRepository(ApplicationDbContext dbContext) :
-    EfRepository<Patient>(dbContext), IPatientRepository
+public class TherapySessionRepository(ApplicationDbContext dbContext) : 
+    EfRepository<TherapySession>(dbContext), ITherapySessionRepository
 {
 
     // Additional methods specific to Patient can be implemented here

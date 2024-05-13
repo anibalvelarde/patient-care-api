@@ -17,9 +17,14 @@ public static class NeurocorpConfigurationExtensions
             options.UseMySql(configuration.GetConnectionString("DefaultConnection"),
             new MySqlServerVersion(new Version(8, 0, 25))));
 
-        // Register repositories
-        services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
-        services.AddScoped<IPatientRepository, PatientRepository>();
+            // Register repositories
+            services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+            services.AddScoped<IPatientRepository, PatientRepository>();
+            services.AddScoped<ICaretakerRepository, CaretakerRepository>();
+            services.AddScoped<ITherapistRepository, TherapistRepository>();
+            services.AddScoped<ITherapySessionRepository, TherapySessionRepository>();
+            services.AddScoped<IPaymentRepository, PaymentRepository>();
+            services.AddScoped<ISessionPaymentRepository, SessionPaymentRepository>();
 
         return services;
     }
