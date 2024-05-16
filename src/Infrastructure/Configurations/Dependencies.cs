@@ -12,14 +12,27 @@ public static class NeurocorpConfigurationExtensions
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // Retrieve password from ENV VAR
+        var dbHost = Environment.GetEnvironmentVariable("DATABASE_HOST");
+        var dbPort = Environment.GetEnvironmentVariable("DATABASE_PORT");
+        var dbName = Environment.GetEnvironmentVariable("DATABASE_NAME");
+        var dbPassword = Environment.GetEnvironmentVariable("DATABASE_PASSWORD");
+
+        // Build cn dynamically
+        var cn = configuration.GetConnectionString("DefaultConnection")?
+            .Replace("{{HOST}}", dbHost)
+            .Replace("{{DB_PORT}}",dbPort)
+            .Replace("{{DB_NAME}}",dbName)
+            .Replace("{{MYSQL_PASSWORD}}", dbPassword);
+
         // Register ApplicationDbContext with MySQL
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseMySql(configuration.GetConnectionString("DefaultConnection"),
-            new MySqlServerVersion(new Version(8, 0, 25))));
+            options.UseMySql(cn, new MySqlServerVersion(new Version(8, 0, 25))));
 
             // Register repositories
             services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
             services.AddScoped<IPatientRepository, PatientRepository>();
+            services.AddScoped<IPatientProfileRepository, PatientProfileRepository>();
             services.AddScoped<ICaretakerRepository, CaretakerRepository>();
             services.AddScoped<ITherapistRepository, TherapistRepository>();
             services.AddScoped<ITherapySessionRepository, TherapySessionRepository>();

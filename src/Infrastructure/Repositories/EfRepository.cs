@@ -8,7 +8,7 @@ namespace Neurocorp.Api.Infrastructure.Repositories;
 
 public class EfRepository<T> : IRepository<T> where T : class
 {
-    private readonly ApplicationDbContext _dbContext;
+    protected readonly ApplicationDbContext _dbContext;
 
     public EfRepository(ApplicationDbContext dbContext)
     {
@@ -33,7 +33,7 @@ public class EfRepository<T> : IRepository<T> where T : class
         return await _dbContext.Set<T>().FindAsync(id);
     }
 
-    public async Task<IReadOnlyList<T>> GetAllAsync()
+    public virtual async Task<IReadOnlyList<T>> GetAllAsync()
     {
         return await _dbContext.Set<T>().ToListAsync();
     }

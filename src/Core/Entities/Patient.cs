@@ -4,23 +4,26 @@ public class Patient
 {
     public Patient()
     {
-        this.Name = "";
-        this.TherapySessions = [];
-        this.Payments = [];
+        this.Gender = string.Empty;
+        this.MedicalRecordNumber = string.Empty;
+        this.User = new User();
     }
 
-    public int Id {get; set;}
-    public string Name {get; set;}
-    public DateTime DateOfBirth {get; set;}
-    public ICollection<TherapySession> TherapySessions { get; set; }
-    public ICollection<Payment> Payments { get; set; }
+    public int PatientId {get; set;}
+    public int UserId {get; set;}
+    public DateTime? DateOfBirth {get; set;}
+    public string Gender {get; set;}
+    public string MedicalRecordNumber {get; set;}
+    public User User {get; set;}
 }
 
 public class UndefinedPatient : Patient
 {
     public UndefinedPatient()
     {
-        this.Name = "Undefined";
+        this.Gender = "Undefined";
+        this.UserId = int.MinValue;
+        this.PatientId = int.MinValue;
         this.DateOfBirth = DateTime.MinValue;
     }
 }

@@ -7,6 +7,7 @@ public class ApplicationDbContext : DbContext
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
+    public DbSet<User> Users { get; set; }    
     public DbSet<Patient> Patients { get; set; }
     public DbSet<Caretaker> Caretakers { get; set; }
     public DbSet<Therapist> Therapists { get; set; }
@@ -16,5 +17,21 @@ public class ApplicationDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Entity name mappings...
+        modelBuilder.Entity<Patient>()
+            .ToTable("Patient");
+        modelBuilder.Entity<User>()
+            .ToTable("SystemUser")
+            .Property(u => u.UserId).HasColumnName("UserId");
+        modelBuilder.Entity<Caretaker>().ToTable("Caretaker");
+        modelBuilder.Entity<Therapist>().ToTable("Therapist");
+        modelBuilder.Entity<TherapySession>().ToTable("TherapySession");
+
+        // Configure PK for Entities
+        modelBuilder.Entity<User>()
+            .HasKey(s => s.UserId);
+        modelBuilder.Entity<Patient>()
+            .HasKey(p => p.PatientId);
     }
 }
