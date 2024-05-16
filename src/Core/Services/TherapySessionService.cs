@@ -19,14 +19,9 @@ public class TherapySessionService : ITherapySessionService
         return await _repository.GetAllAsync();
     }
 
-    public async Task<TherapySession> GetByIdAsync(int id)
+    public async Task<TherapySession?> GetByIdAsync(int id)
     {
-        var p = await _repository.GetByIdAsync(id);
-        if (p == null)
-        {
-            return new UndefinedSession();
-        }
-        return p;
+        return await _repository.GetByIdAsync(id);
     }
 
     public async Task<TherapySession> CreateAsync(TherapySession session)

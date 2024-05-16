@@ -19,7 +19,7 @@ public class TherapistService : ITherapistService
         return await _repository.GetAllAsync();
     }
 
-    public async Task<Therapist> GetByIdAsync(int id)
+    public async Task<Therapist?> GetByIdAsync(int id)
     {
         var p = await _repository.GetByIdAsync(id);
         if (p == null)

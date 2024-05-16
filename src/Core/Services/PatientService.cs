@@ -19,7 +19,7 @@ public class PatientService : IPatientService
         return await _patientRepository.GetAllAsync();
     }
 
-    public async Task<Patient> GetByIdAsync(int id)
+    public async Task<Patient?> GetByIdAsync(int id)
     {
         var p = await _patientRepository.GetByIdAsync(id);
         if (p == null)

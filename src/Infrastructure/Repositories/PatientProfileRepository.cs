@@ -3,6 +3,7 @@ using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Neurocorp.Api.Core.BusinessObjects;
+using System.Linq;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
@@ -16,18 +17,34 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Patients
             .Where(p => p.User != null)
             .Include(p => p.User)
-            .Select(p => new PatientProfile
-            {
-                PatientId = p.PatientId,
-                UserId = p.User.UserId,
-                PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
-                MedicalRecordNumber = p.MedicalRecordNumber,
-                DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
-                Email = p.User.Email,
-                PhoneNumber = p.User.PhoneNumber,
-                CreatedTimestamp = p.User.CreatedTimestamp
-            }).ToListAsync();
+            .Select(p => ExtractPatientProfile(p)).ToListAsync();
 
         return result;
+    }
+
+    public override async Task<PatientProfile?> GetByIdAsync(int id)
+    {
+        var result = await _dbContext.Patients
+        .Where(p => p.PatientId == id)
+        .Include(p => p.User)
+        .Select(p => ExtractPatientProfile(p))
+        .ToListAsync();
+
+        return result.FirstOrDefault();
+    }
+
+    private static PatientProfile ExtractPatientProfile(Patient p)
+    {
+        return new PatientProfile
+        {
+            PatientId = p.PatientId,
+            UserId = p.User.UserId,
+            PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
+            MedicalRecordNumber = p.MedicalRecordNumber,
+            DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
+            Email = p.User.Email,
+            PhoneNumber = p.User.PhoneNumber,
+            CreatedTimestamp = p.User.CreatedTimestamp
+        };
     }
 }

@@ -12,6 +12,7 @@ public class User
         this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.ActiveStatus = false;
+        this.CreatedTimestamp = DateTime.UtcNow;
     }
 
     [Key]

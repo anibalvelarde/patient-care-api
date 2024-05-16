@@ -17,6 +17,7 @@ public static class NeurocorpConfigurationExtensions
         var dbPort = Environment.GetEnvironmentVariable("DATABASE_PORT");
         var dbName = Environment.GetEnvironmentVariable("DATABASE_NAME");
         var dbPassword = Environment.GetEnvironmentVariable("DATABASE_PASSWORD");
+        Console.WriteLine($"HOST: {dbHost}  PORT: {dbPort}  DB: {dbName} PSWD: {dbPassword?.Length ?? 0} (>0 means password was given)");
 
         // Build cn dynamically
         var cn = configuration.GetConnectionString("DefaultConnection")?
@@ -38,7 +39,7 @@ public static class NeurocorpConfigurationExtensions
             services.AddScoped<ITherapySessionRepository, TherapySessionRepository>();
             services.AddScoped<IPaymentRepository, PaymentRepository>();
             services.AddScoped<ISessionPaymentRepository, SessionPaymentRepository>();
-
+            services.AddScoped<IUserRepository, UserRepository>();
         return services;
     }
 }

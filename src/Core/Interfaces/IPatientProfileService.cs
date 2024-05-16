@@ -7,4 +7,5 @@ namespace Neurocorp.Api.Core.Interfaces;
 public interface IPatientProfileService : IService<PatientProfile>
 {
     // other business logic operations...
+    public Task<PatientProfile> CreateAsync(PatientProfileRequest request);
 }
