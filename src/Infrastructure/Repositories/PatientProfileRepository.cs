@@ -33,8 +33,17 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         return result.FirstOrDefault();
     }
 
+    public override async Task<PatientProfile> AddAsync(PatientProfile entity)
+    {
+        return await Task.FromException<PatientProfile>(new NotImplementedException());
+    }
+
     private static PatientProfile ExtractPatientProfile(Patient p)
     {
+        if (p.User == null)
+        {
+            throw new ArgumentException(nameof(p.User) + " must not be null");
+        }
         return new PatientProfile
         {
             PatientId = p.PatientId,

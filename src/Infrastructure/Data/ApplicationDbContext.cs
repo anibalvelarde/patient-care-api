@@ -19,11 +19,8 @@ public class ApplicationDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         // Entity name mappings...
-        modelBuilder.Entity<Patient>()
-            .ToTable("Patient");
-        modelBuilder.Entity<User>()
-            .ToTable("SystemUser")
-            .Property(u => u.UserId).HasColumnName("UserId");
+        modelBuilder.Entity<Patient>().ToTable("Patient");
+        modelBuilder.Entity<User>().ToTable("SystemUser");
         modelBuilder.Entity<Caretaker>().ToTable("Caretaker");
         modelBuilder.Entity<Therapist>().ToTable("Therapist");
         modelBuilder.Entity<TherapySession>().ToTable("TherapySession");
@@ -31,7 +28,5 @@ public class ApplicationDbContext : DbContext
         // Configure PK for Entities
         modelBuilder.Entity<User>()
             .HasKey(s => s.UserId);
-        modelBuilder.Entity<Patient>()
-            .HasKey(p => p.PatientId);
     }
 }

@@ -6,7 +6,6 @@ public class Patient
     {
         this.Gender = string.Empty;
         this.MedicalRecordNumber = string.Empty;
-        this.User = new User();
     }
 
     public int PatientId {get; set;}
@@ -14,7 +13,7 @@ public class Patient
     public DateTime? DateOfBirth {get; set;}
     public string Gender {get; set;}
     public string MedicalRecordNumber {get; set;}
-    public User User {get; set;}
+    public User? User {get; set;}
 }
 
 public class UndefinedPatient : Patient
