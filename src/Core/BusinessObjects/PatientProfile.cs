@@ -8,6 +8,7 @@ public class PatientProfile
         this.MedicalRecordNumber = string.Empty;
         this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
+        this.Gender = string.Empty;
     }
 
     public int PatientId { get; set; }
@@ -18,6 +19,7 @@ public class PatientProfile
     public string Email { get; set; }
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp { get; set; }
+    public string Gender { get; set; }
     public bool IsActive { get; set; }
 }
 
