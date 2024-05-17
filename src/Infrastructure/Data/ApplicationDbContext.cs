@@ -28,5 +28,8 @@ public class ApplicationDbContext : DbContext
         // Configure PK for Entities
         modelBuilder.Entity<User>()
             .HasKey(s => s.UserId);
+        modelBuilder.Entity<Patient>()
+            .HasKey(s => s.PatientId);
+
     }
 }
