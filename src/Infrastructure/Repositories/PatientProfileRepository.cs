@@ -52,7 +52,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
 
         // update entity props & save changes.
         patient = MapToUpdatedPatient(updateRequest, patient);
-        patient.User = MapToUpdatedUser(updateRequest, patient.User);
+        patient.User = MapToUpdatedUser(updateRequest, patient.User ?? new User());
         _dbContext.ChangeTracker.DetectChanges();
         await _dbContext.SaveChangesAsync();
 
