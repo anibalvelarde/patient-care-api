@@ -1,6 +1,7 @@
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
