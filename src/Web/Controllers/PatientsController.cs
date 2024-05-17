@@ -38,12 +38,18 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfile patient)
+    public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
-        if (id != patient.PatientId)
-            return BadRequest();
-
-        await _patientProfileService.UpdateAsync(patient);
-        return NoContent();
+        if (await _patientProfileService.VerifyRequestAsync(id, patientRequest))
+        {
+            var updateResult = await _patientProfileService.UpdateAsync(id, patientRequest);
+            if (updateResult)
+            {
+                return NoContent();
+            } else {
+                return BadRequest("Bad input?");
+            }
+        }
+        return BadRequest();
     }
 }
