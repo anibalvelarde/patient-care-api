@@ -4,7 +4,7 @@ using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
-public class CaretakerRepository(ApplicationDbContext dbContext) : 
+public class CaretakerRepository(ApplicationDbContext dbContext) :
     EfRepository<Caretaker>(dbContext), ICaretakerRepository
 {
 

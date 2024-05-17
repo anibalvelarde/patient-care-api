@@ -4,7 +4,7 @@ using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
-public class TherapistRepository(ApplicationDbContext dbContext) : 
+public class TherapistRepository(ApplicationDbContext dbContext) :
     EfRepository<Therapist>(dbContext), ITherapistRepository
 {
 

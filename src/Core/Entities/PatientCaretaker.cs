@@ -10,9 +10,9 @@ public class PatientCaretaker
         this.CreatedTimestamp = DateTime.UtcNow;
     }
 
-    public int Id {get; set;}
-    public int PatientId {get; set;}
-    public int CaretakerId {get; set;}
-    public bool PrimaryCaretaker {get; set;}
-    public DateTime CreatedTimestamp {get; set;}
+    public int Id { get; set; }
+    public int PatientId { get; set; }
+    public int CaretakerId { get; set; }
+    public bool PrimaryCaretaker { get; set; }
+    public DateTime CreatedTimestamp { get; set; }
 }

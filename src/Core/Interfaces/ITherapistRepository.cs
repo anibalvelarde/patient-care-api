@@ -4,5 +4,5 @@ namespace Neurocorp.Api.Core.Interfaces;
 
 public interface ITherapistRepository : IRepository<Therapist>
 {
-    
+
 }

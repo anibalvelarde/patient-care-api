@@ -104,13 +104,13 @@ public class PatientProfileService : IPatientProfileService
     {
         return new User
         {
-           FirstName = patientRequest.FirstName,
-           MiddleName = patientRequest.MiddleName,
-           LastName = patientRequest.LastName,
-           Email = patientRequest.Email,
-           PhoneNumber = patientRequest.PhoneNumber,
-           CreatedTimestamp = DateTime.UtcNow,
-           ActiveStatus = true 
+            FirstName = patientRequest.FirstName,
+            MiddleName = patientRequest.MiddleName,
+            LastName = patientRequest.LastName,
+            Email = patientRequest.Email,
+            PhoneNumber = patientRequest.PhoneNumber,
+            CreatedTimestamp = DateTime.UtcNow,
+            ActiveStatus = true
         };
     }
 }

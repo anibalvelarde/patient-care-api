@@ -66,7 +66,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         if (patientOnFile.DateOfBirth.HasValue
             && !patientRequest.DateOfBirth.Equals(DateTime.MinValue)
             && !patientOnFile.DateOfBirth.Value.Equals(patientRequest.DateOfBirth))
-            { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
+        { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
 
         return patientOnFile;
     }
@@ -79,9 +79,9 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(patientRequest.Email)) { userOnFile.Email = patientRequest.Email; }
         if (!string.IsNullOrEmpty(patientRequest.PhoneNumber)) { userOnFile.PhoneNumber = patientRequest.PhoneNumber; }
         if (userOnFile.ActiveStatus != patientRequest.ActiveStatus) { userOnFile.ActiveStatus = patientRequest.ActiveStatus; }
-        
+
         return userOnFile;
-    }    
+    }
 
     private static PatientProfile ExtractPatientProfile(Patient p)
     {

@@ -4,7 +4,7 @@ using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
-public class PaymentRepository(ApplicationDbContext dbContext) : 
+public class PaymentRepository(ApplicationDbContext dbContext) :
     EfRepository<Payment>(dbContext), IPaymentRepository
 {
 

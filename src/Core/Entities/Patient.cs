@@ -8,12 +8,12 @@ public class Patient
         this.MedicalRecordNumber = string.Empty;
     }
 
-    public int PatientId {get; set;}
-    public int UserId {get; set;}
-    public DateTime? DateOfBirth {get; set;}
-    public string Gender {get; set;}
-    public string MedicalRecordNumber {get; set;}
-    public User? User {get; set;}
+    public int PatientId { get; set; }
+    public int UserId { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string Gender { get; set; }
+    public string MedicalRecordNumber { get; set; }
+    public User? User { get; set; }
 
     public override string ToString()
     {

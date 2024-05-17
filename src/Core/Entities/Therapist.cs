@@ -10,16 +10,16 @@ public class Therapist
         this.Specialties = Enumerable.Empty<string>();
     }
 
-    public int Id {get; set;}
-    public string Name {get; set;}
-    public IEnumerable<string> Specialties {get; set;}
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public IEnumerable<string> Specialties { get; set; }
 }
 
 public class UndefinedTherapist : Therapist
 {
     public UndefinedTherapist()
     {
-        this.Name= "Undefined";
+        this.Name = "Undefined";
         this.Specialties = [];
     }
 }

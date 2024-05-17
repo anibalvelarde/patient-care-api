@@ -23,7 +23,7 @@ public class User
     public string Email { get; set; }
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp { get; set; }
-    public bool ActiveStatus { get; set; } 
+    public bool ActiveStatus { get; set; }
 
     public override string ToString()
     {

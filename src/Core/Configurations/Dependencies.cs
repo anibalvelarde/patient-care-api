@@ -9,11 +9,11 @@ public static class NeurocorpConfigurationExtensions
 {
     public static IServiceCollection AddCoreDependencies(this IServiceCollection services, IConfiguration configuration)
     {
-            // Register Core services with their implementations
-            services.AddScoped<IPatientService, PatientService>();
-            services.AddScoped<ITherapistService, TherapistService>();
-            services.AddScoped<ITherapySessionService, TherapySessionService>();
-            services.AddScoped<IPatientProfileService, PatientProfileService>();
+        // Register Core services with their implementations
+        services.AddScoped<IPatientService, PatientService>();
+        services.AddScoped<ITherapistService, TherapistService>();
+        services.AddScoped<ITherapySessionService, TherapySessionService>();
+        services.AddScoped<IPatientProfileService, PatientProfileService>();
         return services;
     }
 }

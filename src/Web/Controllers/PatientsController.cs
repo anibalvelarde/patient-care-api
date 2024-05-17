@@ -46,7 +46,9 @@ public class PatientsController : ControllerBase
             if (updateResult)
             {
                 return NoContent();
-            } else {
+            }
+            else
+            {
                 return BadRequest("Bad input?");
             }
         }

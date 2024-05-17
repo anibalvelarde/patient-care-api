@@ -2,25 +2,25 @@ using System.Collections.Generic;
 
 namespace Neurocorp.Api.Core.Entities;
 
-    public class Payment
+public class Payment
+{
+    public Payment()
     {
-        public Payment()
-        {
-            this.Patient = new UndefinedPatient();
-            this.SessionPayments = [];            
-        }
-        public int Id { get; set; }
-        public int PatientId { get; set; }
-        public Patient Patient { get; set; }
-        public decimal Amount { get; set; }
-        public DateTime PaymentDate { get; set; }
-        public ICollection<SessionPayment> SessionPayments { get; set; }
+        this.Patient = new UndefinedPatient();
+        this.SessionPayments = [];
     }
+    public int Id { get; set; }
+    public int PatientId { get; set; }
+    public Patient Patient { get; set; }
+    public decimal Amount { get; set; }
+    public DateTime PaymentDate { get; set; }
+    public ICollection<SessionPayment> SessionPayments { get; set; }
+}
 
-    public class UndefinedPayment : Payment
+public class UndefinedPayment : Payment
+{
+    public UndefinedPayment()
     {
-        public UndefinedPayment()
-        {
-            this.SessionPayments = [];
-        }
+        this.SessionPayments = [];
     }
+}
