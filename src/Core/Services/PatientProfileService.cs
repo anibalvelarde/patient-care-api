@@ -34,10 +34,15 @@ public class PatientProfileService : IPatientProfileService
         return await Task.FromException<PatientProfile>(new NotImplementedException());
     }
 
+    public async Task UpdateAsync(PatientProfile patient)
+    {
+        await Task.FromException<PatientProfile>(new NotImplementedException());
+    }
+
     public async Task<PatientProfile> CreateAsync(PatientProfileRequest patientRequest)
     {
-        var newUser = await _userRepo.AddAsync(MapToUser(patientRequest));
-        var newPatient = await _patientRepo.AddAsync(MapToPatient(patientRequest, newUser));
+        var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest));
+        var newPatient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, newUser));
         return new PatientProfile
         {
             PatientId = newPatient.PatientId,
@@ -51,9 +56,18 @@ public class PatientProfileService : IPatientProfileService
         };
     }
 
-    public async Task UpdateAsync(PatientProfile patient)
+    public async Task<bool> UpdateAsync(int patientAggId, PatientProfileUpdateRequest updateRequest)
     {
-        await _repository.UpdateAsync(patient);
+        ArgumentNullException.ThrowIfNull(updateRequest);
+
+        // ensure the Patient Profile exists...
+        var profileOnFile = await this.GetByIdAsync(patientAggId);
+        if (profileOnFile != null)
+        {
+            await _repository.UpdateAsync(profileOnFile.PatientId, profileOnFile.UserId, updateRequest);
+            return true;
+        }
+        return false;
     }
 
     public async Task DeleteAsync(int id)
@@ -65,7 +79,17 @@ public class PatientProfileService : IPatientProfileService
         }
     }
 
-    private static Patient MapToPatient(PatientProfileRequest patientRequest, User user)
+    public async Task<bool> VerifyRequestAsync(int patientAggId, PatientProfileUpdateRequest request)
+    {
+        var profile = await this.GetByIdAsync(patientAggId);
+        if (profile != null)
+        {
+            return profile.PatientId.Equals(patientAggId);
+        }
+        return false;
+    }
+
+    private static Patient MapToNewPatient(PatientProfileRequest patientRequest, User user)
     {
         return new Patient
         {
@@ -76,7 +100,7 @@ public class PatientProfileService : IPatientProfileService
         };
     }
 
-    private static User MapToUser(PatientProfileRequest patientRequest)
+    private static User MapToNewUser(PatientProfileRequest patientRequest)
     {
         return new User
         {
