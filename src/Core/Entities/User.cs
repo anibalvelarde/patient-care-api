@@ -24,4 +24,9 @@ public class User
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp { get; set; }
     public bool ActiveStatus { get; set; } 
+
+    public override string ToString()
+    {
+        return $"ID: {this.UserId} FN: {this.FirstName} MN: {this.MiddleName} LN: {this.LastName} e: {this.Email} p: {this.PhoneNumber} cr: {this.CreatedTimestamp.ToShortDateString()} Active: {this.ActiveStatus}";
+    }
 }

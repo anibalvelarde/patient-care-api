@@ -14,6 +14,11 @@ public class Patient
     public string Gender {get; set;}
     public string MedicalRecordNumber {get; set;}
     public User? User {get; set;}
+
+    public override string ToString()
+    {
+        return $"Pid: {this.PatientId}  Uid: {this.UserId}  DoB: {this.DateOfBirth.Value.ToShortDateString()}  G: {this.Gender}  Mrn: {this.MedicalRecordNumber}";
+    }
 }
 
 public class UndefinedPatient : Patient
