@@ -30,15 +30,18 @@ public class EfRepository<T> : IRepository<T> where T : class
 
     public virtual async Task<T?> GetByIdAsync(int id)
     {
-        return await _dbContext.Set<T>().FindAsync(id);
+        _dbContext.Set<T>().AsNoTracking();
+        return await _dbContext.Set<T>()
+            .FindAsync(id);
     }
 
     public virtual async Task<IReadOnlyList<T>> GetAllAsync()
     {
+        _dbContext.Set<T>().AsNoTracking();
         return await _dbContext.Set<T>().ToListAsync();
     }
 
-    public async Task UpdateAsync(T entity)
+    public virtual async Task UpdateAsync(T entity)
     {
         _dbContext.Entry(entity).State = EntityState.Modified;
         await _dbContext.SaveChangesAsync();
