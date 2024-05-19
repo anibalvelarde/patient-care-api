@@ -44,7 +44,7 @@ jobs:
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
     - name: List build directory contents
-      run: pwd; ls -R ./
+      run: pwd; ls -R .
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v2
