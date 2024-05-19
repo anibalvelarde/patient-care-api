@@ -13,5 +13,12 @@ elif [ "$ASPNETCORE_ENVIRONMENT" == "PROD" ]; then
     HTTPS_PORT=443
 fi
 
+# echo ENV Vars
+echo "for the Database: -----------------------------------------------:"
+printenv | grep DATABASE
+echo "for the ASP NET CORE: -------------------------------------------:"
+printenv | grep ASPNETCORE
+echo "-----------------------------------------------------------------:"
+
 # Start the application
 dotnet Web.dll --urls="http://*:$HTTP_PORT;https://*:$HTTPS_PORT"
