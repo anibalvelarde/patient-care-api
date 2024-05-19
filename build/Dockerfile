@@ -58,8 +58,7 @@ RUN openssl req -newkey rsa:4096 \
 RUN openssl pkcs12 -export -out /https/cert.pfx -inkey /https/cert.key -in /https/cert.crt -password pass:${CERT_PASSWORD}
 
 # Copy the startup script to the container and make it executable
-RUN ls -la;
-COPY ./startup_scripts/startup.sh /startup.sh
+COPY ./build/startup_scripts/startup.sh /startup.sh
 RUN chmod +x /startup.sh
 
 # Set the entry point to use the startup script
