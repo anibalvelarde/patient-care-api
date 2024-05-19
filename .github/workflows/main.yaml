@@ -2,8 +2,7 @@ name: Build and Publish Patient Care API Docker Image
 
 on:
   push:
-    branches:
-      - main  # Set this to the branch you use
+    branches: [ main, features/aev/add-github-actions-capability ]
 
 jobs:
   build-and-publish:
@@ -18,7 +17,7 @@ jobs:
         dotnet-version: '8.0.100'
 
     - name: Restore dependencies
-      run: dotnet restore ./src/web/web.csproj
+      run: dotnet restore ./patient-care-api.sln
 
     - name: Build
       run: dotnet build ./src/web/web.csproj --no-restore
