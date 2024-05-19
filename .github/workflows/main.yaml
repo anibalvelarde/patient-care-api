@@ -24,9 +24,7 @@ jobs:
 
     - name: Run tests
       run: |
-        dotnet test ./tests/core.Tests/coreTests.csproj --no-build
-        dotnet test ./tests/infrastructure.Tests/infrastructureTests.csproj --no-build
-        dotnet test ./tests/web.Tests/webTests.csproj --no-build
+        dotnet test ./patient-care-api.sln --no-build
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
