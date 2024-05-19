@@ -1,29 +1,3 @@
-# Use the official .NET SDK image to build the project
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /patient-care-api-root
-COPY ./patient-care-api.sln .
-COPY ./src ./src
-COPY ./tests ./tests
-
-# --------------------  D E B U G G I N G   C O M M A N D S  for BUILD  Only ---------------------
-# RUN apt-get update
-# RUN apt-get install tree
-# RUN apt-get install -y iproute2
-#    RUN pwd; tree
-# RUN pwd; find . -type d; ls -la
-# RUN pwd; ls; ls -la ./Core
-# RUN pwd; ls; ls -la ./Infrastructure
-# RUN pwd; ls; ls -la ./Web
-# -----------------------------------------------------------------------------------------------
-
-RUN dotnet restore "patient-care-api.sln"
-RUN dotnet build "patient-care-api.sln" -c Release --no-restore
-RUN dotnet test "patient-care-api.sln" -c Release --no-build --no-restore # Assuming test projects are included in the solution
-
-# Publish the Web API
-WORKDIR "/patient-care-api-root/src/Web"
-RUN dotnet publish "Web.csproj" -c Release -o /app/publish
-
 # Use the official ASP.NET Core runtime image for the runtime environment
 # Final   Stage | Run the application
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
