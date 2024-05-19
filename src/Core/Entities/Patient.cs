@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Neurocorp.Api.Core.Entities;
 
 public class Patient
@@ -17,7 +19,13 @@ public class Patient
 
     public override string ToString()
     {
-        return $"Pid: {this.PatientId}  Uid: {this.UserId}  DoB: {this.DateOfBirth.Value.ToShortDateString()}  G: {this.Gender}  Mrn: {this.MedicalRecordNumber}";
+        var sb = new StringBuilder();
+        sb.Append("Pid: ").Append(this.PatientId).Append("  ")
+        .Append("Uid: ").Append(this.UserId).Append("  ")
+        .Append("DoB: ").Append((this.DateOfBirth ?? DateTime.MinValue).ToShortDateString()).Append("  ")
+        .Append("G: ").Append(this.Gender).Append("  ")
+        .Append("Mrn: ").Append(this.MedicalRecordNumber);
+        return sb.ToString();
     }
 }
 

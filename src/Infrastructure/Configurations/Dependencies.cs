@@ -4,6 +4,7 @@ using Neurocorp.Api.Infrastructure.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace Neurocorp.Api.Infrastructure.Configurations;
@@ -29,6 +30,8 @@ public static class NeurocorpConfigurationExtensions
         // Register ApplicationDbContext with MySQL
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseMySql(cn, new MySqlServerVersion(new Version(8, 0, 25))));
+        services.AddHealthChecks()
+            .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks");
 
         // Register repositories
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
