@@ -50,4 +50,6 @@ jobs:
         file: ./build/Dockerfile
         push: true
         tags: anibalvelarde/patient-care-api:latest
-              anibalvelarde/patient-care-api:latest
+
+    - name: Clean up
+      run: docker rmi anibalvelarde/patient-care-api:latest
