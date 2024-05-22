@@ -18,6 +18,7 @@ public static class NeurocorpConfigurationExtensions
         var dbPort = Environment.GetEnvironmentVariable("DATABASE_PORT");
         var dbName = Environment.GetEnvironmentVariable("DATABASE_NAME");
         var dbPassword = Environment.GetEnvironmentVariable("DATABASE_PASSWORD");
+        var dbUser = Environment.GetEnvironmentVariable("DATABASE_USER");
         Console.WriteLine($"HOST: {dbHost}  PORT: {dbPort}  DB: {dbName} PSWD: {dbPassword?.Length ?? 0} (>0 means password was given)");
 
         // Build cn dynamically
@@ -25,6 +26,7 @@ public static class NeurocorpConfigurationExtensions
             .Replace("{{HOST}}", dbHost)
             .Replace("{{DB_PORT}}", dbPort)
             .Replace("{{DB_NAME}}", dbName)
+            .Replace("{{DB_USER}}", dbUser)
             .Replace("{{MYSQL_PASSWORD}}", dbPassword);
 
         // Register ApplicationDbContext with MySQL
