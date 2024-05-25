@@ -31,8 +31,8 @@ public class Startup(IConfiguration configuration)
             options.AddPolicy("AllowSpecificOrigins", 
                 builder => 
                 {
-                    builder.WithOrigins("k8s-master")
-                        .WithOrigins("k8s-worker1")
+                    builder
+                        .WithOrigins("http://api.neurocorp.com")
                         .AllowAnyHeader()
                         .AllowAnyMethod();
                 });
