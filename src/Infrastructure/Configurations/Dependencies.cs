@@ -11,6 +11,7 @@ namespace Neurocorp.Api.Infrastructure.Configurations;
 
 public static class NeurocorpConfigurationExtensions
 {
+    private static readonly string DEFAULT_DB_CONN_STRING = "Server={{HOST}};Port={{DB_PORT}};Database={{DB_NAME}};Uid=root;Pwd={{MYSQL_PASSWORD}};";
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Retrieve password from ENV VAR
@@ -22,7 +23,7 @@ public static class NeurocorpConfigurationExtensions
         Console.WriteLine($"HOST: {dbHost}  PORT: {dbPort}  DB: {dbName} USER: {dbUser} PSWD: {dbPassword?.Length ?? 0} (>0 means password was given)");
 
         // Build cn dynamically
-        var cn = configuration.GetConnectionString("DefaultConnection")?
+        var cn = (configuration.GetConnectionString("DefaultConnection") ?? DEFAULT_DB_CONN_STRING)
             .Replace("{{HOST}}", dbHost)
             .Replace("{{DB_PORT}}", dbPort)
             .Replace("{{DB_NAME}}", dbName)

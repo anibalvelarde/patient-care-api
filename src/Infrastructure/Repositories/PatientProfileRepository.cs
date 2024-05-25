@@ -100,7 +100,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
             Email = p.User.Email,
             PhoneNumber = p.User.PhoneNumber,
-            CreatedTimestamp = p.User.CreatedTimestamp
+            CreatedTimestamp = p.User.CreatedTimestamp,
+            IsActive = p.User.ActiveStatus
         };
     }
 }
