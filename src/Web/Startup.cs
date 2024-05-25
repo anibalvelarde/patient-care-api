@@ -26,6 +26,17 @@ public class Startup(IConfiguration configuration)
                 "Startup",
                 tags: ["ready"]
             );
+        services.AddCors(options =>
+        {
+            options.AddPolicy("AllowSpecificOrigins", 
+                builder => 
+                {
+                    builder
+                        .WithOrigins("http://api.neurocorp.com")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod();
+                });
+        });
         services.AddControllers();
 
         // Register the Swagger generator, defining one or more Swagger documents
@@ -51,6 +62,7 @@ public class Startup(IConfiguration configuration)
 
         app.UseHttpsRedirection();
         app.UseRouting();
+        app.UseCors("AllowSpecificOrigins");
         app.UseAuthorization();
 
         app.UseEndpoints(endpoints =>

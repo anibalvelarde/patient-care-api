@@ -2,8 +2,7 @@ name: Build and Publish Patient Care API Docker Image
 
 on:
   push:
-    branches:
-      - main  # Set this to the branch you use
+    branches: [ main, features/aev/add-github-actions-capability ]
 
 jobs:
   build-and-publish:
@@ -18,16 +17,14 @@ jobs:
         dotnet-version: '8.0.100'
 
     - name: Restore dependencies
-      run: dotnet restore ./src/web/web.csproj
+      run: dotnet restore ./patient-care-api.sln  
 
     - name: Build
-      run: dotnet build ./src/web/web.csproj --no-restore
+      run: dotnet build ./patient-care-api.sln --no-restore
 
     - name: Run tests
       run: |
-        dotnet test ./tests/core.Tests/coreTests.csproj --no-build
-        dotnet test ./tests/infrastructure.Tests/infrastructureTests.csproj --no-build
-        dotnet test ./tests/web.Tests/webTests.csproj --no-build
+        dotnet test ./patient-care-api.sln --no-build
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -49,10 +46,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v2
       with:
-        context: ./build
+        context: .
         file: ./build/Dockerfile
         push: true
         tags: anibalvelarde/patient-care-api:latest
-
-    - name: Clean up
-      run: docker rmi yourusername/my-app:latest

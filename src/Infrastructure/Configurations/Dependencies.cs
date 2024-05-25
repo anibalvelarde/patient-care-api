@@ -18,18 +18,20 @@ public static class NeurocorpConfigurationExtensions
         var dbPort = Environment.GetEnvironmentVariable("DATABASE_PORT");
         var dbName = Environment.GetEnvironmentVariable("DATABASE_NAME");
         var dbPassword = Environment.GetEnvironmentVariable("DATABASE_PASSWORD");
-        Console.WriteLine($"HOST: {dbHost}  PORT: {dbPort}  DB: {dbName} PSWD: {dbPassword?.Length ?? 0} (>0 means password was given)");
+        var dbUser = Environment.GetEnvironmentVariable("DATABASE_USER");
+        Console.WriteLine($"HOST: {dbHost}  PORT: {dbPort}  DB: {dbName} USER: {dbUser} PSWD: {dbPassword?.Length ?? 0} (>0 means password was given)");
 
         // Build cn dynamically
         var cn = configuration.GetConnectionString("DefaultConnection")?
             .Replace("{{HOST}}", dbHost)
             .Replace("{{DB_PORT}}", dbPort)
             .Replace("{{DB_NAME}}", dbName)
+            .Replace("{{DB_USER}}", dbUser)
             .Replace("{{MYSQL_PASSWORD}}", dbPassword);
 
         // Register ApplicationDbContext with MySQL
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseMySql(cn, new MySqlServerVersion(new Version(8, 0, 25))));
+            options.UseMySql(cn!.ToString(), new MySqlServerVersion(new Version(8, 0, 25))));
         services.AddHealthChecks()
             .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks");
 
