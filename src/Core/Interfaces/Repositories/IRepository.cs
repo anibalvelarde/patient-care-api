@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Neurocorp.Api.Core.Interfaces;
+namespace Neurocorp.Api.Core.Interfaces.Repositories;
 
 public interface IRepository<T> where T : class
 {

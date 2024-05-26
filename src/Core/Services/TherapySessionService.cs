@@ -1,5 +1,6 @@
 using Neurocorp.Api.Core.Entities;
-using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 

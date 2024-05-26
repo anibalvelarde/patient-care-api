@@ -1,4 +1,4 @@
-using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;

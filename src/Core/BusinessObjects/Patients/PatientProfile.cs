@@ -1,4 +1,4 @@
-namespace Neurocorp.Api.Core.BusinessObjects;
+namespace Neurocorp.Api.Core.BusinessObjects.Patients;
 
 public class PatientProfile
 {

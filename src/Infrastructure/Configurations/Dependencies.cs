@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;

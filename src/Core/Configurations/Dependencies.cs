@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.Configurations;
