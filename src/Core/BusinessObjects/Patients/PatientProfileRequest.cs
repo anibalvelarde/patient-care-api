@@ -1,33 +1,32 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Neurocorp.Api.Core.BusinessObjects;
+namespace Neurocorp.Api.Core.BusinessObjects.Patients;
 
-public class PatientProfileUpdateRequest
+public class PatientProfileRequest
 {
-    public PatientProfileUpdateRequest()
+    public PatientProfileRequest()
     {
         this.FirstName = string.Empty;
         this.LastName = string.Empty;
         this.MiddleName = string.Empty;
+        this.MedicalRecordNumber = string.Empty;
         this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Gender = string.Empty;
-        this.DateOfBirth = DateTime.MinValue;
-        this.ActiveStatus = true;
     }
 
+    [Required]
     public string FirstName { get; set; }
     public string MiddleName { get; set; }
+    [Required]
     public string LastName { get; set; }
+    public string MedicalRecordNumber { get; set; }
+    [Required]
     public DateTime DateOfBirth { get; set; }
+    [Required]
     public string Email { get; set; }
+    [Required]
     public string PhoneNumber { get; set; }
+    [Required]
     public string Gender { get; set; }
-    public bool ActiveStatus { get; set; }
-
-    public override string ToString()
-    {
-        return $"FN: {this.FirstName} MN: {this.MiddleName} LN: {this.LastName} e: {this.Email} p: {this.PhoneNumber} DoB: {this.DateOfBirth.ToShortDateString()} Gender: {this.Gender} Active: {this.ActiveStatus}";
-    }
-
 }

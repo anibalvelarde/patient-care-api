@@ -1,8 +1,6 @@
-using Neurocorp.Api.Core.BusinessObjects;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 
-namespace Neurocorp.Api.Core.Interfaces;
+namespace Neurocorp.Api.Core.Interfaces.Services;
 
 public interface IPatientProfileService : IService<PatientProfile>
 {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Neurocorp.Api.Core.BusinessObjects;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
+using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
 
 namespace Neurocorp.Api.Web.Controllers;

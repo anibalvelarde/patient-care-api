@@ -1,7 +1,7 @@
-using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using Moq;
 using Neurocorp.Api.Core.Services;
-using Neurocorp.Api.Core.BusinessObjects;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 
 namespace Core.Tests;
 

@@ -1,6 +1,6 @@
-using Neurocorp.Api.Core.BusinessObjects;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 
-namespace Neurocorp.Api.Core.Interfaces;
+namespace Neurocorp.Api.Core.Interfaces.Repositories;
 
 public interface IPatientProfileRepository : IRepository<PatientProfile>
 {
