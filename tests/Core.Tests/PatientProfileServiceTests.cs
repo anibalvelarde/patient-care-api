@@ -76,4 +76,22 @@ public class PatientProfileServiceTests
             svc.CreateAsync(new PatientProfile()));
     }
 
+    [Fact]
+    public async Task GetListOfProfilesAsync_Throws()
+    {
+        // Arrange
+        var fakePatientRepo = Mock.Of<IPatientRepository>();
+        var fakeUserRepo = Mock.Of<IUserRepository>();
+        var _mockRepository = new Mock<IPatientProfileRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetAllAsync())
+            .ReturnsAsync([]);
+        var svc = new PatientProfileService(_mockRepository.Object, fakePatientRepo, fakeUserRepo);
+
+        // Act
+        var result = await svc.GetAllAsync();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.IsAssignableFrom<IEnumerable<PatientProfile>>(result);
+    }
 }
