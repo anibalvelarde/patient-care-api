@@ -1,12 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
-using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace Neurocorp.Api.Infrastructure.Configurations;
 
@@ -41,6 +38,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IPatientProfileRepository, PatientProfileRepository>();
+        services.AddScoped<ITherapistProfileRepository, TherapistProfileRepository>();
         services.AddScoped<ICaretakerRepository, CaretakerRepository>();
         services.AddScoped<ITherapistRepository, TherapistRepository>();
         services.AddScoped<ITherapySessionRepository, TherapySessionRepository>();
