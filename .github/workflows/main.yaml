@@ -2,7 +2,7 @@ name: Build and Publish Patient Care API Docker Image
 
 on:
   push:
-    branches: [ main, features/aev/add-github-actions-capability ]
+    branches: [ main ]
 
 jobs:
   build-and-publish:
