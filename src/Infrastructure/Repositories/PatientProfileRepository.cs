@@ -30,7 +30,6 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         .Include(p => p.User)
         .Select(p => ExtractPatientProfile(p))
         .ToListAsync();
-
         return result.FirstOrDefault();
     }
 
