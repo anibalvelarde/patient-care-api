@@ -15,6 +15,14 @@ public class Therapist
     public decimal FeePctPerSession { get; set; }
 //    public IEnumerable<string> Specialties { get; set; }
     public User? User { get; set; }
+
+    public UserRole MintNewRole()
+    {
+        return new UserRole() {
+            UserId = this.UserId,
+            RoleId = 1 // as defined in table UserRole for Therapists
+        };
+    }
 }
 
 public class UndefinedTherapist : Therapist

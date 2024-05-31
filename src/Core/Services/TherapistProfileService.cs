@@ -4,20 +4,25 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Neurocorp.Api.Core.Services;
 
 public class TherapistProfileService : ITherapistProfileService
 {
+    private readonly ILogger<TherapistProfileService> _logger;
     private readonly ITherapistProfileRepository _repository;
     private readonly ITherapistRepository _therapistRepo;
     private readonly IUserRepository _userRepo;
+    private readonly IUserRoleRepository _userRoleRepo;
 
-    public TherapistProfileService(ITherapistProfileRepository profileRepository, ITherapistRepository therapistRepository, IUserRepository userRepo)
+    public TherapistProfileService(ILogger<TherapistProfileService> logger, ITherapistProfileRepository profileRepository, ITherapistRepository therapistRepository, IUserRepository userRepo, IUserRoleRepository userRoleRepo)
     {
+        _logger = logger;
         _repository = profileRepository;
         _therapistRepo = therapistRepository;
         _userRepo = userRepo;
+        _userRoleRepo = userRoleRepo;
     }
 
     public async Task<IEnumerable<TherapistProfile>> GetAllAsync()
@@ -42,8 +47,11 @@ public class TherapistProfileService : ITherapistProfileService
 
     public async Task<TherapistProfile> CreateAsync(TherapistProfileRequest therapistRequest)
     {
+        _logger.LogInformation("Started a new Therapist Profile request.");
         var newUser = await _userRepo.AddAsync(MapToNewUser(therapistRequest));
         var newTherapist = await _therapistRepo.AddAsync(MapToNewTherapist(therapistRequest, newUser));
+        var newRole = await _userRoleRepo.AddAsync(newTherapist.MintNewRole());
+        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.UserId}], Tid[{newTherapist.TherapistId}], Role[{newRole.UserRoleId}]");
         return new TherapistProfile
         {
             TherapistId = newTherapist.TherapistId,

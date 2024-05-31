@@ -27,6 +27,7 @@ public class Patient
         .Append("Mrn: ").Append(this.MedicalRecordNumber);
         return sb.ToString();
     }
+    
     public UserRole MintNewRole()
     {
         return new UserRole() {

@@ -18,11 +18,11 @@ public class PatientProfileService : IPatientProfileService
     private readonly ILogger<PatientProfileService> _logger;
 
     public PatientProfileService(
+        ILogger<PatientProfileService> logger,
         IPatientProfileRepository patientProfileRepository,
         IPatientRepository patientRepository,
         IUserRepository userRepo,
-        IUserRoleRepository userRoleRepo,
-        ILogger<PatientProfileService> logger)
+        IUserRoleRepository userRoleRepo)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
