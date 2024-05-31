@@ -2,8 +2,6 @@ using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces.Repositories;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace Neurocorp.Api.Core.Services;
