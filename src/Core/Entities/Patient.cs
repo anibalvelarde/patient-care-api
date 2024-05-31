@@ -27,6 +27,13 @@ public class Patient
         .Append("Mrn: ").Append(this.MedicalRecordNumber);
         return sb.ToString();
     }
+    public UserRole MintNewRole()
+    {
+        return new UserRole() {
+            UserId = this.UserId,
+            RoleId = 2 // as defined in table UserRole for Patients
+        };
+    }
 }
 
 public class UndefinedPatient : Patient

@@ -1,7 +1,9 @@
+using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces.Repositories;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -12,38 +14,54 @@ public class PatientProfileService : IPatientProfileService
     private readonly IPatientProfileRepository _repository;
     private readonly IPatientRepository _patientRepo;
     private readonly IUserRepository _userRepo;
+    private readonly IUserRoleRepository _userRoleRepo;
+    private readonly ILogger<PatientProfileService> _logger;
 
-    public PatientProfileService(IPatientProfileRepository patientProfileRepository, IPatientRepository patientRepository, IUserRepository userRepo)
+    public PatientProfileService(
+        IPatientProfileRepository patientProfileRepository,
+        IPatientRepository patientRepository,
+        IUserRepository userRepo,
+        IUserRoleRepository userRoleRepo,
+        ILogger<PatientProfileService> logger)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
         _userRepo = userRepo;
+        _userRoleRepo = userRoleRepo;
+        _logger = logger;
     }
 
     public async Task<IEnumerable<PatientProfile>> GetAllAsync()
     {
+        _logger.LogInformation("Getting all patient profiles.");
         return await _repository.GetAllAsync();
     }
 
     public async Task<PatientProfile?> GetByIdAsync(int id)
     {
+        _logger.LogInformation("Getting patient profile by ID: {Id}", id);
         return await _repository.GetByIdAsync(id);
     }
 
     public async Task<PatientProfile> CreateAsync(PatientProfile patient)
     {
+        _logger.LogInformation("Creating new patient profile.");
         return await Task.FromException<PatientProfile>(new NotImplementedException());
     }
 
     public async Task UpdateAsync(PatientProfile patient)
     {
+        _logger.LogInformation("Updating patient profile.");
         await Task.FromException<PatientProfile>(new NotImplementedException());
     }
 
     public async Task<PatientProfile> CreateAsync(PatientProfileRequest patientRequest)
     {
+        _logger.LogInformation("Creating new patient profile from request.");
         var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest));
         var newPatient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, newUser));
+        var newRole = await _userRoleRepo.AddAsync(newPatient.MintNewRole());
+        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.UserId}], Pid[{newPatient.PatientId}], Role[{newRole.UserRoleId}]");
         return new PatientProfile
         {
             PatientId = newPatient.PatientId,
@@ -59,9 +77,9 @@ public class PatientProfileService : IPatientProfileService
 
     public async Task<bool> UpdateAsync(int patientAggId, PatientProfileUpdateRequest updateRequest)
     {
+        _logger.LogInformation("Updating patient profile with ID: {Id}", patientAggId);
         ArgumentNullException.ThrowIfNull(updateRequest);
 
-        // ensure the Patient Profile exists...
         var profileOnFile = await this.GetByIdAsync(patientAggId);
         if (profileOnFile != null)
         {
@@ -73,6 +91,7 @@ public class PatientProfileService : IPatientProfileService
 
     public async Task DeleteAsync(int id)
     {
+        _logger.LogInformation("Deleting patient profile with ID: {Id}", id);
         var profile = await _repository.GetByIdAsync(id);
         if (profile != null)
         {
@@ -85,7 +104,10 @@ public class PatientProfileService : IPatientProfileService
         var profile = await this.GetByIdAsync(patientAggId);
         if (profile != null)
         {
-            return profile.PatientId.Equals(patientAggId);
+            var verificationResult = profile.PatientId.Equals(patientAggId);
+            var passOrFailed = verificationResult ? "PASS" : "FAIL";
+            _logger.LogInformation($"Request for patient profile ID: {patientAggId}  Result: {passOrFailed}");
+            return verificationResult;
         }
         return false;
     }
