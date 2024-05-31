@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Reflection;
 using Neurocorp.Api.Web.Middleware.HealthChecks;
 
 namespace Neurocorp.Api.Web.Controllers;
@@ -70,8 +71,15 @@ public class HealthController : ControllerBase
             Status = entry.Value.Status.ToString(),
             Description = entry.Value.Description,
             Data = entry.Value.Data
-        });
+        }).ToList();
 
-        return Ok(healthStatuses);
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+        var result = new
+        {
+            Version = version,
+            Statuses = healthStatuses
+        };
+
+        return Ok(result);
     }    
 }

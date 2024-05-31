@@ -28,7 +28,7 @@ jobs:
 
     - name: Extract version from Web.csproj
       id: get_version
-      run: echo "::set-output name=version::$(grep -oPm1 "(?<=<Version>)[^<]+" ./src/Web/Web.csproj)"
+      run: echo "version=$(grep -oPm1 '(?<=<Version>)[^<]+' ./src/Web/Web.csproj)" >> $GITHUB_ENV
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -55,6 +55,6 @@ jobs:
         push: true
         tags: |
           anibalvelarde/patient-care-api:latest
-          anibalvelarde/patient-care-api:${{ steps.get_version.outputs.version }}
+          anibalvelarde/patient-care-api:${{ env.version }}
         build-args: |
-          BUILD_VERSION=${{ steps.get_version.outputs.version }}
+          BUILD_VERSION=${{ env.version }}
