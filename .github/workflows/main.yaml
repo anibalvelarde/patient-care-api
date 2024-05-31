@@ -26,6 +26,10 @@ jobs:
       run: |
         dotnet test ./patient-care-api.sln --no-build
 
+    - name: Extract version from Web.csproj
+      id: get_version
+      run: echo "::set-output name=version::$(grep -oPm1 "(?<=<Version>)[^<]+" ./src/Web/Web.csproj)"
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
 
@@ -49,4 +53,8 @@ jobs:
         context: .
         file: ./build/Dockerfile
         push: true
-        tags: anibalvelarde/patient-care-api:latest
+        tags: |
+          anibalvelarde/patient-care-api:latest
+          anibalvelarde/patient-care-api:${{ steps.get_version.outputs.version }}
+        build-args: |
+          BUILD_VERSION=${{ steps.get_version.outputs.version }}
