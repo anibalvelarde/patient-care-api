@@ -24,6 +24,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Caretaker>().ToTable("Caretaker");
         modelBuilder.Entity<Therapist>().ToTable("Therapist");
         modelBuilder.Entity<TherapySession>().ToTable("TherapySession");
+        modelBuilder.Entity<UserRole>()
+            .ToTable("UserRole")
+            .Ignore(ur => ur.RoleCreatedOn);
 
         // Configure PK for Entities
         modelBuilder.Entity<User>()
