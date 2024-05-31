@@ -19,7 +19,7 @@ public class PatientProfileServiceTests
         var fakeLogger = Mock.Of<ILogger<PatientProfileService>>(); 
 
         // act
-        var svc = new PatientProfileService(fakeRepo, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo, fakeLogger);
+        var svc = new PatientProfileService(fakeLogger, fakeRepo, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo);
 
         // assert
         Assert.IsType<PatientProfileService>(svc);
@@ -37,7 +37,7 @@ public class PatientProfileServiceTests
         var expectedPatient = new PatientProfile { PatientId = testId, PatientName = "John Doe" };
         var _mockRepository = new Mock<IPatientProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(expectedPatient);
-        var svc = new PatientProfileService(_mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo, fakeLogger);
+        var svc = new PatientProfileService(fakeLogger, _mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -60,7 +60,7 @@ public class PatientProfileServiceTests
         var expectedPatient = new PatientProfile { PatientId = testId, PatientName = "John Doe" };
         var _mockRepository = new Mock<IPatientProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync((PatientProfile?)null);
-        var svc = new PatientProfileService(_mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo, fakeLogger);
+        var svc = new PatientProfileService(fakeLogger, _mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -79,7 +79,7 @@ public class PatientProfileServiceTests
         var fakeUserRoleRepo = Mock.Of<IUserRoleRepository>();
         var fakeLogger = Mock.Of<ILogger<PatientProfileService>>(); 
 
-        var svc = new PatientProfileService(fakeRepo, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo, fakeLogger);
+        var svc = new PatientProfileService(fakeLogger, fakeRepo, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo);
 
         // Act & Assert
         await Assert.ThrowsAsync<NotImplementedException>(() => 
@@ -98,7 +98,7 @@ public class PatientProfileServiceTests
         var _mockRepository = new Mock<IPatientProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetAllAsync())
             .ReturnsAsync([]);
-        var svc = new PatientProfileService(_mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo, fakeLogger);
+        var svc = new PatientProfileService(fakeLogger, _mockRepository.Object, fakePatientRepo, fakeUserRepo, fakeUserRoleRepo);
 
         // Act
         var result = await svc.GetAllAsync();
