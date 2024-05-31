@@ -7,6 +7,8 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    env:
+      build_number: ${{ github.run_number }}-${{ github.run_attempt }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -26,9 +28,9 @@ jobs:
       run: |
         dotnet test ./patient-care-api.sln --no-build
 
-    - name: Extract version from Web.csproj
-      id: get_version
-      run: echo "version=$(grep -oPm1 '(?<=<Version>)[^<]+' ./src/Web/Web.csproj)" >> $GITHUB_ENV
+    - name: Generate build number
+      id: build_number
+      run: echo "build_number=$(env.build_number)"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v1
@@ -55,6 +57,6 @@ jobs:
         push: true
         tags: |
           anibalvelarde/patient-care-api:latest
-          anibalvelarde/patient-care-api:${{ env.version }}
+          anibalvelarde/patient-care-api:${{ env.build_number }}
         build-args: |
-          BUILD_VERSION=${{ env.version }}
+          BUILD_VERSION=${{ env.build_number }}
