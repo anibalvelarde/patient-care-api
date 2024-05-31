@@ -29,7 +29,8 @@ RUN dotnet test "patient-care-api.sln" -c Release --no-restore
 
 # Publish the Web API
 WORKDIR /app/src/Web
-RUN dotnet publish "Web.csproj" -c Release -o /app/publish --no-restore
+ARG BUILD_VERSION
+RUN dotnet publish "Web.csproj" -c Release -o /app/publish --no-restore /p:Version=$BUILD_VERSION
 
 # Use the official ASP.NET Core runtime image for the runtime environment
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
