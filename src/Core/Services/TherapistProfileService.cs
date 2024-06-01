@@ -49,11 +49,11 @@ public class TherapistProfileService : ITherapistProfileService
         var newUser = await _userRepo.AddAsync(MapToNewUser(therapistRequest));
         var newTherapist = await _therapistRepo.AddAsync(MapToNewTherapist(therapistRequest, newUser));
         var newRole = await _userRoleRepo.AddAsync(newTherapist.MintNewRole());
-        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.UserId}], Tid[{newTherapist.TherapistId}], Role[{newRole.UserRoleId}]");
+        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Tid[{newTherapist.TherapistId}], Role[{newRole.UserRoleId}]");
         return new TherapistProfile
         {
             TherapistId = newTherapist.TherapistId,
-            UserId = newUser.UserId,
+            UserId = newUser.Id,
             TherapistName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
             Email = newUser.Email,
             PhoneNumber = newUser.PhoneNumber,
@@ -100,7 +100,7 @@ public class TherapistProfileService : ITherapistProfileService
     {
         return new Therapist
         {
-            UserId = user.UserId,
+            UserId = user.Id,
             FeePerSession = therapistRequest.FeePerSession,
             FeePctPerSession = therapistRequest.FeePctPerSession
         };
