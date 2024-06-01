@@ -15,6 +15,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ITherapySessionService, TherapySessionService>();
         services.AddScoped<IPatientProfileService, PatientProfileService>();
         services.AddScoped<ITherapistProfileService, TherapistProfileService>();
+        services.AddScoped<ICaretakerProfileService, CaretakerProfileService>();
         return services;
     }
 }
