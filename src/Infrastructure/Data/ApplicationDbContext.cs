@@ -76,7 +76,7 @@ public class ApplicationDbContext : DbContext
             u.Property(e => e.Id).HasColumnName("UserID");
         });
         modelBuilder.Entity<Caretaker>(ct => {
-            ct.ToTable("CareTaker");
+            ct.ToTable("Caretaker");
             ct.HasKey(e => e.Id);
             ct.Property(e => e.Id).HasColumnName("CareTakerID");
         });
