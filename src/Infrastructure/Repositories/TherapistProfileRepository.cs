@@ -89,7 +89,7 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         return new TherapistProfile
         {
             TherapistId = t.TherapistId,
-            UserId = t.User.UserId,
+            UserId = t.User.Id,
             TherapistName = $"{t.User.LastName}, {t.User.FirstName} {t.User.MiddleName}".Trim(),
             Email = t.User.Email,
             PhoneNumber = t.User.PhoneNumber,

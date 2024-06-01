@@ -61,11 +61,11 @@ public class PatientProfileService : IPatientProfileService
         var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest));
         var newPatient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, newUser));
         var newRole = await _userRoleRepo.AddAsync(newPatient.MintNewRole());
-        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.UserId}], Pid[{newPatient.PatientId}], Role[{newRole.UserRoleId}]");
+        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Pid[{newPatient.Id}], Role[{newRole.UserRoleId}]");
         return new PatientProfile
         {
-            PatientId = newPatient.PatientId,
-            UserId = newUser.UserId,
+            PatientId = newPatient.Id,
+            UserId = newUser.Id,
             PatientName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
             DateOfBirth = newPatient.DateOfBirth ?? DateTime.MinValue,
             Email = newUser.Email,
@@ -116,7 +116,7 @@ public class PatientProfileService : IPatientProfileService
     {
         return new Patient
         {
-            UserId = user.UserId,
+            User = user,
             DateOfBirth = patientRequest.DateOfBirth,
             Gender = patientRequest.Gender,
             MedicalRecordNumber = patientRequest.MedicalRecordNumber

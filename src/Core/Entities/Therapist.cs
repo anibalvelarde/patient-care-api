@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace Neurocorp.Api.Core.Entities;
 
-public class Therapist
+public class Therapist : PersonBase
 {
     public Therapist()
     {
@@ -14,7 +14,6 @@ public class Therapist
     public decimal FeePerSession { get; set; }
     public decimal FeePctPerSession { get; set; }
 //    public IEnumerable<string> Specialties { get; set; }
-    public User? User { get; set; }
 
     public UserRole MintNewRole()
     {

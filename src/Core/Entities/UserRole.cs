@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Neurocorp.Api.Core.Entities;
 
-public class UserRole
+public class UserRole : AuditableEntityBase
 {
     public UserRole()
     {

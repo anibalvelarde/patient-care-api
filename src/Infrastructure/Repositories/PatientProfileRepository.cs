@@ -26,7 +26,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
     public override async Task<PatientProfile?> GetByIdAsync(int id)
     {
         var result = await _dbContext.Patients
-        .Where(p => p.PatientId == id)
+        .Where(p => p.Id == id)
         .Include(p => p.User)
         .Select(p => ExtractPatientProfile(p))
         .ToListAsync();
@@ -48,7 +48,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         // fetch the entities & ensure they are valid...
         var patient = await _dbContext.Patients
             .Include(p => p.User)
-            .FirstAsync(p => p.PatientId == patientId);
+            .FirstAsync(p => p.Id == patientId);
 
         // update entity props & save changes.
         patient = MapToUpdatedPatient(updateRequest, patient);
@@ -92,8 +92,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
 
         return new PatientProfile
         {
-            PatientId = p.PatientId,
-            UserId = p.User.UserId,
+            PatientId = p.Id,
+            UserId = p.User.Id,
             PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
             MedicalRecordNumber = p.MedicalRecordNumber,
             Gender = p.Gender,
