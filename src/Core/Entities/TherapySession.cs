@@ -14,7 +14,10 @@ public class TherapySession
     public int TherapistId { get; set; }
     public DateTime SessionDate { get; set; }
     public decimal Duration { get; set; }
+    public decimal Amount { get; set; }
     public decimal DiscountAmount { get; set; }
+    public decimal ProviderAmount { get; set; }
+    public decimal GrossProfit  { get; set; }
     public string Notes { get; set; }
 }
 
