@@ -7,7 +7,7 @@ public class Caretaker : PersonBase
         this.Patients = [];
         this.Notes = string.Empty;
     }
-    public string Notes { get; set; }
+    public string? Notes { get; set; }
     public ICollection<PatientCaretaker> Patients { get; set; }
 
     public UserRole MintNewRole()

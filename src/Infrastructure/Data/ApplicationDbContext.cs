@@ -79,6 +79,7 @@ public class ApplicationDbContext : DbContext
             ct.ToTable("Caretaker");
             ct.HasKey(e => e.Id);
             ct.Property(e => e.Id).HasColumnName("CareTakerID");
+            ct.Property(e => e.Notes).IsRequired(false);
         });
         modelBuilder.Entity<Therapist>(t => {
             t.ToTable("Therapist");
