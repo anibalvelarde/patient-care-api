@@ -19,32 +19,32 @@ public class TherapistsController : ControllerBase
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<TherapistProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetAllPatients()
+    public async Task<IActionResult> GetAllTherapists()
     {
-        var patients = await _therapistProfileService.GetAllAsync();
-        return Ok(patients);
+        var Therapists = await _therapistProfileService.GetAllAsync();
+        return Ok(Therapists);
     }
 
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetPatient(int id)
+    public async Task<IActionResult> GetTherapist(int id)
     {
-        var patient = await _therapistProfileService.GetByIdAsync(id);
-        if (patient == null) return NotFound();
-        return Ok(patient);
+        var Therapist = await _therapistProfileService.GetByIdAsync(id);
+        if (Therapist == null) return NotFound();
+        return Ok(Therapist);
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreatePatient([FromBody] TherapistProfileRequest therapistRequest)
+    public async Task<IActionResult> CreateTherapist([FromBody] TherapistProfileRequest therapistRequest)
     {
         var createdTherapist = await _therapistProfileService.CreateAsync(therapistRequest);
-        return CreatedAtAction(nameof(GetPatient), new { id = createdTherapist.TherapistId }, createdTherapist);
+        return CreatedAtAction(nameof(GetTherapist), new { id = createdTherapist.TherapistId }, createdTherapist);
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePatient(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)
+    public async Task<IActionResult> UpdateTherapist(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)
     {
         if (await _therapistProfileService.VerifyRequestAsync(id, therapistRequest))
         {

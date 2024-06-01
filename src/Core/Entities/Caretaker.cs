@@ -4,11 +4,17 @@ public class Caretaker : PersonBase
 {
     public Caretaker()
     {
-        this.Relationship = "";
-        this.PatientCaretakers = [];
+        this.Patients = [];
         this.Notes = string.Empty;
     }
-    public string Notes { get; set; }
-    public string Relationship { get; set; }
-    public ICollection<PatientCaretaker> PatientCaretakers { get; set; }
+    public string? Notes { get; set; }
+    public ICollection<PatientCaretaker> Patients { get; set; }
+
+    public UserRole MintNewRole()
+    {
+        return new UserRole() {
+            UserId = this.User!.Id,
+            RoleId = 4 // as defined in table UserRole for Caretakers
+        };
+    }    
 }

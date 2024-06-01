@@ -28,7 +28,7 @@ public static class NeurocorpConfigurationExtensions
             .Replace("{{DB_USER}}", dbUser)
             .Replace("{{MYSQL_PASSWORD}}", dbPassword);
 
-        // Register ApplicationDbContext with MySQL
+        // Register ApplicationDbContext with MySQL|
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseMySql(cn!.ToString(), new MySqlServerVersion(new Version(8, 0, 25))));
         services.AddHealthChecks()
@@ -38,6 +38,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IPatientProfileRepository, PatientProfileRepository>();
+        services.AddScoped<ICaretakerProfileRepository, CaretakerProfileRepository>();
         services.AddScoped<ITherapistProfileRepository, TherapistProfileRepository>();
         services.AddScoped<ICaretakerRepository, CaretakerRepository>();
         services.AddScoped<ITherapistRepository, TherapistRepository>();
