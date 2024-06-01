@@ -13,6 +13,7 @@ public class Patient : PersonBase
     public DateTime? DateOfBirth { get; set; }
     public string Gender { get; set; }
     public string MedicalRecordNumber { get; set; }
+    public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public override string ToString()
     {

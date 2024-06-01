@@ -96,6 +96,27 @@ public class ApplicationDbContext : DbContext
             ur.Property(e => e.Id).HasColumnName("UserRoleID");
             ur.Ignore(e => e.RoleCreatedOn);
         });
+        modelBuilder.Entity<PatientCaretaker>(entity =>
+        {
+            entity.ToTable("PatientCareTakers");
+            entity.HasKey(pc => new { pc.PatientId, pc.CaretakerId });
+
+            entity.HasOne(pc => pc.Patient)
+                .WithMany(p => p.Caretakers)
+                .HasForeignKey(pc => pc.PatientId);
+
+            entity.HasOne(pc => pc.Caretaker)
+                .WithMany(c => c.Patients)
+                .HasForeignKey(pc => pc.CaretakerId);
+
+            entity.Property(pc => pc.PrimaryCaretaker)
+                .IsRequired();
+
+            // Unique constraint to ensure only one primary care-taker per patient
+            entity.HasIndex(pc => new { pc.PatientId, pc.PrimaryCaretaker })
+                .IsUnique()
+                .HasFilter("[PrimaryCareTaker] = 1");
+        });
     }
 
     private int GetCurrentUserId()
