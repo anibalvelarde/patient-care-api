@@ -74,7 +74,7 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(therapistRequest.LastName)) { userOnFile.LastName = therapistRequest.LastName; }
         if (!string.IsNullOrEmpty(therapistRequest.Email)) { userOnFile.Email = therapistRequest.Email; }
         if (!string.IsNullOrEmpty(therapistRequest.PhoneNumber)) { userOnFile.PhoneNumber = therapistRequest.PhoneNumber; }
-        if (userOnFile.ActiveStatus != therapistRequest.ActiveStatus) { userOnFile.ActiveStatus = therapistRequest.ActiveStatus; }
+        if (!userOnFile.ActiveStatus && userOnFile.ActiveStatus != therapistRequest.ActiveStatus) { userOnFile.ActiveStatus = therapistRequest.ActiveStatus; }
 
         return userOnFile;
     }
@@ -90,11 +90,11 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         {
             TherapistId = t.TherapistId,
             UserId = t.User.Id,
+            IsActive = t.User.ActiveStatus,
             TherapistName = $"{t.User.LastName}, {t.User.FirstName} {t.User.MiddleName}".Trim(),
             Email = t.User.Email,
             PhoneNumber = t.User.PhoneNumber,
             CreatedTimestamp = t.User.CreatedTimestamp,
-            IsActive = t.User.ActiveStatus,
             FeePerSession = t.FeePerSession,
             FeePctPerSession = t.FeePctPerSession
         };
