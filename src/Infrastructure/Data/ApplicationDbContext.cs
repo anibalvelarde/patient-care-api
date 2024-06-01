@@ -76,9 +76,10 @@ public class ApplicationDbContext : DbContext
             u.Property(e => e.Id).HasColumnName("UserID");
         });
         modelBuilder.Entity<Caretaker>(ct => {
-            ct.ToTable("CareTaker");
+            ct.ToTable("Caretaker");
             ct.HasKey(e => e.Id);
             ct.Property(e => e.Id).HasColumnName("CareTakerID");
+            ct.Property(e => e.Notes).IsRequired(false);
         });
         modelBuilder.Entity<Therapist>(t => {
             t.ToTable("Therapist");
@@ -95,6 +96,27 @@ public class ApplicationDbContext : DbContext
             ur.HasKey(e => e.Id);
             ur.Property(e => e.Id).HasColumnName("UserRoleID");
             ur.Ignore(e => e.RoleCreatedOn);
+        });
+        modelBuilder.Entity<PatientCaretaker>(entity =>
+        {
+            entity.ToTable("PatientCareTakers");
+            entity.HasKey(pc => new { pc.PatientId, pc.CaretakerId });
+
+            entity.HasOne(pc => pc.Patient)
+                .WithMany(p => p.Caretakers)
+                .HasForeignKey(pc => pc.PatientId);
+
+            entity.HasOne(pc => pc.Caretaker)
+                .WithMany(c => c.Patients)
+                .HasForeignKey(pc => pc.CaretakerId);
+
+            entity.Property(pc => pc.PrimaryCaretaker)
+                .IsRequired();
+
+            // Unique constraint to ensure only one primary care-taker per patient
+            entity.HasIndex(pc => new { pc.PatientId, pc.PrimaryCaretaker })
+                .IsUnique()
+                .HasFilter("[PrimaryCareTaker] = 1");
         });
     }
 

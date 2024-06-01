@@ -45,13 +45,13 @@ public class PatientProfileService : IPatientProfileService
 
     public async Task<PatientProfile> CreateAsync(PatientProfile patient)
     {
-        _logger.LogInformation("Creating new patient profile.");
+        _logger.LogError("Operation Not Allowed: Creating new patient profile.");
         return await Task.FromException<PatientProfile>(new NotImplementedException());
     }
 
     public async Task UpdateAsync(PatientProfile patient)
     {
-        _logger.LogInformation("Updating patient profile.");
+        _logger.LogError("Updating patient profile.");
         await Task.FromException<PatientProfile>(new NotImplementedException());
     }
 

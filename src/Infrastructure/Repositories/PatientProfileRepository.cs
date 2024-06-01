@@ -94,6 +94,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         {
             PatientId = p.Id,
             UserId = p.User.Id,
+            IsActive = p.User.ActiveStatus,
             PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
             MedicalRecordNumber = p.MedicalRecordNumber,
             Gender = p.Gender,
@@ -101,7 +102,6 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             Email = p.User.Email,
             PhoneNumber = p.User.PhoneNumber,
             CreatedTimestamp = p.User.CreatedTimestamp,
-            IsActive = p.User.ActiveStatus
         };
     }
 }
