@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Neurocorp.Api.Core.Entities;
 
@@ -34,7 +35,7 @@ public class TherapySession : AuditableEntityBase
 
     public bool GetPastDue()
     {
-        return (Amount > AmountPaid) && IsPastDeadline();
+        return (AmountDue() > 0) && IsPastDeadline();
     }
 
     private bool IsPastDeadline()
