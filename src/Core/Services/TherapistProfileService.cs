@@ -86,12 +86,12 @@ public class TherapistProfileService : ITherapistProfileService
         }
     }
 
-    public async Task<bool> VerifyRequestAsync(int therapistAggId, TherapistProfileUpdateRequest request)
+    public async Task<bool> VerifyRequestAsync(int therapistAggId)
     {
         var profile = await this.GetByIdAsync(therapistAggId);
         if (profile != null)
         {
-            return profile.TherapistId.Equals(therapistAggId);
+            return true;
         }
         return false;
     }

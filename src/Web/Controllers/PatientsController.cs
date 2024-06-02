@@ -46,7 +46,7 @@ public class PatientsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
-        if (await _patientProfileService.VerifyRequestAsync(id, patientRequest))
+        if (await _patientProfileService.VerifyRequestAsync(id))
         {
             var updateResult = await _patientProfileService.UpdateAsync(id, patientRequest);
             if (updateResult)

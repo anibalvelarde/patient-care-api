@@ -47,6 +47,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ISessionPaymentRepository, SessionPaymentRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+        services.AddScoped<ISessionEventRepository, SessionEventRepository>();
         return services;
     }
 }

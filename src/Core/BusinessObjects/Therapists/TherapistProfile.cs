@@ -18,4 +18,13 @@ public class TherapistProfile
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp    { get; set; }
     public bool IsActive { get; set; }
+
+    internal decimal CalculateFee(decimal amount)
+    {
+        if (FeePctPerSession.Equals(0))
+        {            
+            return FeePerSession;  // flat fee!
+        }
+        return amount * FeePctPerSession;  // % of business!
+    }
 }
