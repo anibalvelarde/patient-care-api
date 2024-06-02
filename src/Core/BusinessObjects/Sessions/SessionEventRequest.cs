@@ -11,7 +11,7 @@ public class SessionEventRequest
     public int PatientId { get; set; }
     public int TherapistId { get; set; }
     public string TherapyType { get; set; } = "N/A";
-    public int Duration { get; set; }
+    public int Duration { get; set; } = 60;
     public decimal Amount { get; set; }
     public decimal Discount { get; set; }
     public decimal ProviderAmount { get; set; }

@@ -21,4 +21,6 @@ public class SessionEvent
     public bool IsPastDue { get; set; }
     public bool IsPaidOff { get; set; }
     public string Notes { get; set; }
+    public int PatientId { get; set; }
+    public int TherapistId { get; set;}
 }

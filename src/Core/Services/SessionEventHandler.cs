@@ -99,6 +99,8 @@ public class SessionEventHandler : IHandleSessionEvent
 
     private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req)
     {
+        var calcProviderAmt = tProfile.CalculateFee(req.Amount);
+        var calcGrossProfit = CalculateGrossProfit(tProfile, req);
         return new TherapySession()
         {
             PatientId = pProfile.PatientId,
@@ -107,8 +109,8 @@ public class SessionEventHandler : IHandleSessionEvent
             Duration = req.Duration,
             Amount = req.Amount,
             DiscountAmount = req.Discount,
-            ProviderAmount = tProfile.CalculateFee(req.Amount),
-            GrossProfit = CalculateGrossProfit(tProfile, req),
+            ProviderAmount = calcProviderAmt,
+            GrossProfit = calcGrossProfit,
             Notes = req.Notes
         };
     }

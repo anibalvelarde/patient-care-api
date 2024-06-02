@@ -98,6 +98,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return new SessionEvent
         {
             SessionId = ts.Id,
+            PatientId = ts.PatientId,
+            TherapistId = ts.TherapistId,
             SessionDate = DateOnly.FromDateTime(ts.SessionDate),
             Patient = ts.Patient!.User!.GetFullName(),
             Therapist = ts.Therapist!.User!.GetFullName(),
