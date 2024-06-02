@@ -46,7 +46,7 @@ public class TherapistsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateTherapist(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)
     {
-        if (await _therapistProfileService.VerifyRequestAsync(id, therapistRequest))
+        if (await _therapistProfileService.VerifyRequestAsync(id))
         {
             var updateResult = await _therapistProfileService.UpdateAsync(id, therapistRequest);
             if (updateResult)

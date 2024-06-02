@@ -22,6 +22,11 @@ public class User : PersonBase
     public string PhoneNumber { get; set; }
     public bool ActiveStatus { get; set; }
 
+    public string GetFullName()
+    {
+        return $"{LastName}, {FirstName} {MiddleName}";
+    }
+    
     public override string ToString()
     {
         return $"ID: {this.Id} FN: {this.FirstName} MN: {this.MiddleName} LN: {this.LastName} e: {this.Email} p: {this.PhoneNumber} cr: {this.CreatedTimestamp.ToShortDateString()} Active: {this.ActiveStatus}";

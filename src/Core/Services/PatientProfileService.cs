@@ -99,15 +99,12 @@ public class PatientProfileService : IPatientProfileService
         }
     }
 
-    public async Task<bool> VerifyRequestAsync(int patientAggId, PatientProfileUpdateRequest request)
+    public async Task<bool> VerifyRequestAsync(int patientAggId)
     {
         var profile = await this.GetByIdAsync(patientAggId);
         if (profile != null)
         {
-            var verificationResult = profile.PatientId.Equals(patientAggId);
-            var passOrFailed = verificationResult ? "PASS" : "FAIL";
-            _logger.LogInformation($"Request for patient profile ID: {patientAggId}  Result: {passOrFailed}");
-            return verificationResult;
+            return true;
         }
         return false;
     }

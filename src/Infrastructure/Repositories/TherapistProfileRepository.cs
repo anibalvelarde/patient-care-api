@@ -3,8 +3,6 @@ using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-using Neurocorp.Api.Core.BusinessObjects;
-using System.Linq;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
@@ -18,7 +16,8 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Therapists
             .Where(t => t.User != null)
             .Include(t => t.User)
-            .Select(t => ExtractTherapistProfile(t)).ToListAsync();
+            .Select(t => ExtractTherapistProfile(t))
+            .ToListAsync();
         return result;
     }
 
@@ -81,15 +80,12 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
 
     private static TherapistProfile ExtractTherapistProfile(Therapist t)
     {
-        if (t.User == null)
-        {
-            throw new ArgumentException(nameof(t.User) + " must not be null");
-        }
+        ArgumentNullException.ThrowIfNull(t, nameof(t.User) + " must not be null");
 
         return new TherapistProfile
         {
             TherapistId = t.TherapistId,
-            UserId = t.User.Id,
+            UserId = t.User!.Id,
             IsActive = t.User.ActiveStatus,
             TherapistName = $"{t.User.LastName}, {t.User.FirstName} {t.User.MiddleName}".Trim(),
             Email = t.User.Email,

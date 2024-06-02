@@ -78,7 +78,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(patientRequest.LastName)) { userOnFile.LastName = patientRequest.LastName; }
         if (!string.IsNullOrEmpty(patientRequest.Email)) { userOnFile.Email = patientRequest.Email; }
         if (!string.IsNullOrEmpty(patientRequest.PhoneNumber)) { userOnFile.PhoneNumber = patientRequest.PhoneNumber; }
-        if (userOnFile.ActiveStatus != patientRequest.ActiveStatus) { userOnFile.ActiveStatus = patientRequest.ActiveStatus; }
+        if (!userOnFile.ActiveStatus && userOnFile.ActiveStatus != patientRequest.ActiveStatus) { userOnFile.ActiveStatus = patientRequest.ActiveStatus; }
 
         return userOnFile;
     }
