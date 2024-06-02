@@ -5,7 +5,7 @@ using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Entities;
-using System;
+using System.Diagnostics;
 
 namespace Neurocorp.Api.Core.Services;
 
@@ -31,9 +31,36 @@ public class SessionEventHandler : IHandleSessionEvent
         return (await _repository.GetAllAsync()) ?? [];
     }
 
+
     public async Task<IEnumerable<SessionEvent>> GetAllByTargetDateAsync(DateOnly targetDate)
     {
-        return (await _repository.GetAllByTargetDateAsync(targetDate)) ?? [];
+        _logger.LogInformation("Started to fetch Past Due Sessions");
+
+        var stopwatch = Stopwatch.StartNew();
+
+        // Starting to fetch
+        stopwatch.Restart();
+        var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? new List<SessionEvent>();
+        _logger.LogInformation("Fetched events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
+        // Selecting and sorting past-due events
+        stopwatch.Restart();
+        var sortedPastDueEvents = events
+            .Where(t => t.IsPastDue)
+            .OrderByDescending(e => e.SessionDate)
+            .ToList();
+        _logger.LogInformation("Selected and sorted past-due events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
+        // Returning the list to the caller
+        _logger.LogInformation("Returning the list to the caller with {Count} past-due events", sortedPastDueEvents.Count);
+
+        return sortedPastDueEvents;
+    }
+
+
+    public async Task<IEnumerable<SessionEvent>> GetAllPastDueAsync()
+    {
+        return (await _repository.GetAllPastDueAsync()) ?? [];
     }
 
     public async Task<SessionEvent?> GetByIdAsync(int id)

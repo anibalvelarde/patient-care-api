@@ -25,6 +25,16 @@ public class SessionsController : ControllerBase
         return Ok(sessions);
     }
 
+    [HttpGet("pastdue")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAllPastDueSessionEvents()
+    {
+        var sessions = await _sessionEventHandler.GetAllPastDueAsync();
+        return Ok(sessions);
+    }
+
+
     public static DateOnly ConvertStringToDateOnly(string dateString)
     {
         if (DateOnly.TryParse(dateString, out DateOnly date))
