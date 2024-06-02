@@ -63,7 +63,7 @@ public class SessionEventHandler : IHandleSessionEvent
             SessionDate = DateOnly.FromDateTime(newTherapySession.SessionDate),
             Patient = pProfile!.PatientName,
             Therapist = tProfile!.TherapistName,
-            TherapyType = "TBD",
+            TherapyTypes = "TBD",
             Amount = newTherapySession.Amount,
             Discount = newTherapySession.DiscountAmount,
             AmountDue = newTherapySession.Amount,

@@ -95,17 +95,16 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
     {
         ArgumentNullException.ThrowIfNull(ts, nameof(ts) + " must not be null");
 
-        Console.WriteLine($"  ----------------->  Now extracting SessionID {ts.Id}");
-
         return new SessionEvent
         {
             SessionId = ts.Id,
             SessionDate = DateOnly.FromDateTime(ts.SessionDate),
             Patient = ts.Patient!.User!.GetFullName(),
             Therapist = ts.Therapist!.User!.GetFullName(),
-            TherapyType = "TBD",
+            TherapyTypes = ts.TherapyTypes,
             Amount = ts.Amount,
             Discount = ts.DiscountAmount,
+            AmountPaid = ts.AmountPaid,
             AmountDue = ts.AmountDue(),
             IsPaidOff = ts.IsPaidOff,
             IsPastDue = ts.GetPastDue(),
