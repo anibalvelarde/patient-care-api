@@ -2,6 +2,7 @@ using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using Neurocorp.Api.Core.Entities;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
@@ -37,6 +38,20 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .ToListAsync();
         return result;        
     }
+
+    public async Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync()
+    {
+        var result = await _dbContext.TherapySessions
+            .Where(ts => (ts.Patient != null) &&
+                         (ts.Therapist != null))
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.User)
+            .Include(ts => ts.Therapist)
+                .ThenInclude(t => t!.User)
+            .Select(ts => ExtractSessionEvent(ts))
+            .ToListAsync();
+        return result;        
+    }    
 
     public override async Task<SessionEvent?> GetByIdAsync(int id)
     {
@@ -98,6 +113,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return new SessionEvent
         {
             SessionId = ts.Id,
+            PatientId = ts.PatientId,
+            TherapistId = ts.TherapistId,
             SessionDate = DateOnly.FromDateTime(ts.SessionDate),
             Patient = ts.Patient!.User!.GetFullName(),
             Therapist = ts.Therapist!.User!.GetFullName(),
@@ -108,6 +125,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             AmountDue = ts.AmountDue(),
             IsPaidOff = ts.IsPaidOff,
             IsPastDue = ts.GetPastDue(),
+            Notes = ts.Notes,
         };
     }
     private static DateTime ConvertToDateTime(DateOnly? dateOnly)

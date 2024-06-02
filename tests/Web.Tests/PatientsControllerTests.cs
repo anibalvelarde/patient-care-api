@@ -7,6 +7,8 @@ using Neurocorp.Api.Web.Controllers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+namespace Web.Tests.Controllers;
+
 public class PatientsControllerTests
 {
     private readonly Mock<IPatientProfileService> _mockService;
