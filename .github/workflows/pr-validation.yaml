@@ -1,0 +1,27 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up .NET Core
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '8.0.100'
+
+    - name: Restore dependencies
+      run: dotnet restore ./patient-care-api.sln  
+
+    - name: Build
+      run: dotnet build ./patient-care-api.sln --no-restore
+
+    - name: Run tests
+      run: dotnet test ./patient-care-api.sln --no-build
