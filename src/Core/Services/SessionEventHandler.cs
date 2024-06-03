@@ -35,7 +35,6 @@ public class SessionEventHandler : IHandleSessionEvent
     public async Task<IEnumerable<SessionEvent>> GetAllByTargetDateAsync(DateOnly targetDate)
     {
         _logger.LogInformation("Started to fetch Sessions for this date {targetDate}", targetDate);
-
         var stopwatch = Stopwatch.StartNew();
 
         // Starting to fetch
@@ -43,16 +42,15 @@ public class SessionEventHandler : IHandleSessionEvent
         var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? new List<SessionEvent>();
         _logger.LogInformation("Fetched events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
-        // Selecting and sorting past-due events
+        // Selecting and sorting events
         stopwatch.Restart();
         var sortedEvents = events
-            .OrderByDescending(e => e.SessionDate)
+            .OrderBy(e => e.Patient)
             .ToList();
         _logger.LogInformation("Selected and sorted events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
         // Returning the list to the caller
         _logger.LogInformation("Returning the list to the caller with {Count} events", sortedEvents.Count);
-
         return sortedEvents;
     }
 
@@ -60,7 +58,6 @@ public class SessionEventHandler : IHandleSessionEvent
     public async Task<IEnumerable<SessionEvent>> GetAllPastDueAsync()
     {
         _logger.LogInformation("Started to fetch Sessions for past-due events");
-
         var stopwatch = Stopwatch.StartNew();
 
         // Starting to fetch
@@ -76,9 +73,8 @@ public class SessionEventHandler : IHandleSessionEvent
             .ToList();
         _logger.LogInformation("Selected and sorted past-due events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
-        // Returning the list to the caller
+        // Returning past-due event list to the caller
         _logger.LogInformation("Returning the list to the caller with {Count} past-due events", sortedPastDueEvents.Count);
-
         return sortedPastDueEvents;
     }
 
