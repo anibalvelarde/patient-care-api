@@ -34,7 +34,7 @@ public class SessionEventHandler : IHandleSessionEvent
 
     public async Task<IEnumerable<SessionEvent>> GetAllByTargetDateAsync(DateOnly targetDate)
     {
-        _logger.LogInformation("Started to fetch Past Due Sessions");
+        _logger.LogInformation("Started to fetch Sessions for this date {targetDate}", targetDate);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -45,7 +45,33 @@ public class SessionEventHandler : IHandleSessionEvent
 
         // Selecting and sorting past-due events
         stopwatch.Restart();
-        var sortedPastDueEvents = events
+        var sortedEvents = events
+            .Where(t => t.IsPastDue)
+            .OrderByDescending(e => e.SessionDate)
+            .ToList();
+        _logger.LogInformation("Selected and sorted events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
+        // Returning the list to the caller
+        _logger.LogInformation("Returning the list to the caller with {Count} events", sortedEvents.Count);
+
+        return sortedEvents;
+    }
+
+
+    public async Task<IEnumerable<SessionEvent>> GetAllPastDueAsync()
+    {
+        _logger.LogInformation("Started to fetch Sessions for past-due events");
+
+        var stopwatch = Stopwatch.StartNew();
+
+        // Starting to fetch
+        stopwatch.Restart();
+        var pastDueEvents = (await _repository.GetAllPastDueAsync()) ?? new List<SessionEvent>();
+        _logger.LogInformation("Fetched past-due events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
+        // Selecting and sorting past-due events
+        stopwatch.Restart();
+        var sortedPastDueEvents = pastDueEvents
             .Where(t => t.IsPastDue)
             .OrderByDescending(e => e.SessionDate)
             .ToList();
@@ -55,12 +81,6 @@ public class SessionEventHandler : IHandleSessionEvent
         _logger.LogInformation("Returning the list to the caller with {Count} past-due events", sortedPastDueEvents.Count);
 
         return sortedPastDueEvents;
-    }
-
-
-    public async Task<IEnumerable<SessionEvent>> GetAllPastDueAsync()
-    {
-        return (await _repository.GetAllPastDueAsync()) ?? [];
     }
 
     public async Task<SessionEvent?> GetByIdAsync(int id)
