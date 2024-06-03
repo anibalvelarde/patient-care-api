@@ -46,7 +46,6 @@ public class SessionEventHandler : IHandleSessionEvent
         // Selecting and sorting past-due events
         stopwatch.Restart();
         var sortedEvents = events
-            .Where(t => t.IsPastDue)
             .OrderByDescending(e => e.SessionDate)
             .ToList();
         _logger.LogInformation("Selected and sorted events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
