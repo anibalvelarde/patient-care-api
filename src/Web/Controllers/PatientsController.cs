@@ -10,10 +10,12 @@ namespace Neurocorp.Api.Web.Controllers;
 public class PatientsController : ControllerBase
 {
     private readonly IPatientProfileService _patientProfileService;
+    private readonly IHandleSessionEvent _sessionEventHandler;
 
-    public PatientsController(IPatientProfileService patientProfileService)
+    public PatientsController(IPatientProfileService patientProfileService, IHandleSessionEvent sessionEventHandler)
     {
         _patientProfileService = patientProfileService;
+        _sessionEventHandler = sessionEventHandler;
     }
 
     [HttpGet]
@@ -35,6 +37,19 @@ public class PatientsController : ControllerBase
         if (patient == null) return NotFound();
         return Ok(patient);
     }
+
+    [HttpGet("{id}/pastdue")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientProfile))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetPastDueSessions(int id)
+    {
+        var pastDueSessions = await _sessionEventHandler.GetAllPastDueAsync();
+        var patientPastDueSessions = pastDueSessions
+            .Where(s => s.PatientId.Equals(id))
+            .Select(s => s);
+        return Ok(patientPastDueSessions);
+    }    
 
     [HttpPost]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
