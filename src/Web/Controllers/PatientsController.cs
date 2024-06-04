@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -39,7 +40,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("{id}/pastdue")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientProfile))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetPastDueSessions(int id)

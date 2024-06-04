@@ -81,6 +81,7 @@ public class PatientsControllerTests
     public async Task GetPatient_PastDueEvents_Returns_Ok_Result_WithSessionEvents()
     {
         // Arrange
+        var targetPatientId = 1;
         var expectedSessionIds = new[] { 1, 3 };
         _mockSessionEventHandler
             .Setup(x => x.GetAllPastDueAsync())
@@ -90,7 +91,7 @@ public class PatientsControllerTests
                 new SessionEvent() {SessionId = 3, PatientId = 1}]);
 
         // Act
-        var result = await _controller.GetPastDueSessions(1);
+        var result = await _controller.GetPastDueSessions(targetPatientId);
 
         // Assert
         result.Should().BeOfType<OkObjectResult>()
@@ -104,7 +105,7 @@ public class PatientsControllerTests
     public async Task GetPatient_PastDueEvents_Returns_NO_Result_WithSessionEvents()
     {
         // Arrange
-        var expectedSessionIds = new[] { 1, 3 };
+        var targetPatientId = 3;
         _mockSessionEventHandler
             .Setup(x => x.GetAllPastDueAsync())
             .ReturnsAsync( [
@@ -113,7 +114,7 @@ public class PatientsControllerTests
                 new SessionEvent() {SessionId = 3, PatientId = 1}]);
 
         // Act
-        var result = await _controller.GetPastDueSessions(3);
+        var result = await _controller.GetPastDueSessions(targetPatientId);
 
         // Assert
         result.Should().BeOfType<OkObjectResult>()
