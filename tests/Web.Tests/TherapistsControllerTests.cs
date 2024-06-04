@@ -6,18 +6,22 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Controllers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
+using FluentAssertions;
 
 namespace Web.Tests.Controllers;
 
 public class TherapistsControllerTests
 {
     private readonly Mock<ITherapistProfileService> _mockService;
+    private readonly Mock<IHandleSessionEvent> _mockSessionEventHandler;
     private readonly TherapistsController _controller;
 
     public TherapistsControllerTests()
     {
         _mockService = new Mock<ITherapistProfileService>();
-        _controller = new TherapistsController(_mockService.Object);
+        _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
+        _controller = new TherapistsController(_mockService.Object, _mockSessionEventHandler.Object);
     }
 
     [Fact]
@@ -71,4 +75,50 @@ public class TherapistsControllerTests
         var returnedTherapist = Assert.IsType<TherapistProfile>(okResult.Value);
         Assert.NotNull(returnedTherapist);
     }
+
+    [Fact]
+    public async Task GetTherapist_PastDueEvents_Returns_Ok_Result_WithSessionEvents()
+    {
+        // Arrange
+        var targetTherapistId = 1;
+        var expectedSessionIds = new[] { 1, 3 };
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync( [
+                new SessionEvent() {SessionId =1, TherapistId = 1},
+                new SessionEvent() {SessionId = 2, TherapistId = 2},
+                new SessionEvent() {SessionId = 3, TherapistId = 1}]);
+
+        // Act
+        var result = await _controller.GetPastDueSessions(targetTherapistId);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IEnumerable<SessionEvent>>()
+            .Which.Should().NotBeNull()
+            .And.HaveCount(expectedSessionIds.Length)
+            .And.OnlyContain(session => expectedSessionIds.Contains(session.SessionId));
+    } 
+
+    [Fact]
+    public async Task GetTherapist_PastDueEvents_Returns_NO_Result_WithSessionEvents()
+    {
+        // Arrange
+        var targetTherapistId = 3;
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync( [
+                new SessionEvent() {SessionId =1, TherapistId = 1},
+                new SessionEvent() {SessionId = 2, TherapistId = 2},
+                new SessionEvent() {SessionId = 3, TherapistId = 1}]);
+
+        // Act
+        var result = await _controller.GetPastDueSessions(targetTherapistId);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IEnumerable<SessionEvent>>()
+            .Which.Should().NotBeNull()
+            .And.HaveCount(0);
+    }       
 }

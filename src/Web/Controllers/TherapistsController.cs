@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -10,10 +11,12 @@ namespace Neurocorp.Api.Web.Controllers;
 public class TherapistsController : ControllerBase
 {
     private readonly ITherapistProfileService _therapistProfileService;
+    private readonly IHandleSessionEvent _sessionEventHandler;
 
-    public TherapistsController(ITherapistProfileService therapistProfileService)
+    public TherapistsController(ITherapistProfileService therapistProfileService, IHandleSessionEvent sesssionEventHandler)
     {
         _therapistProfileService = therapistProfileService;
+        _sessionEventHandler = sesssionEventHandler;
     }
 
     [HttpGet]
@@ -34,6 +37,19 @@ public class TherapistsController : ControllerBase
         var Therapist = await _therapistProfileService.GetByIdAsync(id);
         if (Therapist == null) return NotFound();
         return Ok(Therapist);
+    }
+
+    [HttpGet("{id}/pastdue")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetPastDueSessions(int id)
+    {
+        var pastDueSessions = await _sessionEventHandler.GetAllPastDueAsync();
+        var pastDueForTherapist = pastDueSessions
+            .Where(s => s.TherapistId.Equals(id))
+            .Select(s => s);
+        return Ok(pastDueForTherapist);
     }
 
     [HttpPost]
