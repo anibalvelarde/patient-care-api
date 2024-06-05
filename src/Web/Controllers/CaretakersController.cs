@@ -10,9 +10,11 @@ namespace Neurocorp.Api.Web.Controllers;
 public class CaretakersController : ControllerBase
 {
     private readonly ICaretakerProfileService _caretakerProfileService;
+    private readonly ILogger<CaretakersController> _logger;
 
-    public CaretakersController(ICaretakerProfileService caretakerProfileService)
+    public CaretakersController(ILogger<CaretakersController> logger, ICaretakerProfileService caretakerProfileService)
     {
+        _logger = logger;
         _caretakerProfileService = caretakerProfileService;
     }
 

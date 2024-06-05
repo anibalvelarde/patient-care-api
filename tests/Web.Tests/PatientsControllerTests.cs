@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using FluentAssertions;
 using System.Linq;
+using Castle.Core.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace Web.Tests.Controllers;
 
@@ -20,9 +22,10 @@ public class PatientsControllerTests
 
     public PatientsControllerTests()
     {
+        var fakeLogger = Mock.Of<ILogger<PatientsController>>();
         _mockPatientProfileService = new Mock<IPatientProfileService>();
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
-        _controller = new PatientsController(_mockPatientProfileService.Object, _mockSessionEventHandler.Object);
+        _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object);
     }
 
     [Fact]

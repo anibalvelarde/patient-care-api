@@ -4,8 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Controllers;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Castle.Core.Logging;
 
 namespace Web.Tests.Controllers;
 
@@ -16,8 +18,9 @@ public class CaretakersControllerTests
 
     public CaretakersControllerTests()
     {
+        var fakeLogger = Mock.Of<ILogger<CaretakersController>>();
         _mockService = new Mock<ICaretakerProfileService>();
-        _controller = new CaretakersController(_mockService.Object);
+        _controller = new CaretakersController(fakeLogger, _mockService.Object);
     }
 
     [Fact]
@@ -26,8 +29,8 @@ public class CaretakersControllerTests
         // Arrange
         var mockCaretakers = new List<CaretakerProfile>
         {
-            new CaretakerProfile { /* properties */ },
-            new CaretakerProfile { /* properties */ }
+            new() { /* properties */ },
+            new() { /* properties */ }
         };
         _mockService.Setup(service => service.GetAllAsync()).ReturnsAsync(mockCaretakers);
 
