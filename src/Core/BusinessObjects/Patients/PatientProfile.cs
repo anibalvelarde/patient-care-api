@@ -1,6 +1,8 @@
+using Neurocorp.Api.Core.BusinessObjects.Common;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Patients;
 
-public class PatientProfile
+public class PatientProfile : IProfile
 {
     public PatientProfile()
     {
@@ -21,6 +23,10 @@ public class PatientProfile
     public DateTime CreatedTimestamp { get; set; }
     public string Gender { get; set; }
     public bool IsActive { get; set; }
+
+    int IProfile.Id => this.PatientId;
+    string IProfile.Name => this.PatientName;
+    bool IProfile.IsValid => true;
 }
 
 public class UndefinedPatientProfile : PatientProfile

@@ -6,18 +6,25 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Controllers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
+using FluentAssertions;
+using Castle.Core.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace Web.Tests.Controllers;
 
 public class TherapistsControllerTests
 {
     private readonly Mock<ITherapistProfileService> _mockService;
+    private readonly Mock<IHandleSessionEvent> _mockSessionEventHandler;
     private readonly TherapistsController _controller;
 
     public TherapistsControllerTests()
     {
+        var fakeLogger = Mock.Of<ILogger<TherapistsController>>();
         _mockService = new Mock<ITherapistProfileService>();
-        _controller = new TherapistsController(_mockService.Object);
+        _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
+        _controller = new TherapistsController(fakeLogger, _mockService.Object, _mockSessionEventHandler.Object);
     }
 
     [Fact]
@@ -71,4 +78,72 @@ public class TherapistsControllerTests
         var returnedTherapist = Assert.IsType<TherapistProfile>(okResult.Value);
         Assert.NotNull(returnedTherapist);
     }
+
+    [Fact]
+    public async Task GetTherapist_PastDueEvents_Returns_Ok_Result_WithSessionEvents()
+    {
+        // Arrange
+        var targetTherapistId = 1;
+        var expectedSessionIds = new[] { 1, 3 };
+        _mockService
+            .Setup(s => s.GetByIdAsync(targetTherapistId))
+            .ReturnsAsync(Mock.Of<TherapistProfile>(tp => tp.TherapistId == targetTherapistId));
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync( [
+                new SessionEvent() {SessionId =1, TherapistId = 1},
+                new SessionEvent() {SessionId = 2, TherapistId = 2},
+                new SessionEvent() {SessionId = 3, TherapistId = 1}]);
+
+        // Act
+        var result = await _controller.GetPastDueSessions(targetTherapistId);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<TherapistPastDueInfo>()
+            .Which.Should().NotBeNull();
+        var patientInfo = ((OkObjectResult)result).Value as TherapistPastDueInfo;
+        patientInfo.Should().NotBeNull();
+        patientInfo!.PartyType.Should().NotBeNull();
+        patientInfo.Party.Should().NotBeNull();
+        patientInfo.PastDueSessions.Should().BeGreaterOrEqualTo(0);
+        patientInfo.PastDueTotalAmount.Should().BeGreaterOrEqualTo(0);
+        patientInfo.AmountPaidSoFar.Should().BeGreaterOrEqualTo(0);
+        patientInfo.Delinquency.Should().NotBeNull()
+            .And.HaveCount(expectedSessionIds.Length)
+            .And.OnlyContain(session => expectedSessionIds.Contains(session.SessionId));
+    } 
+
+    [Fact]
+    public async Task GetTherapist_PastDueEvents_Returns_NO_Result_WithSessionEvents()
+    {
+        // Arrange
+        var targetTherapistId = 3;
+        _mockService
+            .Setup(s => s.GetByIdAsync(targetTherapistId))
+            .ReturnsAsync(Mock.Of<TherapistProfile>(tp => tp.TherapistId == targetTherapistId));
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync( [
+                new SessionEvent() {SessionId =1, TherapistId = 1},
+                new SessionEvent() {SessionId = 2, TherapistId = 2},
+                new SessionEvent() {SessionId = 3, TherapistId = 1}]);
+
+        // Act
+        var result = await _controller.GetPastDueSessions(targetTherapistId);
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<TherapistPastDueInfo>()
+            .Which.Should().NotBeNull();
+        var patientInfo = ((OkObjectResult)result).Value as TherapistPastDueInfo;
+        patientInfo.Should().NotBeNull();
+        patientInfo!.PartyType.Should().NotBeNull();
+        patientInfo.Party.Should().NotBeNull();
+        patientInfo.PastDueSessions.Should().BeGreaterOrEqualTo(0);
+        patientInfo.PastDueTotalAmount.Should().BeGreaterOrEqualTo(0);
+        patientInfo.AmountPaidSoFar.Should().BeGreaterOrEqualTo(0);
+        patientInfo.Delinquency.Should().NotBeNull()
+            .And.HaveCount(0);    
+    }       
 }

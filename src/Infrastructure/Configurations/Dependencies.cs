@@ -29,8 +29,15 @@ public static class NeurocorpConfigurationExtensions
             .Replace("{{MYSQL_PASSWORD}}", dbPassword);
 
         // Register ApplicationDbContext with MySQL|
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseMySql(cn!.ToString(), new MySqlServerVersion(new Version(8, 0, 25))));
+        services.AddDbContextPool<ApplicationDbContext>(options =>
+            options.UseMySql(
+                cn!.ToString(), 
+                ServerVersion.AutoDetect(cn),
+                options => options.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: System.TimeSpan.FromSeconds(5),
+                    errorNumbersToAdd: null
+                )));
         services.AddHealthChecks()
             .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks");
 

@@ -1,6 +1,8 @@
+using Neurocorp.Api.Core.BusinessObjects.Common;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Therapists;
 
-public class TherapistProfile
+public class TherapistProfile : IProfile
 {
     public TherapistProfile()
     {
@@ -18,6 +20,10 @@ public class TherapistProfile
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp    { get; set; }
     public bool IsActive { get; set; }
+
+    int IProfile.Id => this.TherapistId;
+    string IProfile.Name => this.TherapistName;
+    bool IProfile.IsValid => true;
 
     internal decimal CalculateFee(decimal amount)
     {
