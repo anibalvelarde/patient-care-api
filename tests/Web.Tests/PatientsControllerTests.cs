@@ -34,8 +34,8 @@ public class PatientsControllerTests
         // Arrange
         var mockPatients = new List<PatientProfile>
         {
-            new PatientProfile { /* properties */ },
-            new PatientProfile { /* properties */ }
+            new() { /* properties */ },
+            new() { /* properties */ }
         };
         _mockPatientProfileService.Setup(service => service.GetAllAsync()).ReturnsAsync(mockPatients);
 
@@ -86,6 +86,9 @@ public class PatientsControllerTests
         // Arrange
         var targetPatientId = 1;
         var expectedSessionIds = new[] { 1, 3 };
+        _mockPatientProfileService
+            .Setup(x => x.GetByIdAsync(targetPatientId))
+            .ReturnsAsync(Mock.Of<PatientProfile>(pp => pp.PatientId == targetPatientId));
         _mockSessionEventHandler
             .Setup(x => x.GetAllPastDueAsync())
             .ReturnsAsync( [
@@ -98,8 +101,16 @@ public class PatientsControllerTests
 
         // Assert
         result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeAssignableTo<IEnumerable<SessionEvent>>()
-            .Which.Should().NotBeNull()
+            .Which.Value.Should().BeAssignableTo<PatientPastDueInfo>()
+            .Which.Should().NotBeNull();
+        var patientInfo = ((OkObjectResult)result).Value as PatientPastDueInfo;
+        patientInfo.Should().NotBeNull();
+        patientInfo!.PartyType.Should().NotBeNull();
+        patientInfo.Party.Should().NotBeNull();
+        patientInfo.PastDueSessions.Should().BeGreaterOrEqualTo(0);
+        patientInfo.PastDueTotalAmount.Should().BeGreaterOrEqualTo(0);
+        patientInfo.AmountPaidSoFar.Should().BeGreaterOrEqualTo(0);
+        patientInfo.Delinquency.Should().NotBeNull()
             .And.HaveCount(expectedSessionIds.Length)
             .And.OnlyContain(session => expectedSessionIds.Contains(session.SessionId));
     }    
@@ -109,6 +120,9 @@ public class PatientsControllerTests
     {
         // Arrange
         var targetPatientId = 3;
+        _mockPatientProfileService
+            .Setup(x => x.GetByIdAsync(targetPatientId))
+            .ReturnsAsync(Mock.Of<PatientProfile>(pp => pp.PatientId == targetPatientId));
         _mockSessionEventHandler
             .Setup(x => x.GetAllPastDueAsync())
             .ReturnsAsync( [
@@ -121,8 +135,15 @@ public class PatientsControllerTests
 
         // Assert
         result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeAssignableTo<IEnumerable<SessionEvent>>()
-            .Which.Should().NotBeNull()
+            .Which.Value.Should().BeAssignableTo<PatientPastDueInfo>()
+            .Which.Should().NotBeNull();
+        var patientInfo = ((OkObjectResult)result).Value as PatientPastDueInfo;
+        patientInfo!.PartyType.Should().NotBeNull();
+        patientInfo.Party.Should().NotBeNull();
+        patientInfo.PastDueSessions.Should().BeGreaterOrEqualTo(0);
+        patientInfo.PastDueTotalAmount.Should().BeGreaterOrEqualTo(0);
+        patientInfo.AmountPaidSoFar.Should().BeGreaterOrEqualTo(0);
+        patientInfo.Delinquency.Should().NotBeNull()
             .And.HaveCount(0);
     }    
 }

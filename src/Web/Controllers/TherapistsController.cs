@@ -81,14 +81,14 @@ public class TherapistsController : ControllerBase
         return BadRequest();
     }
 
-    private async Task<TherapistPastDueInfo> PackagePastDueInfoAsync(int patientId)
+    private async Task<TherapistPastDueInfo> PackagePastDueInfoAsync(int therapistId)
     {
-        var therapist = await _therapistProfileService.GetByIdAsync(patientId);
+        var therapist = await _therapistProfileService.GetByIdAsync(therapistId);
         if (therapist is not null)
         {
             var pastDueSessions = await _sessionEventHandler.GetAllPastDueAsync();
             var patientPastDueSessions = pastDueSessions
-                .Where(s => s.PatientId.Equals(patientId))
+                .Where(s => s.TherapistId.Equals(therapistId))
                 .Select(s => s);
             var totalPastDueAmount = patientPastDueSessions.Sum(s => s.AmountDue);
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
