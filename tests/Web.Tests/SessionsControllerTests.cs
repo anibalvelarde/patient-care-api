@@ -47,7 +47,7 @@ public class SessionsControllerTests
         _mockSessionEventHandler
             .Setup(x => x.GetAllByTargetDateAsync(tDateAsDateOnly))
             .ReturnsAsync( [
-                new SessionEvent() {SessionId =1, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate) },
+                new SessionEvent() {SessionId = 1, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate) },
                 new SessionEvent() {SessionId = 4, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate)}]);        
     
         // Act
@@ -64,4 +64,106 @@ public class SessionsControllerTests
             .NotBeNull()
             .And.HaveCount(2);
     }
+
+    [Fact]
+    public async Task Should_Handle_NO_SessionsForGivenDate()
+    {
+        // Arrange
+        var targetDate = new DateTime(2024, 4, 12);
+        var tDateAsDateOnly = DateOnly.FromDateTime(targetDate);
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllByTargetDateAsync(tDateAsDateOnly))
+            .ReturnsAsync( []);        
+    
+        // Act
+        var result = await _controller.GetAllEventsForADate(targetDate.ToShortDateString());
+    
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<OkObjectResult>()
+            .Which.Value.Should()
+                .BeAssignableTo<IEnumerable<SessionEvent>>();
+        var sessions = ((OkObjectResult)result).Value as IEnumerable<SessionEvent>;
+        sessions.Should()
+            .NotBeNull()
+            .And.HaveCount(0);
+    }    
+
+    [Fact]
+    public async Task Should_Handle_BadStringDate()
+    {
+        // Arrange
+        var todaysDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var badStringDate = "BadStringDateType";
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllByTargetDateAsync(todaysDate))
+            .ReturnsAsync( [
+                new SessionEvent() {SessionId = 1, TherapistId = 1, SessionDate = todaysDate },
+                new SessionEvent() {SessionId = 4, TherapistId = 1, SessionDate = todaysDate}
+        ]);        
+    
+        // Act
+        var result = await _controller.GetAllEventsForADate(badStringDate);
+    
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<OkObjectResult>()
+            .Which.Value.Should()
+                .BeAssignableTo<IEnumerable<SessionEvent>>();
+        var sessions = ((OkObjectResult)result).Value as IEnumerable<SessionEvent>;
+        sessions.Should()
+            .NotBeNull()
+            .And.HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Should_Return_PastDueSessions()
+    {
+        // Arrange
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync([
+                new SessionEvent() {SessionId = 1, TherapistId = 1, SessionDate = DateOnly.FromDateTime(DateTime.UtcNow), IsPastDue = true },
+                new SessionEvent() {SessionId = 4, TherapistId = 1, SessionDate = DateOnly.FromDateTime(DateTime.UtcNow), IsPastDue = true }
+            ]);        
+
+        // Act
+        var result = await _controller.GetAllPastDueSessionEvents();
+
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<OkObjectResult>()
+            .Which.Value.Should()
+                .BeAssignableTo<IEnumerable<SessionEvent>>();
+        var sessions = ((OkObjectResult)result).Value as IEnumerable<SessionEvent>;
+        sessions.Should()
+            .NotBeNull()
+            .And.HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Should_Handle_NO_PastDueSessions()
+    {
+        // Arrange
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPastDueAsync())
+            .ReturnsAsync([]);        
+
+        // Act
+        var result = await _controller.GetAllPastDueSessionEvents();
+
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<OkObjectResult>()
+            .Which.Value.Should()
+                .BeAssignableTo<IEnumerable<SessionEvent>>();
+        var sessions = ((OkObjectResult)result).Value as IEnumerable<SessionEvent>;
+        sessions.Should()
+            .NotBeNull()
+            .And.HaveCount(0);
+    }    
 }
