@@ -8,10 +8,12 @@ namespace Neurocorp.Api.Web.Controllers;
 [Route("api/[controller]")]
 public class SessionsController : ControllerBase
 {
+    private readonly ILogger<SessionsController> _logger;
     private readonly IHandleSessionEvent _sessionEventHandler;
 
-    public SessionsController(IHandleSessionEvent handler)
+    public SessionsController(ILogger<SessionsController> loger, IHandleSessionEvent handler)
     {
+        _logger = loger;
         _sessionEventHandler = handler;
     }
 
