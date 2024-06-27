@@ -36,6 +36,12 @@ public class SessionsController : ControllerBase
         return Ok(sessions);
     }
 
+    [HttpPost]
+    public async Task<IActionResult> CreateSession([FromBody] SessionEventRequest sessionRequest)
+    {
+        var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
+        return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
+    }
 
     public static DateOnly ConvertStringToDateOnly(string dateString)
     {
