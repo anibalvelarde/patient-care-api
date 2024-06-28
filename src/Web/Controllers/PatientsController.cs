@@ -60,7 +60,7 @@ public class PatientsController : ControllerBase
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
     {
         var createdPatient = await _patientProfileService.CreateAsync(patientRequest);
-        return CreatedAtAction(nameof(GetPatient), new { id = createdPatient.PatientId }, createdPatient);
+        return CreatedAtAction(nameof(CreatePatient), new { id = createdPatient.PatientId }, createdPatient);
     }
 
     [HttpPut("{id}")]
