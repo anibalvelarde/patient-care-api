@@ -64,7 +64,6 @@ public class SessionsControllerTests
             .NotBeNull()
             .And.HaveCount(2);
     }
-
     [Fact]
     public async Task Should_Handle_NO_SessionsForGivenDate()
     {
