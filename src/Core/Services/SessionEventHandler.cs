@@ -39,7 +39,7 @@ public class SessionEventHandler : IHandleSessionEvent
 
         // Starting to fetch
         stopwatch.Restart();
-        var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? new List<SessionEvent>();
+        var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? [];
         _logger.LogInformation("Fetched events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
         // Selecting and sorting events
@@ -148,6 +148,7 @@ public class SessionEventHandler : IHandleSessionEvent
             PatientId = pProfile.PatientId,
             TherapistId = tProfile.TherapistId,
             SessionDate = req.SessionDate.ToDateTime(TimeOnly.MinValue),
+            TherapyTypes = req.TherapyType,
             Duration = req.Duration,
             Amount = req.Amount,
             DiscountAmount = req.Discount,
