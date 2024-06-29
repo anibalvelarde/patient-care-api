@@ -9,6 +9,7 @@ using Neurocorp.Api.Core.Configurations;
 using Neurocorp.Api.Infrastructure.Configurations;
 using Neurocorp.Api.Web.Middleware.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Web;
 
@@ -44,6 +45,9 @@ public class Startup(IConfiguration configuration)
         {
             c.SwaggerDoc("v1", new OpenApiInfo { Title = "Neurocorp Web API", Version = "v1" });
         });
+
+        // Register the hosted service
+        services.AddHostedService<DbContextWarmupService>();
 
         // Register dependencies with DI framework
         services.AddCoreDependencies(Configuration);
