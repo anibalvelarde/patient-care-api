@@ -43,6 +43,24 @@ public class SessionsController : ControllerBase
         return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
     }
 
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateSession(int id, [FromBody] SessionEventUpdateRequest sessionUpdateRequest)
+    {
+        if(await _sessionEventHandler.VerifyRequestAsync(id, sessionUpdateRequest))
+        {
+            var updateResult = await _sessionEventHandler.UpdateAsync(id, sessionUpdateRequest);
+            if (updateResult)
+            {
+                return NoContent();
+            }
+            else
+            {
+                return BadRequest("Bad input?");
+            }
+        }
+        return BadRequest();
+    }
+
     public static DateOnly ConvertStringToDateOnly(string dateString)
     {
         if (DateOnly.TryParse(dateString, out DateOnly date))

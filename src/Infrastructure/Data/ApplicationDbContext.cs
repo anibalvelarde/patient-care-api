@@ -90,6 +90,7 @@ public class ApplicationDbContext : DbContext
             ts.ToTable("TherapySession");
             ts.HasKey(e => e.Id);
             ts.Property(e => e.Id).HasColumnName("SessionID");
+            ts.Property(e => e.TherapyTypes).IsRequired(false);
         });
         modelBuilder.Entity<UserRole>(ur => {
             ur.ToTable("UserRole");

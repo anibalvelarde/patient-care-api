@@ -165,4 +165,52 @@ public class SessionsControllerTests
             .NotBeNull()
             .And.HaveCount(0);
     }    
+
+    [Fact]
+    public async Task Should_Handle_Creating_NewSession()
+    {
+ 
+        // Arrange
+        var newSession = Mock.Of<SessionEventRequest>();
+        var fakeNewSessionId = DateTime.UtcNow.Millisecond;
+        _mockSessionEventHandler        
+            .Setup(x => x.CreateAsync(newSession))
+            .ReturnsAsync(new SessionEvent(){SessionId = fakeNewSessionId});        
+
+        // Act
+        var result = await _controller.CreateSession(newSession);
+
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<CreatedAtActionResult>()
+            .Which.Value.Should()
+                .BeAssignableTo<SessionEvent>();
+        var createdEvent = ((CreatedAtActionResult)result).Value as SessionEvent;
+        createdEvent.Should().NotBeNull();
+        createdEvent!.SessionId.Should().Be(fakeNewSessionId);
+    }
+
+    [Fact]
+    public async Task Should_Handle_Updating_ExisingSession()
+    {
+ 
+        // Arrange
+        var existingSession = Mock.Of<SessionEventUpdateRequest>();
+        var fakeNewSessionId = DateTime.UtcNow.Millisecond;
+        _mockSessionEventHandler
+            .Setup(x => x.VerifyRequestAsync(fakeNewSessionId, existingSession))
+            .ReturnsAsync(true);
+        _mockSessionEventHandler        
+            .Setup(x => x.UpdateAsync(fakeNewSessionId, existingSession))
+            .ReturnsAsync(true);        
+
+        // Act
+        var result = await _controller.UpdateSession(fakeNewSessionId, existingSession);
+
+        // Assert
+        _mockSessionEventHandler.VerifyAll();
+        result.Should()
+            .BeOfType<NoContentResult>();
+    }    
 }

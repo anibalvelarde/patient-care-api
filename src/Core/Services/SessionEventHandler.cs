@@ -134,9 +134,14 @@ public class SessionEventHandler : IHandleSessionEvent
         throw new NotImplementedException();
     }
 
-    public Task<bool> VerifyRequestAsync(int sessionAggId, SessionEventUpdateRequest request)
+    public async Task<bool> VerifyRequestAsync(int sessionAggId, SessionEventUpdateRequest request)
     {
-        throw new NotImplementedException();
+        var profile = await this.GetByIdAsync(sessionAggId);
+        if (profile != null)
+        {
+            return true;
+        }
+        return false;
     }
 
     private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req)
