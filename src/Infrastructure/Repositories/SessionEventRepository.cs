@@ -90,18 +90,13 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
     private TherapySession MapUpdatedTherapySession(SessionEventUpdateRequest updateRequest, TherapySession therapySessionToUpdate)
     {
 
-        if (updateRequest.SessionDate is not null
-            && updateRequest.SessionDate.HasValue
-            && !updateRequest.SessionDate.Equals(DateOnly.FromDateTime(therapySessionToUpdate.SessionDate)))
-        {
-            therapySessionToUpdate.SessionDate = updateRequest.SessionDate.Value.ToDateTime(new TimeOnly(0, 0));
-        }
         therapySessionToUpdate.Duration = updateRequest.Duration;
         therapySessionToUpdate.Amount = updateRequest.Amount;
         therapySessionToUpdate.AmountPaid = updateRequest.AmountPaid;
         therapySessionToUpdate.DiscountAmount = updateRequest.Discount;
         therapySessionToUpdate.ProviderAmount = updateRequest.ProviderAmount;
         therapySessionToUpdate.Notes = updateRequest.Notes;
+        therapySessionToUpdate.TherapyTypes = updateRequest.TherapyType;
 
         return therapySessionToUpdate;
     }

@@ -9,7 +9,7 @@ namespace Neurocorp.Api.Infrastructure.Configurations;
 
 public static class NeurocorpConfigurationExtensions
 {
-    private static readonly string DEFAULT_DB_CONN_STRING = "Server={{HOST}};Port={{DB_PORT}};Database={{DB_NAME}};Uid=root;Pwd={{MYSQL_PASSWORD}};";
+    private static readonly string DEFAULT_DB_CONN_STRING = "Server={{HOST}};Port={{DB_PORT}};Database={{DB_NAME}};Uid={{DB_USER}};Pwd={{MYSQL_PASSWORD}};";
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
         // Retrieve password from ENV VAR

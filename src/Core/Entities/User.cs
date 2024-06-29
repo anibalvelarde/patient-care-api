@@ -24,7 +24,7 @@ public class User : PersonBase
 
     public string GetFullName()
     {
-        return $"{LastName}, {FirstName} {MiddleName}";
+        return $"{LastName.Trim()}, {FirstName.Trim()} {MiddleName.Trim()}".Trim();
     }
     
     public override string ToString()

@@ -39,7 +39,7 @@ public class SessionEventHandler : IHandleSessionEvent
 
         // Starting to fetch
         stopwatch.Restart();
-        var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? new List<SessionEvent>();
+        var events = (await _repository.GetAllByTargetDateAsync(targetDate)) ?? [];
         _logger.LogInformation("Fetched events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
 
         // Selecting and sorting events
@@ -134,9 +134,14 @@ public class SessionEventHandler : IHandleSessionEvent
         throw new NotImplementedException();
     }
 
-    public Task<bool> VerifyRequestAsync(int sessionAggId, SessionEventUpdateRequest request)
+    public async Task<bool> VerifyRequestAsync(int sessionAggId, SessionEventUpdateRequest request)
     {
-        throw new NotImplementedException();
+        var profile = await this.GetByIdAsync(sessionAggId);
+        if (profile != null)
+        {
+            return true;
+        }
+        return false;
     }
 
     private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req)
@@ -148,6 +153,7 @@ public class SessionEventHandler : IHandleSessionEvent
             PatientId = pProfile.PatientId,
             TherapistId = tProfile.TherapistId,
             SessionDate = req.SessionDate.ToDateTime(TimeOnly.MinValue),
+            TherapyTypes = req.TherapyType,
             Duration = req.Duration,
             Amount = req.Amount,
             DiscountAmount = req.Discount,
