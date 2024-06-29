@@ -48,8 +48,7 @@ public class SessionsControllerTests
             .Setup(x => x.GetAllByTargetDateAsync(tDateAsDateOnly))
             .ReturnsAsync( [
                 new SessionEvent() {SessionId = 1, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate) },
-                new SessionEvent() {SessionId = 1, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate) },
-                new SessionEvent() {SessionId = 4, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate)}]);        
+                new SessionEvent() {SessionId = 5, TherapistId = 1, SessionDate = DateOnly.FromDateTime(targetDate)}]);        
     
         // Act
         var result = await _controller.GetAllEventsForADate(targetDate.ToShortDateString());
