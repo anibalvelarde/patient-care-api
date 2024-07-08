@@ -10,6 +10,7 @@ using Neurocorp.Api.Infrastructure.Configurations;
 using Neurocorp.Api.Web.Middleware.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Neurocorp.Api.Infrastructure.Data;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Neurocorp.Api.Web;
 
@@ -29,14 +30,21 @@ public class Startup(IConfiguration configuration)
             );
         services.AddCors(options =>
         {
-            options.AddPolicy("AllowSpecificOrigins", 
-                builder => 
-                {
-                    builder
-                        .WithOrigins("http://api.neurocorp.com")
-                        .AllowAnyHeader()
-                        .AllowAnyMethod();
-                });
+            options.AddPolicy("AllowNeurocorp",
+                builder => builder
+                    .SetIsOriginAllowed(origin => new Uri(origin).Host.Contains("neurocorp"))                    
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials());
+        });
+        services.AddCors(options =>
+        {
+            options.AddPolicy("AllowLocalhost",
+                builder => builder
+                    .SetIsOriginAllowed(origin => new Uri(origin).Host.Contains("localhost"))
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials());
         });
         services.AddControllers();
 
@@ -66,7 +74,21 @@ public class Startup(IConfiguration configuration)
 
         app.UseHttpsRedirection();
         app.UseRouting();
-        app.UseCors("AllowSpecificOrigins");
+        app.UseCors("AllowLocalhost");
+        app.UseCors("AllowNeurocorp");
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Method == "OPTIONS")
+            {
+                context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+                context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
+                context.Response.StatusCode = 204;
+                return;
+            }
+            await next();
+        });
+
         app.UseAuthorization();
 
         app.UseEndpoints(endpoints =>
