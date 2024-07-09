@@ -15,7 +15,8 @@ public class TherapySession : AuditableEntityBase
 
     public int PatientId { get; set; }
     public int TherapistId { get; set; }
-    public DateTime SessionDate { get; set; }
+    public DateOnly SessionDate { get; set; }
+    public TimeOnly SessionTime { get; set; }
     public int Duration { get; set; }
     public decimal Amount { get; set; }
     public decimal AmountPaid { get; set; }
@@ -40,7 +41,7 @@ public class TherapySession : AuditableEntityBase
 
     private bool IsPastDeadline()
     {
-        var difference = DateTime.UtcNow - SessionDate;
+        var difference = DateTime.UtcNow - SessionDate.ToDateTime(SessionTime);
         return difference.Days > DAYS_LATE_LIMIT;
     }
 }
@@ -52,7 +53,8 @@ public class UndefinedSession : TherapySession
         this.Id = -9999;
         this.PatientId = -9999;
         this.TherapistId = -9999;
-        this.SessionDate = DateTime.MinValue;
+        this.SessionDate = DateOnly.MinValue;
+        this.SessionTime = TimeOnly.MinValue;
         this.Notes = "Undefined Session";
     }
 }

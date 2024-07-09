@@ -22,8 +22,7 @@ public class SessionEventRepositoryTests
             .UseInMemoryDatabase(databaseName: "TestDatabase")
             .Options;
 
-        var targetDate = new DateOnly(2023, 6, 25);
-        var targetDateTime = targetDate.ToDateTime(new TimeOnly(0, 0));
+        var targetDateTime = DateTime.UtcNow;
 
         using (var context = new ApplicationDbContext(options))
         {
@@ -32,7 +31,8 @@ public class SessionEventRepositoryTests
                 Id = 1,
                 Patient = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } },
                 Therapist = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } },
-                SessionDate = targetDateTime,
+                SessionDate = DateOnly.FromDateTime(targetDateTime),
+                SessionTime = TimeOnly.FromDateTime(targetDateTime),
                 TherapyTypes = "TherapyType1",
                 Amount = 100,
                 DiscountAmount = 10,
@@ -45,7 +45,8 @@ public class SessionEventRepositoryTests
                 Id = 2,
                 Patient = new Patient { Id = 2, User = new User { FirstName = "Alice", LastName = "Wonder" } },
                 Therapist = new Therapist { Id = 2, User = new User { FirstName = "Bob", LastName = "Builder" } },
-                SessionDate = targetDateTime,
+                SessionDate = DateOnly.FromDateTime(targetDateTime),
+                SessionTime = TimeOnly.FromDateTime(targetDateTime),
                 TherapyTypes = "TherapyType2",
                 Amount = 200,
                 DiscountAmount = 20,
@@ -61,7 +62,7 @@ public class SessionEventRepositoryTests
             var repository = new SessionEventRepository(context);
 
             // Act
-            var result = await repository.GetAllByTargetDateAsync(targetDate);
+            var result = await repository.GetAllByTargetDateAsync(DateOnly.FromDateTime(targetDateTime));
 
             // Assert
             Assert.NotNull(result);

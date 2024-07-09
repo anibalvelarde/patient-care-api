@@ -11,6 +11,7 @@ public class SessionEvent
 
     public int SessionId { get; set; }
     public DateOnly SessionDate { get; set; }
+    public TimeOnly SessionTime { get; set; }
     public string Patient { get; set; }
     public string Therapist { get; set; }
     public string? TherapyTypes { get; set; } = "N/A";

@@ -102,10 +102,11 @@ public class SessionEventHandler : IHandleSessionEvent
         return new SessionEvent()
         {
             SessionId = newTherapySession.Id,
-            SessionDate = DateOnly.FromDateTime(newTherapySession.SessionDate),
+            SessionDate = newTherapySession.SessionDate,
+            SessionTime = newTherapySession.SessionTime,
             Patient = pProfile!.PatientName,
             Therapist = tProfile!.TherapistName,
-            TherapyTypes = "TBD",
+            TherapyTypes = newTherapySession.TherapyTypes,
             Amount = newTherapySession.Amount,
             Discount = newTherapySession.DiscountAmount,
             AmountDue = newTherapySession.Amount,
@@ -152,7 +153,8 @@ public class SessionEventHandler : IHandleSessionEvent
         {
             PatientId = pProfile.PatientId,
             TherapistId = tProfile.TherapistId,
-            SessionDate = req.SessionDate.ToDateTime(TimeOnly.MinValue),
+            SessionDate = req.SessionDate,
+            SessionTime = req.SessionTime,
             TherapyTypes = req.TherapyType,
             Duration = req.Duration,
             Amount = req.Amount,
