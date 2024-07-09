@@ -29,7 +29,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.TherapySessions
             .Where(ts => (ts.Patient != null) &&
                          (ts.Therapist != null) &&
-                         (ts.SessionDate == ConvertToDateTime(targetDate)))
+                         (ts.SessionDate == targetDate))
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
@@ -110,7 +110,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             SessionId = ts.Id,
             PatientId = ts.PatientId,
             TherapistId = ts.TherapistId,
-            SessionDate = DateOnly.FromDateTime(ts.SessionDate),
+            SessionDate = ts.SessionDate,
+            SessionTime = ts.SessionTime,
             Patient = ts.Patient!.User!.GetFullName(),
             Therapist = ts.Therapist!.User!.GetFullName(),
             TherapyTypes = ts.TherapyTypes,
@@ -123,17 +124,4 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             Notes = ts.Notes,
         };
     }
-    private static DateTime ConvertToDateTime(DateOnly? dateOnly)
-    {
-        if (dateOnly.HasValue)
-        {
-            // Convert DateOnly to DateTime with a specified time part (e.g., midnight)
-            return dateOnly.Value.ToDateTime(new TimeOnly(0, 0));
-        }
-        else
-        {
-            // Handle the case when dateOnly is null (you can set a default value or handle accordingly)
-            return DateTime.MinValue; // or any other default value
-        }
-    }    
 }

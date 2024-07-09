@@ -8,6 +8,7 @@ public class SessionEventRequest
     }
 
     public DateOnly SessionDate { get; set; }
+    public TimeOnly SessionTime { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set; }
     public string TherapyType { get; set; } = "N/A";

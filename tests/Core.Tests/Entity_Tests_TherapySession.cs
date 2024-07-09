@@ -16,7 +16,8 @@ public class EntityTestsTherapySession
         _sut = new TherapySession()
             {
                 Id = 1234,
-                SessionDate = new DateTime(2024,4,18),  // April 18, 2024
+                SessionDate = new DateOnly(2024,4,18),  // April 18, 2024
+                SessionTime = new TimeOnly(14,32,30),
                 PatientId = 35,
                 TherapistId = 3,
                 Duration = 60,
@@ -47,7 +48,9 @@ public class EntityTestsTherapySession
     public void GetPastDue_Calculates_TRUE_OK()
     {
         // arrange
-        _sut.SessionDate = DateTime.UtcNow.AddDays(-46);
+        var timestamp = DateTime.UtcNow.AddDays(-46);
+        _sut.SessionDate = DateOnly.FromDateTime(timestamp);
+        _sut.SessionTime = TimeOnly.FromDateTime(timestamp);
         _sut.AmountPaid = 0m;
 
         // act

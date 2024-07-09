@@ -9,6 +9,7 @@ public class SessionEventUpdateRequest
         this.Notes = string.Empty;
     }
 
+    public TimeOnly SessionTime { get; set; }
     public string TherapyType { get; set; } = string.Empty;
     public int Duration { get; set; }
     public decimal Amount { get; set; }
