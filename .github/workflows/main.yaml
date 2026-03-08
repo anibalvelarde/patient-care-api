@@ -11,15 +11,15 @@ jobs:
       build_number: ${{ github.run_number }}-${{ github.run_attempt }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.100'
+        dotnet-version: '8.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore ./patient-care-api.sln  
+      run: dotnet restore ./patient-care-api.sln
 
     - name: Build
       run: dotnet build ./patient-care-api.sln --no-restore
@@ -28,15 +28,11 @@ jobs:
       run: |
         dotnet test ./patient-care-api.sln --no-build
 
-    - name: Generate build number
-      id: build_number
-      run: echo "build_number=$(env.build_number)"
-
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      uses: docker/setup-buildx-action@v3
 
     - name: Cache Docker layers
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: /tmp/.buildx-cache
         key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -44,13 +40,13 @@ jobs:
           ${{ runner.os }}-buildx-
 
     - name: Log in to Docker Hub
-      uses: docker/login-action@v1
+      uses: docker/login-action@v3
       with:
         username: ${{ secrets.DOCKER_HUB_USERNAME }}
         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
     - name: Build and push Docker image
-      uses: docker/build-push-action@v2
+      uses: docker/build-push-action@v6
       with:
         context: .
         file: ./build/Dockerfile
