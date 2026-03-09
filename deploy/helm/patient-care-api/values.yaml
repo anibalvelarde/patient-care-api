@@ -1,0 +1,35 @@
+replicaCount: 1
+
+image:
+  repository: anibalvelarde/patient-care-api
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 5245
+  nodePort: 30000
+
+namespace: nc-k3s
+
+database:
+  host: ""
+  port: "3306"
+  name: ""
+  user: ""
+  password: ""
+
+healthCheck:
+  liveness:
+    path: /api/health/live
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    path: /api/health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  startup:
+    path: /api/health/startup
+    failureThreshold: 30
+    periodSeconds: 5

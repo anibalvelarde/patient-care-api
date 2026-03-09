@@ -1,0 +1,14 @@
+Patient Care API has been deployed to the {{ .Values.namespace }} namespace.
+
+Service type: {{ .Values.service.type }}
+Node port:    {{ .Values.service.nodePort }}
+
+Access the API from your LAN at:
+  http://<node-ip>:{{ .Values.service.nodePort }}/api/health/checks
+
+To upgrade with a new image version:
+  helm upgrade patient-care-api deploy/helm/patient-care-api \
+    --set image.tag=<new-tag>
+
+To check pod status:
+  kubectl get pods -n {{ .Values.namespace }}

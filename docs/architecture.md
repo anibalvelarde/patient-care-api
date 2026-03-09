@@ -69,3 +69,15 @@ Database connection is built from environment variables at startup (not from `ap
 
 - **PR Validation** — Build + test on every PR to `main`.
 - **Main Build** — Full pipeline producing a versioned Docker image on push to `main`.
+
+## K3s Deployment
+
+The API is deployed to a local K3s cluster via a Helm chart at `deploy/helm/patient-care-api/`. Key details:
+
+- **Namespace**: `nc-k3s`
+- **Service**: NodePort on port 30000
+- **Secrets**: Database credentials managed as K8s Secrets, sourced from a local `.env` file
+- **Health probes**: Liveness (`/api/health/live`), readiness (`/api/health/ready`), startup (`/api/health/startup`)
+- **Upgrades**: Semi-automatic via `helm upgrade` with new image tag
+
+See `docs/runbooks/k3s-deployment.md` for the full deployment runbook.

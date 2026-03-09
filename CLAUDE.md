@@ -32,8 +32,11 @@ Clean architecture with three layers — see [docs/architecture.md](docs/archite
 | Tests | `tests/Core.Tests/`, `tests/Infrastructure.Tests/`, `tests/Web.Tests/` |
 | CI/CD | `.github/workflows/` |
 | Docker | `build/Dockerfile` |
+| Helm chart | `deploy/helm/patient-care-api/` |
+| K3s deploy script | `deploy/helm/patient-care-api/deploy.sh` |
 | Docs | `docs/` |
 | ADRs | `docs/decisions/` |
+| Runbooks | `docs/runbooks/` |
 
 ## Build & test
 
