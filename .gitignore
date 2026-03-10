@@ -19,6 +19,9 @@ tools/
 [Tt]emp/
 .vscode/
 
+# Claude Code local settings (machine-specific permissions)
+.claude/settings.local.json
+
 # Mono auto generated files
 mono_crash.*
 

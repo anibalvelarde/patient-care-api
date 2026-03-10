@@ -30,18 +30,13 @@ public class Startup(IConfiguration configuration)
             );
         services.AddCors(options =>
         {
-            options.AddPolicy("AllowNeurocorp",
+            options.AddPolicy("AllowedOrigins",
                 builder => builder
-                    .SetIsOriginAllowed(origin => new Uri(origin).Host.Contains("neurocorp"))                    
-                    .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowCredentials());
-        });
-        services.AddCors(options =>
-        {
-            options.AddPolicy("AllowLocalhost",
-                builder => builder
-                    .SetIsOriginAllowed(origin => new Uri(origin).Host.Contains("localhost"))
+                    .SetIsOriginAllowed(origin =>
+                    {
+                        var host = new Uri(origin).Host;
+                        return host.Contains("neurocorp") || host.Contains("localhost");
+                    })
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials());
@@ -74,20 +69,7 @@ public class Startup(IConfiguration configuration)
 
         app.UseHttpsRedirection();
         app.UseRouting();
-        app.UseCors("AllowLocalhost");
-        app.UseCors("AllowNeurocorp");
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Method == "OPTIONS")
-            {
-                context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
-                context.Response.Headers.Append("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-                context.Response.Headers.Append("Access-Control-Allow-Headers", "Content-Type, Authorization");
-                context.Response.StatusCode = 204;
-                return;
-            }
-            await next();
-        });
+        app.UseCors("AllowedOrigins");
 
         app.UseAuthorization();
 
