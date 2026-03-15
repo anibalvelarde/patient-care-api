@@ -73,7 +73,7 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(therapistRequest.LastName)) { userOnFile.LastName = therapistRequest.LastName; }
         if (!string.IsNullOrEmpty(therapistRequest.Email)) { userOnFile.Email = therapistRequest.Email; }
         if (!string.IsNullOrEmpty(therapistRequest.PhoneNumber)) { userOnFile.PhoneNumber = therapistRequest.PhoneNumber; }
-        if (!userOnFile.ActiveStatus && userOnFile.ActiveStatus != therapistRequest.ActiveStatus) { userOnFile.ActiveStatus = therapistRequest.ActiveStatus; }
+        if (userOnFile.ActiveStatus != therapistRequest.ActiveStatus) { userOnFile.ActiveStatus = therapistRequest.ActiveStatus; }
 
         return userOnFile;
     }

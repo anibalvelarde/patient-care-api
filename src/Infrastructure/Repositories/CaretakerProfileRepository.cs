@@ -79,7 +79,7 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(request.LastName)) { userOnFile.LastName = request.LastName; }
         if (!string.IsNullOrEmpty(request.Email)) { userOnFile.Email = request.Email; }
         if (!string.IsNullOrEmpty(request.PhoneNumber)) { userOnFile.PhoneNumber = request.PhoneNumber; }
-        if (!userOnFile.ActiveStatus && userOnFile.ActiveStatus != request.IsActive) { userOnFile.ActiveStatus = request.IsActive; }
+        if (userOnFile.ActiveStatus != request.IsActive) { userOnFile.ActiveStatus = request.IsActive; }
 
         return userOnFile;
     }
