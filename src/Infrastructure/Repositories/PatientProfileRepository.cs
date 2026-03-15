@@ -67,6 +67,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             && !patientRequest.DateOfBirth.Equals(DateTime.MinValue)
             && !patientOnFile.DateOfBirth.Value.Equals(patientRequest.DateOfBirth))
         { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
+        if (!string.IsNullOrEmpty(patientRequest.MedicalRecordNumber))
+        { patientOnFile.MedicalRecordNumber = patientRequest.MedicalRecordNumber; }
 
         return patientOnFile;
     }

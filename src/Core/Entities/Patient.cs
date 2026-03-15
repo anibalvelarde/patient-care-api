@@ -15,6 +15,12 @@ public class Patient : PersonBase
     public string MedicalRecordNumber { get; set; }
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
+    public bool HasTemporaryMrn()
+    {
+        return string.IsNullOrEmpty(MedicalRecordNumber)
+            || MedicalRecordNumber.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase);
+    }
+
     public override string ToString()
     {
         var sb = new StringBuilder();

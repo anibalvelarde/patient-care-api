@@ -58,8 +58,16 @@ public class PatientProfileService : IPatientProfileService
     public async Task<PatientProfile> CreateAsync(PatientProfileRequest patientRequest)
     {
         _logger.LogInformation("Creating new patient profile from request.");
-        var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest));
+        bool isMissingMrn = string.IsNullOrWhiteSpace(patientRequest.MedicalRecordNumber);
+        var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest, activeStatus: !isMissingMrn));
         var newPatient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, newUser));
+
+        if (isMissingMrn)
+        {
+            newPatient.MedicalRecordNumber = $"TEMP-{newPatient.Id}";
+            await _patientRepo.UpdateAsync(newPatient);
+        }
+
         var newRole = await _userRoleRepo.AddAsync(newPatient.MintNewRole());
         _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Pid[{newPatient.Id}], Role[{newRole.UserRoleId}]");
         return new PatientProfile
@@ -67,6 +75,7 @@ public class PatientProfileService : IPatientProfileService
             PatientId = newPatient.Id,
             UserId = newUser.Id,
             PatientName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
+            MedicalRecordNumber = newPatient.MedicalRecordNumber,
             DateOfBirth = newPatient.DateOfBirth ?? DateTime.MinValue,
             Email = newUser.Email,
             PhoneNumber = newUser.PhoneNumber,
@@ -83,6 +92,13 @@ public class PatientProfileService : IPatientProfileService
         var profileOnFile = await this.GetByIdAsync(patientAggId);
         if (profileOnFile != null)
         {
+            if (updateRequest.ActiveStatus
+                && profileOnFile.MedicalRecordNumber.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Cannot activate a patient with a temporary Medical Record Number. Assign a permanent MRN first.");
+            }
+
             await _repository.UpdateAsync(profileOnFile.PatientId, profileOnFile.UserId, updateRequest);
             return true;
         }
@@ -120,7 +136,7 @@ public class PatientProfileService : IPatientProfileService
         };
     }
 
-    private static User MapToNewUser(PatientProfileRequest patientRequest)
+    private static User MapToNewUser(PatientProfileRequest patientRequest, bool activeStatus = true)
     {
         return new User
         {
@@ -130,7 +146,7 @@ public class PatientProfileService : IPatientProfileService
             Email = patientRequest.Email,
             PhoneNumber = patientRequest.PhoneNumber,
             CreatedTimestamp = DateTime.UtcNow,
-            ActiveStatus = true
+            ActiveStatus = activeStatus
         };
     }
 }
