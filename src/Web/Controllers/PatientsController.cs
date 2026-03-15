@@ -68,14 +68,21 @@ public class PatientsController : ControllerBase
     {
         if (await _patientProfileService.VerifyRequestAsync(id))
         {
-            var updateResult = await _patientProfileService.UpdateAsync(id, patientRequest);
-            if (updateResult)
+            try
             {
-                return NoContent();
+                var updateResult = await _patientProfileService.UpdateAsync(id, patientRequest);
+                if (updateResult)
+                {
+                    return NoContent();
+                }
+                else
+                {
+                    return BadRequest("Bad input?");
+                }
             }
-            else
+            catch (InvalidOperationException ex)
             {
-                return BadRequest("Bad input?");
+                return BadRequest(ex.Message);
             }
         }
         return BadRequest();

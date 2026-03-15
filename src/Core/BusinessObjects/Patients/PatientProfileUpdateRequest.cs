@@ -24,6 +24,7 @@ public class PatientProfileUpdateRequest
     public string PhoneNumber { get; set; }
     public string Gender { get; set; }
     public bool ActiveStatus { get; set; }
+    public string? MedicalRecordNumber { get; set; }
 
     public override string ToString()
     {
