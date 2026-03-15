@@ -31,7 +31,7 @@ public class PatientsController : ControllerBase
         return Ok(patients);
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -42,7 +42,7 @@ public class PatientsController : ControllerBase
         return Ok(patient);
     }
 
-    [HttpGet("{id}/pastdue")]
+    [HttpGet("{id:int}/pastdue")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientPastDueInfo))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -56,6 +56,15 @@ public class PatientsController : ControllerBase
         return NotFound();
     }    
 
+    [HttpGet("pastdue")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientPastDueInfo>))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetAllPastDuePatients()
+    {
+        var pastDuePatients = await _sessionEventHandler.GetAllPatientsPastDueAsync();
+        return Ok(pastDuePatients);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
     {
@@ -63,7 +72,7 @@ public class PatientsController : ControllerBase
         return CreatedAtAction(nameof(CreatePatient), new { id = createdPatient.PatientId }, createdPatient);
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
         if (await _patientProfileService.VerifyRequestAsync(id))

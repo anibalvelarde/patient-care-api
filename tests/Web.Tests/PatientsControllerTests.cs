@@ -116,6 +116,45 @@ public class PatientsControllerTests
     }    
 
     [Fact]
+    public async Task GetAllPastDuePatients_ReturnsOk_WithPastDuePatients()
+    {
+        // Arrange
+        var pastDuePatients = new List<PatientPastDueInfo>
+        {
+            new() { Party = Mock.Of<PatientProfile>(p => p.PatientId == 1), PastDueSessions = 2, PastDueTotalAmount = 100m, AmountPaidSoFar = 20m },
+            new() { Party = Mock.Of<PatientProfile>(p => p.PatientId == 2), PastDueSessions = 1, PastDueTotalAmount = 50m, AmountPaidSoFar = 0m }
+        };
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPatientsPastDueAsync())
+            .ReturnsAsync(pastDuePatients);
+
+        // Act
+        var result = await _controller.GetAllPastDuePatients();
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IEnumerable<PatientPastDueInfo>>()
+            .Which.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetAllPastDuePatients_ReturnsOk_WithEmptyList()
+    {
+        // Arrange
+        _mockSessionEventHandler
+            .Setup(x => x.GetAllPatientsPastDueAsync())
+            .ReturnsAsync(new List<PatientPastDueInfo>());
+
+        // Act
+        var result = await _controller.GetAllPastDuePatients();
+
+        // Assert
+        result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeAssignableTo<IEnumerable<PatientPastDueInfo>>()
+            .Which.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task GetPatient_PastDueEvents_Returns_NO_Result_WithSessionEvents()
     {
         // Arrange
