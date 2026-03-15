@@ -78,6 +78,36 @@ public class SessionEventHandler : IHandleSessionEvent
         return sortedPastDueEvents;
     }
 
+    public async Task<IEnumerable<PatientPastDueInfo>> GetAllPatientsPastDueAsync()
+    {
+        _logger.LogInformation("Started to fetch all patients with past-due sessions");
+        var stopwatch = Stopwatch.StartNew();
+
+        var pastDueSessions = await GetAllPastDueAsync();
+        var groupedByPatient = pastDueSessions.GroupBy(s => s.PatientId);
+
+        var results = new List<PatientPastDueInfo>();
+        foreach (var group in groupedByPatient)
+        {
+            var patient = await _patientService.GetByIdAsync(group.Key);
+            if (patient is null) continue;
+
+            var sessions = group.ToList();
+            results.Add(new PatientPastDueInfo
+            {
+                Party = patient,
+                PastDueSessions = sessions.Count,
+                PastDueTotalAmount = sessions.Sum(s => s.AmountDue),
+                AmountPaidSoFar = sessions.Sum(s => s.AmountPaid),
+                Delinquency = sessions,
+            });
+        }
+
+        _logger.LogInformation("Found {Count} patients with past-due sessions in {ElapsedMilliseconds} ms",
+            results.Count, stopwatch.ElapsedMilliseconds);
+        return results;
+    }
+
     public async Task<SessionEvent?> GetByIdAsync(int id)
     {
         return await _repository.GetByIdAsync(id);
