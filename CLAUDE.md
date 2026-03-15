@@ -4,6 +4,19 @@
 
 A .NET 8 REST API for managing therapy clinic operations (patients, therapists, caretakers, sessions, billing) built for the Neurocorp platform. Part of a three-repo system: Vue UI, this API, and a MySQL database.
 
+## Default Behavior
+
+When starting a new conversation or after a `/clear`, follow this sequence before doing any work:
+
+1. **Enter plan mode first.** For any non-trivial request (bug fix, new feature, refactor), enter plan mode before writing code. Only skip planning for single-line fixes, typos, or questions.
+2. **Orient yourself.** Quickly review:
+   - This file (`CLAUDE.md`) for project conventions
+   - `docs/architecture.md` for system design context
+   - `docs/adr/` for architectural decisions already made
+   - `git log --oneline -10` for recent changes and active work
+3. **Confirm the task.** Summarize your understanding of what the user wants and your proposed approach before implementing. Ask clarifying questions if the request is ambiguous.
+4. **Run verification after changes.** Always run `npx vue-tsc --noEmit` and `npm run lint` from `app-ui/` before considering work complete.
+
 ## Architecture
 
 Clean architecture with three layers — see [docs/architecture.md](docs/architecture.md) for details.
