@@ -69,3 +69,18 @@ dotnet run --project src/Web/Web.csproj   # starts on http://localhost:5245
 - **Naming**: PascalCase for C# types/members; controllers named `{Resource}Controller`
 - **Database**: MySQL via Pomelo EF Core provider; connection built from env vars (`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`)
 - **Testing**: xUnit + Moq + FluentAssertions; test projects mirror `src/` structure
+
+## Coordinator Context
+
+This project is part of a multi-repo system managed by a coordinator instance at `../patient-care-super/`.
+
+- **Coordinator guide**: `../patient-care-super/CLAUDE.md`
+- **API contracts**: `../patient-care-super/_contracts/`
+- **Active plans**: `../patient-care-super/planning/active/`
+
+### Dependency Position
+
+DB schema changes must land before yours. UI consumes your output. When making changes:
+1. DB layer (`../patient-care-db/`) applies schema changes first
+2. You update entities, repositories, services, and controllers
+3. UI layer (`../patient-care-ui-vue/`) updates last to consume your endpoints
