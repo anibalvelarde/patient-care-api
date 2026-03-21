@@ -6,12 +6,14 @@ public class Payment
 {
     public Payment()
     {
-        this.Patient = new UndefinedPatient();
+        this.Caretaker = new UndefinedCaretaker();
         this.SessionPayments = [];
     }
     public int Id { get; set; }
-    public int PatientId { get; set; }
-    public Patient Patient { get; set; }
+    public int CaretakerId { get; set; }
+    public Caretaker Caretaker { get; set; }
+    public int PaymentTypeId { get; set; }
+    public string? CheckNumber { get; set; }
     public decimal Amount { get; set; }
     public DateTime PaymentDate { get; set; }
     public ICollection<SessionPayment> SessionPayments { get; set; }

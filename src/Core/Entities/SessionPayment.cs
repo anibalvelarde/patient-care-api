@@ -15,4 +15,5 @@ public class SessionPayment
     public Payment Payment { get; set; }
     public int TherapySessionId { get; set; }
     public TherapySession TherapySession { get; set; }
+    public decimal AmountAllocated { get; set; }
 }
