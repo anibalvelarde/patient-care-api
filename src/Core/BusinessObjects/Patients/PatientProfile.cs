@@ -23,6 +23,7 @@ public class PatientProfile : IProfile
     public DateTime CreatedTimestamp { get; set; }
     public string Gender { get; set; }
     public bool IsActive { get; set; }
+    public List<PatientCaretakerSummary> Caretakers { get; set; } = new();
 
     int IProfile.Id => this.PatientId;
     string IProfile.Name => this.PatientName;

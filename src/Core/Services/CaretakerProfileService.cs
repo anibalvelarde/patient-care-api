@@ -13,6 +13,7 @@ public class CaretakerProfileService : ICaretakerProfileService
     private readonly IUserRepository _userRepo;
     private readonly ICaretakerRepository _caretakerRepo;
     private readonly IUserRoleRepository _userRoleRepo;
+    private readonly IPatientCaretakerRepository _patientCaretakerRepo;
     private readonly ILogger<CaretakerProfileService> _logger;
 
     public CaretakerProfileService(
@@ -20,13 +21,15 @@ public class CaretakerProfileService : ICaretakerProfileService
         ICaretakerProfileRepository repo,
         ICaretakerRepository caretakerRepo,
         IUserRepository userRepo,
-        IUserRoleRepository userRoleRepo)
+        IUserRoleRepository userRoleRepo,
+        IPatientCaretakerRepository patientCaretakerRepo)
     {
         _logger = logger;
         _repository = repo;
         _userRepo = userRepo;
         _caretakerRepo = caretakerRepo;
         _userRoleRepo = userRoleRepo;
+        _patientCaretakerRepo = patientCaretakerRepo;
         _repository = repo;
     }
 
@@ -44,13 +47,13 @@ public class CaretakerProfileService : ICaretakerProfileService
 
     public async Task<CaretakerProfile> CreateAsync(CaretakerProfile caretaker)
     {
-        _logger.LogError("Operation Not Allowed: Creating new patient profile.");
+        _logger.LogError("Operation Not Allowed: Creating new caretaker profile.");
         return await Task.FromException<CaretakerProfile>(new NotImplementedException());
     }
 
     public async Task UpdateAsync(CaretakerProfile caretaker)
     {
-        _logger.LogError("Updating patient profile.");
+        _logger.LogError("Updating caretaker profile.");
         await Task.FromException<CaretakerProfile>(new NotImplementedException());
     }
 
@@ -108,6 +111,56 @@ public class CaretakerProfileService : ICaretakerProfileService
             return verificationResult;
         }
         return false;
+    }
+
+    public async Task<IEnumerable<CaretakerPatientSummary>> GetPatientsForCaretakerAsync(int caretakerId)
+    {
+        _logger.LogInformation("Getting patients for caretaker ID: {Id}", caretakerId);
+        var links = await _patientCaretakerRepo.GetByCaretakerIdAsync(caretakerId);
+        return links.Select(pc => new CaretakerPatientSummary
+        {
+            PatientId = pc.PatientId,
+            PatientName = pc.Patient?.User != null
+                ? $"{pc.Patient.User.LastName}, {pc.Patient.User.FirstName} {pc.Patient.User.MiddleName}".Trim()
+                : string.Empty,
+            IsPrimaryCaretaker = pc.PrimaryCaretaker,
+            RelationshipToPatient = pc.RelationshipToPatient
+        });
+    }
+
+    public async Task<bool> LinkPatientAsync(int caretakerId, int patientId, bool isPrimary, string? relationship)
+    {
+        _logger.LogInformation("Linking patient {PatientId} to caretaker {CaretakerId}", patientId, caretakerId);
+        var existing = await _patientCaretakerRepo.GetByCompositeKeyAsync(patientId, caretakerId);
+        if (existing != null)
+        {
+            _logger.LogWarning("Link already exists between patient {PatientId} and caretaker {CaretakerId}", patientId, caretakerId);
+            return false;
+        }
+
+        var entity = new PatientCaretaker
+        {
+            PatientId = patientId,
+            CaretakerId = caretakerId,
+            PrimaryCaretaker = isPrimary,
+            RelationshipToPatient = relationship
+        };
+        await _patientCaretakerRepo.AddAsync(entity);
+        return true;
+    }
+
+    public async Task<bool> UnlinkPatientAsync(int caretakerId, int patientId)
+    {
+        _logger.LogInformation("Unlinking patient {PatientId} from caretaker {CaretakerId}", patientId, caretakerId);
+        var existing = await _patientCaretakerRepo.GetByCompositeKeyAsync(patientId, caretakerId);
+        if (existing == null)
+        {
+            _logger.LogWarning("No link found between patient {PatientId} and caretaker {CaretakerId}", patientId, caretakerId);
+            return false;
+        }
+
+        await _patientCaretakerRepo.DeleteAsync(existing);
+        return true;
     }
 
     private static DateTime MaxTimestamp(DateTime timestamp1, DateTime timestamp2)

@@ -15,4 +15,5 @@ public class PatientCaretaker : AuditableEntityBase
     public int CaretakerId { get; set; }
     public Caretaker? Caretaker{ get; set; }
     public bool PrimaryCaretaker { get; set; }
+    public string? RelationshipToPatient { get; set; }
 }

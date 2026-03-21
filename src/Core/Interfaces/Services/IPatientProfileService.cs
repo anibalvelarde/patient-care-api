@@ -8,4 +8,5 @@ public interface IPatientProfileService : IService<PatientProfile>
     public Task<PatientProfile> CreateAsync(PatientProfileRequest request);
     public Task<bool> UpdateAsync(int patientId, PatientProfileUpdateRequest request);
     public Task<bool> VerifyRequestAsync(int patientAggId);
+    Task<IEnumerable<PatientCaretakerSummary>> GetCaretakersForPatientAsync(int patientId);
 }

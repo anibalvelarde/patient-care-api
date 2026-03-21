@@ -17,6 +17,7 @@ public class CaretakerProfile
     public string PhoneNumber { get; set; }
     public string Notes { get; set; }
     public DateTime CreatedTimestamp { get; set; }
-    public DateTime LastUpdated { get; set; }    
+    public DateTime LastUpdated { get; set; }
     public bool IsActive { get; set; }
+    public List<CaretakerPatientSummary> Patients { get; set; } = new();
 }

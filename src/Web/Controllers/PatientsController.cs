@@ -65,6 +65,15 @@ public class PatientsController : ControllerBase
         return Ok(pastDuePatients);
     }
 
+    [HttpGet("{id:int}/caretakers")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientCaretakerSummary>))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetPatientCaretakers(int id)
+    {
+        var caretakers = await _patientProfileService.GetCaretakersForPatientAsync(id);
+        return Ok(caretakers);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
     {

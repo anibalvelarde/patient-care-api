@@ -18,6 +18,9 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Patients
             .Where(p => p.User != null)
             .Include(p => p.User)
+            .Include(p => p.Caretakers!)
+                .ThenInclude(pc => pc.Caretaker)
+                    .ThenInclude(c => c!.User)
             .Select(p => ExtractPatientProfile(p)).ToListAsync();
 
         return result;
@@ -28,6 +31,9 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Patients
         .Where(p => p.Id == id)
         .Include(p => p.User)
+        .Include(p => p.Caretakers!)
+            .ThenInclude(pc => pc.Caretaker)
+                .ThenInclude(c => c!.User)
         .Select(p => ExtractPatientProfile(p))
         .ToListAsync();
         return result.FirstOrDefault();
@@ -104,6 +110,15 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             Email = p.User.Email,
             PhoneNumber = p.User.PhoneNumber,
             CreatedTimestamp = p.User.CreatedTimestamp,
+            Caretakers = (p.Caretakers ?? new List<PatientCaretaker>()).Select(pc => new PatientCaretakerSummary
+            {
+                CaretakerId = pc.CaretakerId,
+                CaretakerName = pc.Caretaker?.User != null
+                    ? $"{pc.Caretaker.User.LastName}, {pc.Caretaker.User.FirstName} {pc.Caretaker.User.MiddleName}".Trim()
+                    : string.Empty,
+                IsPrimaryCaretaker = pc.PrimaryCaretaker,
+                RelationshipToPatient = pc.RelationshipToPatient
+            }).ToList()
         };
     }
 }
