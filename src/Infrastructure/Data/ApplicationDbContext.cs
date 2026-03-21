@@ -14,6 +14,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<Caretaker> Caretakers { get; set; }
     public DbSet<Therapist> Therapists { get; set; }
     public DbSet<TherapySession> TherapySessions { get; set; }
+    public DbSet<Payment> Payments { get; set; }
+    public DbSet<SessionPayment> SessionPayments { get; set; }
+    public DbSet<PaymentType> PaymentTypes { get; set; }
 
     public override int SaveChanges()
     {
@@ -78,7 +81,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Caretaker>(ct => {
             ct.ToTable("Caretaker");
             ct.HasKey(e => e.Id);
-            ct.Property(e => e.Id).HasColumnName("CareTakerID");
+            ct.Property(e => e.Id).HasColumnName("CaretakerID");
             ct.Property(e => e.Notes).IsRequired(false);
         });
         modelBuilder.Entity<Therapist>(t => {
@@ -97,6 +100,22 @@ public class ApplicationDbContext : DbContext
             ur.HasKey(e => e.Id);
             ur.Property(e => e.Id).HasColumnName("UserRoleID");
             ur.Ignore(e => e.RoleCreatedOn);
+        });
+        modelBuilder.Entity<Payment>(p => {
+            p.ToTable("Payment");
+            p.HasKey(e => e.Id);
+            p.Property(e => e.Id).HasColumnName("PaymentID");
+            p.Property(e => e.CaretakerId).HasColumnName("PaidBy");
+        });
+        modelBuilder.Entity<SessionPayment>(sp => {
+            sp.ToTable("SessionPayment");
+            sp.HasKey(e => e.Id);
+            sp.Property(e => e.Id).HasColumnName("SessionPaymentID");
+        });
+        modelBuilder.Entity<PaymentType>(pt => {
+            pt.ToTable("PaymentType");
+            pt.HasKey(e => e.Id);
+            pt.Property(e => e.Id).HasColumnName("PaymentTypeID");
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {

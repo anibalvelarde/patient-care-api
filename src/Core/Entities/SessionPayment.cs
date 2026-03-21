@@ -6,8 +6,8 @@ public class SessionPayment
 {
     public SessionPayment()
     {
-        this.Payment = new UndefinedPayment();
-        this.TherapySession = new UndefinedSession();
+        this.Payment = null!;
+        this.TherapySession = null!;
     }
 
     public int Id { get; set; }
@@ -15,4 +15,5 @@ public class SessionPayment
     public Payment Payment { get; set; }
     public int TherapySessionId { get; set; }
     public TherapySession TherapySession { get; set; }
+    public decimal AmountAllocated { get; set; }
 }
