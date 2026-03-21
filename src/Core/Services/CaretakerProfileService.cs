@@ -124,7 +124,7 @@ public class CaretakerProfileService : ICaretakerProfileService
                 ? $"{pc.Patient.User.LastName}, {pc.Patient.User.FirstName} {pc.Patient.User.MiddleName}".Trim()
                 : string.Empty,
             IsPrimaryCaretaker = pc.PrimaryCaretaker,
-            RelationshipToPatient = null
+            RelationshipToPatient = pc.RelationshipToPatient
         });
     }
 
@@ -142,7 +142,8 @@ public class CaretakerProfileService : ICaretakerProfileService
         {
             PatientId = patientId,
             CaretakerId = caretakerId,
-            PrimaryCaretaker = isPrimary
+            PrimaryCaretaker = isPrimary,
+            RelationshipToPatient = relationship
         };
         await _patientCaretakerRepo.AddAsync(entity);
         return true;

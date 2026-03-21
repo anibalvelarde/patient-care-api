@@ -139,7 +139,7 @@ public class PatientProfileService : IPatientProfileService
                 ? $"{pc.Caretaker.User.LastName}, {pc.Caretaker.User.FirstName} {pc.Caretaker.User.MiddleName}".Trim()
                 : string.Empty,
             IsPrimaryCaretaker = pc.PrimaryCaretaker,
-            RelationshipToPatient = null
+            RelationshipToPatient = pc.RelationshipToPatient
         });
     }
 

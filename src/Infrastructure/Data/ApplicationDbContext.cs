@@ -100,8 +100,9 @@ public class ApplicationDbContext : DbContext
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {
-            entity.ToTable("PatientCareTakers");
-            entity.HasKey(pc => new { pc.PatientId, pc.CaretakerId });
+            entity.ToTable("PatientCaretaker");
+            entity.HasKey(pc => pc.Id);
+            entity.Property(pc => pc.Id).HasColumnName("PatientCaretakerID");
 
             entity.HasOne(pc => pc.Patient)
                 .WithMany(p => p.Caretakers)
@@ -114,10 +115,12 @@ public class ApplicationDbContext : DbContext
             entity.Property(pc => pc.PrimaryCaretaker)
                 .IsRequired();
 
-            // Unique constraint to ensure only one primary care-taker per patient
-            entity.HasIndex(pc => new { pc.PatientId, pc.PrimaryCaretaker })
-                .IsUnique()
-                .HasFilter("[PrimaryCareTaker] = 1");
+            entity.Property(pc => pc.RelationshipToPatient)
+                .IsRequired(false);
+
+            // Unique constraint to prevent duplicate caretaker assignments per patient
+            entity.HasIndex(pc => new { pc.PatientId, pc.CaretakerId })
+                .IsUnique();
         });
     }
 

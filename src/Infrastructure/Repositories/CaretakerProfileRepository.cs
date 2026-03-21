@@ -115,7 +115,7 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
                     ? $"{pc.Patient.User.LastName}, {pc.Patient.User.FirstName} {pc.Patient.User.MiddleName}".Trim()
                     : string.Empty,
                 IsPrimaryCaretaker = pc.PrimaryCaretaker,
-                RelationshipToPatient = null
+                RelationshipToPatient = pc.RelationshipToPatient
             }).ToList()
         };
     }
