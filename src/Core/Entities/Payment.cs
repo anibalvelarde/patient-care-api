@@ -6,7 +6,7 @@ public class Payment
 {
     public Payment()
     {
-        this.Caretaker = new UndefinedCaretaker();
+        this.Caretaker = null!;
         this.SessionPayments = [];
     }
     public int Id { get; set; }

@@ -23,7 +23,7 @@ public class UndefinedCaretaker : Caretaker
 {
     public UndefinedCaretaker()
     {
-        this.User!.Id = int.MinValue;
+        this.User = new User { Id = int.MinValue, FirstName = string.Empty, LastName = string.Empty };
         this.Id = int.MinValue;
         this.Notes = "Undefined";
     }

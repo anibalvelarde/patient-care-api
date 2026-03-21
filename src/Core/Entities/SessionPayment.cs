@@ -6,8 +6,8 @@ public class SessionPayment
 {
     public SessionPayment()
     {
-        this.Payment = new UndefinedPayment();
-        this.TherapySession = new UndefinedSession();
+        this.Payment = null!;
+        this.TherapySession = null!;
     }
 
     public int Id { get; set; }
