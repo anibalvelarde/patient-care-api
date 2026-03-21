@@ -62,4 +62,41 @@ public class CaretakersController : ControllerBase
         }
         return BadRequest();
     }
+
+    [HttpGet("{id}/patients")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<CaretakerPatientSummary>))]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetCaretakerPatients(int id)
+    {
+        var patients = await _caretakerProfileService.GetPatientsForCaretakerAsync(id);
+        return Ok(patients);
+    }
+
+    [HttpPost("{id}/patients")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> LinkPatient(int id, [FromBody] PatientLinkRequest request)
+    {
+        var result = await _caretakerProfileService.LinkPatientAsync(id, request.PatientId, request.IsPrimary, request.Relationship);
+        if (result)
+        {
+            return Created($"/api/caretakers/{id}/patients", null);
+        }
+        return BadRequest("Link already exists or invalid data.");
+    }
+
+    [HttpDelete("{id}/patients/{patientId}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> UnlinkPatient(int id, int patientId)
+    {
+        var result = await _caretakerProfileService.UnlinkPatientAsync(id, patientId);
+        if (result)
+        {
+            return NoContent();
+        }
+        return NotFound();
+    }
 }

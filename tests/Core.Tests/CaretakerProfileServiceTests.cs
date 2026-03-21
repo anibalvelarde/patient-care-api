@@ -19,7 +19,8 @@ public class CaretakerProfileServiceTests
         var fakeLogger = Mock.Of<ILogger<CaretakerProfileService>>(); 
 
         // act
-        var svc = new CaretakerProfileService(fakeLogger, fakeRepo, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new CaretakerProfileService(fakeLogger, fakeRepo, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo, fakePatientCaretakerRepo);
 
         // assert
         Assert.IsType<CaretakerProfileService>(svc);
@@ -37,7 +38,8 @@ public class CaretakerProfileServiceTests
         var expectedCaretaker = new CaretakerProfile { CaretakerId = testId, CaretakerName = "John Doe" };
         var _mockRepository = new Mock<ICaretakerProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(expectedCaretaker);
-        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo, fakePatientCaretakerRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -60,7 +62,8 @@ public class CaretakerProfileServiceTests
         var expectedCaretaker = new CaretakerProfile { CaretakerId = testId, CaretakerName = "John Doe" };
         var _mockRepository = new Mock<ICaretakerProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync((CaretakerProfile?)null);
-        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo, fakePatientCaretakerRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -79,7 +82,8 @@ public class CaretakerProfileServiceTests
         var fakeUserRoleRepo = Mock.Of<IUserRoleRepository>();
         var fakeLogger = Mock.Of<ILogger<CaretakerProfileService>>(); 
 
-        var svc = new CaretakerProfileService(fakeLogger, fakeRepo, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new CaretakerProfileService(fakeLogger, fakeRepo, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo, fakePatientCaretakerRepo);
 
         // Act & Assert
         await Assert.ThrowsAsync<NotImplementedException>(() => 
@@ -98,7 +102,8 @@ public class CaretakerProfileServiceTests
         var _mockRepository = new Mock<ICaretakerProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetAllAsync())
             .ReturnsAsync([]);
-        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new CaretakerProfileService(fakeLogger, _mockRepository.Object, fakeCaretakerRepo, fakeUserRepo, fakeUserRoleRepo, fakePatientCaretakerRepo);
 
         // Act
         var result = await svc.GetAllAsync();

@@ -18,6 +18,9 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Caretakers
             .Where(p => p.User != null)
             .Include(p => p.User)
+            .Include(p => p.Patients)
+                .ThenInclude(pc => pc.Patient)
+                    .ThenInclude(p => p!.User)
             .Select(p => ExtractCaretakerProfile(p)).ToListAsync();
 
         return result;
@@ -28,6 +31,9 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Caretakers
         .Where(p => p.Id == id)
         .Include(p => p.User)
+        .Include(p => p.Patients)
+            .ThenInclude(pc => pc.Patient)
+                .ThenInclude(p => p!.User)
         .Select(p => ExtractCaretakerProfile(p))
         .ToListAsync();
         return result.FirstOrDefault();
@@ -101,7 +107,16 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
             Email = ct.User.Email,
             PhoneNumber = ct.User.PhoneNumber,
             CreatedTimestamp = ct.User.CreatedTimestamp,
-            LastUpdated = ct.User.LastUpdatedTimestamp
+            LastUpdated = ct.User.LastUpdatedTimestamp,
+            Patients = ct.Patients.Select(pc => new CaretakerPatientSummary
+            {
+                PatientId = pc.PatientId,
+                PatientName = pc.Patient?.User != null
+                    ? $"{pc.Patient.User.LastName}, {pc.Patient.User.FirstName} {pc.Patient.User.MiddleName}".Trim()
+                    : string.Empty,
+                IsPrimaryCaretaker = pc.PrimaryCaretaker,
+                RelationshipToPatient = null
+            }).ToList()
         };
     }
 }

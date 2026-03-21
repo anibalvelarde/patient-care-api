@@ -15,6 +15,7 @@ public class PatientProfileService : IPatientProfileService
     private readonly IPatientRepository _patientRepo;
     private readonly IUserRepository _userRepo;
     private readonly IUserRoleRepository _userRoleRepo;
+    private readonly IPatientCaretakerRepository _patientCaretakerRepo;
     private readonly ILogger<PatientProfileService> _logger;
 
     public PatientProfileService(
@@ -22,12 +23,14 @@ public class PatientProfileService : IPatientProfileService
         IPatientProfileRepository patientProfileRepository,
         IPatientRepository patientRepository,
         IUserRepository userRepo,
-        IUserRoleRepository userRoleRepo)
+        IUserRoleRepository userRoleRepo,
+        IPatientCaretakerRepository patientCaretakerRepo)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
         _userRepo = userRepo;
         _userRoleRepo = userRoleRepo;
+        _patientCaretakerRepo = patientCaretakerRepo;
         _logger = logger;
     }
 
@@ -123,6 +126,21 @@ public class PatientProfileService : IPatientProfileService
             return true;
         }
         return false;
+    }
+
+    public async Task<IEnumerable<PatientCaretakerSummary>> GetCaretakersForPatientAsync(int patientId)
+    {
+        _logger.LogInformation("Getting caretakers for patient ID: {Id}", patientId);
+        var links = await _patientCaretakerRepo.GetByPatientIdAsync(patientId);
+        return links.Select(pc => new PatientCaretakerSummary
+        {
+            CaretakerId = pc.CaretakerId,
+            CaretakerName = pc.Caretaker?.User != null
+                ? $"{pc.Caretaker.User.LastName}, {pc.Caretaker.User.FirstName} {pc.Caretaker.User.MiddleName}".Trim()
+                : string.Empty,
+            IsPrimaryCaretaker = pc.PrimaryCaretaker,
+            RelationshipToPatient = null
+        });
     }
 
     private static Patient MapToNewPatient(PatientProfileRequest patientRequest, User user)
