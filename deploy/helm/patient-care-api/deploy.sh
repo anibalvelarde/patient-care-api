@@ -38,5 +38,30 @@ if [ -n "$IMAGE_TAG" ]; then
   HELM_CMD="$HELM_CMD --set image.tag=$IMAGE_TAG"
 fi
 
+# ────────────────────────────────────────────────────────────────
+echo "============================================================="
+echo "BEFORE deployment"
+echo "Namespace: nc-k3s"
+echo "-------------------------------------------------------------"
+kubectl get pods -n nc-k3s -o wide--no-headers 2>/dev/null | sort || echo "(no pods found or namespace empty)"
+echo ""
+
 echo "Deploying Patient Care API..."
+echo "Command: $HELM_CMD"
 eval "$HELM_CMD"
+
+echo ""
+echo "Waiting 10 seconds for Kubernetes to start reconciling changes..."
+sleep 10
+
+echo ""
+echo "============================================================="
+echo "AFTER deployment"
+echo "Namespace: nc-k3s"
+echo "-------------------------------------------------------------"
+kubectl get pods -n nc-k3s -o wide --no-headers 2>/dev/null | sort || echo "(no pods found or namespace empty)"
+echo "============================================================="
+
+echo ""
+echo "Done. Compare the two lists above."
+echo "Tip: run 'kubectl get pods -n nc-k3s -w' in another terminal to watch live updates."
