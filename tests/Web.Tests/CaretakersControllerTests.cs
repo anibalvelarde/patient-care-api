@@ -20,7 +20,8 @@ public class CaretakersControllerTests
     {
         var fakeLogger = Mock.Of<ILogger<CaretakersController>>();
         _mockService = new Mock<ICaretakerProfileService>();
-        _controller = new CaretakersController(fakeLogger, _mockService.Object);
+        var mockPaymentService = Mock.Of<IPaymentRecordService>();
+        _controller = new CaretakersController(fakeLogger, _mockService.Object, mockPaymentService);
     }
 
     [Fact]

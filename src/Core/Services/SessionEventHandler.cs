@@ -97,7 +97,7 @@ public class SessionEventHandler : IHandleSessionEvent
             {
                 Party = patient,
                 PastDueSessions = sessions.Count,
-                PastDueTotalAmount = sessions.Sum(s => s.AmountDue),
+                PastDueTotalAmount = sessions.Sum(s => s.Amount - s.Discount),
                 AmountPaidSoFar = sessions.Sum(s => s.AmountPaid),
                 Delinquency = sessions,
             });

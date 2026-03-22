@@ -37,9 +37,9 @@ public class SessionEventHandlerTests
         // Arrange
         var pastDueSessions = new List<SessionEvent>
         {
-            new() { SessionId = 1, PatientId = 1, AmountDue = 50m, AmountPaid = 10m, IsPastDue = true },
-            new() { SessionId = 2, PatientId = 1, AmountDue = 30m, AmountPaid = 5m, IsPastDue = true },
-            new() { SessionId = 3, PatientId = 2, AmountDue = 100m, AmountPaid = 0m, IsPastDue = true }
+            new() { SessionId = 1, PatientId = 1, Amount = 60m, Discount = 0m, AmountDue = 50m, AmountPaid = 10m, IsPastDue = true },
+            new() { SessionId = 2, PatientId = 1, Amount = 35m, Discount = 0m, AmountDue = 30m, AmountPaid = 5m, IsPastDue = true },
+            new() { SessionId = 3, PatientId = 2, Amount = 100m, Discount = 0m, AmountDue = 100m, AmountPaid = 0m, IsPastDue = true }
         };
         _mockRepository
             .Setup(r => r.GetAllPastDueAsync())
@@ -59,7 +59,7 @@ public class SessionEventHandlerTests
 
         var patient1 = result.First(r => r.Party is PatientProfile p && p.PatientId == 1);
         Assert.Equal(2, patient1.PastDueSessions);
-        Assert.Equal(80m, patient1.PastDueTotalAmount);
+        Assert.Equal(95m, patient1.PastDueTotalAmount);
         Assert.Equal(15m, patient1.AmountPaidSoFar);
         Assert.Equal(2, patient1.Delinquency!.Count());
 

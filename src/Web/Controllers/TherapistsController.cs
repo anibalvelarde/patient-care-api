@@ -90,7 +90,7 @@ public class TherapistsController : ControllerBase
             var patientPastDueSessions = pastDueSessions
                 .Where(s => s.TherapistId.Equals(therapistId))
                 .Select(s => s);
-            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.AmountDue);
+            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.Amount - s.Discount);
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
             _logger.LogInformation(
                 "Therapist [{name}] has {Count} sessions where their customers are past-due. PastDue:{d} PaidSoFar:{d} ",

@@ -21,7 +21,8 @@ public class SessionsControllerTests
     {
         var fakeLogger = Mock.Of<ILogger<SessionsController>>();
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>(MockBehavior.Strict);
-        _controller = new SessionsController(fakeLogger, _mockSessionEventHandler.Object);
+        var mockPaymentService = Mock.Of<IPaymentRecordService>();
+        _controller = new SessionsController(fakeLogger, _mockSessionEventHandler.Object, mockPaymentService);
     }
 
     [Fact]
@@ -32,7 +33,8 @@ public class SessionsControllerTests
         var fakeEvHandler = Mock.Of<IHandleSessionEvent>();
 
         // act
-        var sut = new SessionsController(fakeLogger, fakeEvHandler);
+        var fakePaymentService = Mock.Of<IPaymentRecordService>();
+        var sut = new SessionsController(fakeLogger, fakeEvHandler, fakePaymentService);
 
         // assert
         sut.Should().NotBeNull();

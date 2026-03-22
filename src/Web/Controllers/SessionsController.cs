@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
 
@@ -10,11 +11,16 @@ public class SessionsController : ControllerBase
 {
     private readonly ILogger<SessionsController> _logger;
     private readonly IHandleSessionEvent _sessionEventHandler;
+    private readonly IPaymentRecordService _paymentService;
 
-    public SessionsController(ILogger<SessionsController> loger, IHandleSessionEvent handler)
+    public SessionsController(
+        ILogger<SessionsController> loger,
+        IHandleSessionEvent handler,
+        IPaymentRecordService paymentService)
     {
         _logger = loger;
         _sessionEventHandler = handler;
+        _paymentService = paymentService;
     }
 
     [HttpGet("{dateString}/all")]
@@ -59,6 +65,14 @@ public class SessionsController : ControllerBase
             }
         }
         return BadRequest();
+    }
+
+    [HttpGet("{id}/payments")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionPaymentDetail>))]
+    public async Task<IActionResult> GetSessionPayments(int id)
+    {
+        var payments = await _paymentService.GetPaymentsForSessionAsync(id);
+        return Ok(payments);
     }
 
     public static DateOnly ConvertStringToDateOnly(string dateString)

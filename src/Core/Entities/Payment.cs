@@ -13,6 +13,7 @@ public class Payment
     public int CaretakerId { get; set; }
     public Caretaker Caretaker { get; set; }
     public int PaymentTypeId { get; set; }
+    public PaymentType? PaymentType { get; set; }
     public string? CheckNumber { get; set; }
     public decimal Amount { get; set; }
     public DateTime PaymentDate { get; set; }
