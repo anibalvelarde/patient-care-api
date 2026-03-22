@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
+using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
 
@@ -10,12 +11,17 @@ namespace Neurocorp.Api.Web.Controllers;
 public class CaretakersController : ControllerBase
 {
     private readonly ICaretakerProfileService _caretakerProfileService;
+    private readonly IPaymentRecordService _paymentService;
     private readonly ILogger<CaretakersController> _logger;
 
-    public CaretakersController(ILogger<CaretakersController> logger, ICaretakerProfileService caretakerProfileService)
+    public CaretakersController(
+        ILogger<CaretakersController> logger,
+        ICaretakerProfileService caretakerProfileService,
+        IPaymentRecordService paymentService)
     {
         _logger = logger;
         _caretakerProfileService = caretakerProfileService;
+        _paymentService = paymentService;
     }
 
     [HttpGet]
@@ -98,5 +104,21 @@ public class CaretakersController : ControllerBase
             return NoContent();
         }
         return NotFound();
+    }
+
+    [HttpGet("{id}/payments")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentRecord>))]
+    public async Task<IActionResult> GetCaretakerPayments(int id)
+    {
+        var payments = await _paymentService.GetByCaretakerAsync(id);
+        return Ok(payments);
+    }
+
+    [HttpGet("{id}/unpaid-sessions")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UnpaidSessionSummary>))]
+    public async Task<IActionResult> GetUnpaidSessions(int id)
+    {
+        var sessions = await _paymentService.GetUnpaidSessionsForCaretakerAsync(id);
+        return Ok(sessions);
     }
 }

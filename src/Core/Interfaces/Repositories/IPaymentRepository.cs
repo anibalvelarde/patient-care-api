@@ -4,5 +4,7 @@ namespace Neurocorp.Api.Core.Interfaces.Repositories;
 
 public interface IPaymentRepository : IRepository<Payment>
 {
-
+    Task<IReadOnlyList<Payment>> GetByCaretakerIdAsync(int caretakerId);
+    Task<Payment?> GetByIdWithDetailsAsync(int paymentId);
+    Task<IReadOnlyList<Payment>> GetAllWithDetailsAsync();
 }
