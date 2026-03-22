@@ -11,4 +11,5 @@ public interface IPaymentRecordService
     Task<PaymentRecord> CreateAsync(PaymentRecordRequest request);
     Task UpdateAsync(int paymentId, PaymentRecordUpdateRequest request);
     Task<IEnumerable<UnpaidSessionSummary>> GetUnpaidSessionsForCaretakerAsync(int caretakerId);
+    Task<IEnumerable<SessionPaymentDetail>> GetPaymentsForSessionAsync(int sessionId);
 }

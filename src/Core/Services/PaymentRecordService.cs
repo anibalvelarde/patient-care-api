@@ -184,6 +184,34 @@ public class PaymentRecordService : IPaymentRecordService
         });
     }
 
+    public async Task<IEnumerable<SessionPaymentDetail>> GetPaymentsForSessionAsync(int sessionId)
+    {
+        _logger.LogInformation("Getting payments for session {SessionId}", sessionId);
+        var sessionPayments = await _sessionPaymentRepo.GetBySessionIdWithDetailsAsync(sessionId);
+
+        return sessionPayments.Select(sp => new SessionPaymentDetail
+        {
+            SessionPaymentId = sp.Id,
+            PaymentId = sp.PaymentId,
+            AmountAllocated = sp.AmountAllocated,
+            PaymentDate = sp.Payment.PaymentDate,
+            PaymentTotalAmount = sp.Payment.Amount,
+            CaretakerId = sp.Payment.CaretakerId,
+            CaretakerName = sp.Payment.Caretaker?.User != null
+                ? $"{sp.Payment.Caretaker.User.LastName}, {sp.Payment.Caretaker.User.FirstName} {sp.Payment.Caretaker.User.MiddleName}".Trim()
+                : string.Empty,
+            PaymentType = sp.Payment.PaymentType != null
+                ? new PaymentTypeInfo
+                {
+                    PaymentTypeId = sp.Payment.PaymentType.Id,
+                    Abbreviation = sp.Payment.PaymentType.PmtTypeAbbreviation,
+                    Name = sp.Payment.PaymentType.PmtTypeName
+                }
+                : new PaymentTypeInfo(),
+            CheckNumber = sp.Payment.CheckNumber
+        });
+    }
+
     private static void ValidateRequest(decimal amount, List<SessionAllocationItem> allocations)
     {
         if (amount <= 0)

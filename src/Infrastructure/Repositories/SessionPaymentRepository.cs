@@ -15,6 +15,16 @@ public class SessionPaymentRepository(ApplicationDbContext dbContext) :
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<SessionPayment>> GetBySessionIdWithDetailsAsync(int sessionId)
+    {
+        return await _dbContext.SessionPayments
+            .Include(sp => sp.Payment).ThenInclude(p => p.Caretaker).ThenInclude(c => c.User)
+            .Include(sp => sp.Payment).ThenInclude(p => p.PaymentType)
+            .Where(sp => sp.TherapySessionId == sessionId)
+            .OrderByDescending(sp => sp.Payment.PaymentDate)
+            .ToListAsync();
+    }
+
     public async Task DeleteByPaymentIdAsync(int paymentId)
     {
         var items = await _dbContext.SessionPayments
