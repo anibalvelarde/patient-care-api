@@ -111,6 +111,8 @@ public class ApplicationDbContext : DbContext
             sp.ToTable("SessionPayment");
             sp.HasKey(e => e.Id);
             sp.Property(e => e.Id).HasColumnName("SessionPaymentID");
+            sp.Property(e => e.TherapySessionId).HasColumnName("SessionID");
+            sp.Property(e => e.PaymentId).HasColumnName("PaymentID");
         });
         modelBuilder.Entity<PaymentType>(pt => {
             pt.ToTable("PaymentType");
