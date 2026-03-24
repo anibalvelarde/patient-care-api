@@ -112,13 +112,15 @@ public class AccountStatementService : IAccountStatementService
         }).ToList();
 
         // 9. Compute summary
+        // OutstandingBalance uses actual unpaid amounts from charges (not period-scoped
+        // payment totals) because charges in-range may be paid by out-of-range payments.
         var summary = new StatementSummary
         {
             TotalCharges = charges.Sum(c => c.Amount),
             TotalDiscounts = charges.Sum(c => c.DiscountAmount),
             TotalNetCharges = charges.Sum(c => c.NetCharge),
-            TotalPayments = payments.Sum(p => p.Amount),
-            OutstandingBalance = charges.Sum(c => c.NetCharge) - payments.Sum(p => p.Amount),
+            TotalPayments = charges.Sum(c => c.AmountPaid),
+            OutstandingBalance = charges.Sum(c => c.AmountDue),
             PastDueAmount = charges.Where(c => c.IsPastDue).Sum(c => c.AmountDue),
             PastDueSessionCount = charges.Count(c => c.IsPastDue)
         };
