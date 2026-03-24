@@ -21,7 +21,8 @@ public class CaretakersControllerTests
         var fakeLogger = Mock.Of<ILogger<CaretakersController>>();
         _mockService = new Mock<ICaretakerProfileService>();
         var mockPaymentService = Mock.Of<IPaymentRecordService>();
-        _controller = new CaretakersController(fakeLogger, _mockService.Object, mockPaymentService);
+        var mockStatementService = Mock.Of<IAccountStatementService>();
+        _controller = new CaretakersController(fakeLogger, _mockService.Object, mockPaymentService, mockStatementService);
     }
 
     [Fact]

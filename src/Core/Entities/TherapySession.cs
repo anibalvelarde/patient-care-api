@@ -28,6 +28,7 @@ public class TherapySession : AuditableEntityBase
     public string TherapyTypes { get; set; }
     public Therapist? Therapist{ get; set; }
     public Patient? Patient{ get; set; }
+    public ICollection<SessionPayment> SessionPayments { get; set; } = [];
 
     public decimal AmountDue()
     {

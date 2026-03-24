@@ -40,4 +40,16 @@ public class PaymentRepository(ApplicationDbContext dbContext) :
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<Payment>> GetByCaretakerIdAndDateRangeAsync(int caretakerId, DateTime from, DateTime to)
+    {
+        return await _dbContext.Payments
+            .Include(p => p.Caretaker).ThenInclude(c => c.User)
+            .Include(p => p.PaymentType)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th.User)
+            .Where(p => p.CaretakerId == caretakerId && p.PaymentDate >= from && p.PaymentDate <= to)
+            .OrderByDescending(p => p.PaymentDate)
+            .ToListAsync();
+    }
 }
