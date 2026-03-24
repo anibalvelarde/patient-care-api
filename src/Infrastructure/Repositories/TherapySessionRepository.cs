@@ -18,4 +18,16 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ThenBy(s => s.SessionTime)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<TherapySession>> GetByPatientIdsAndDateRangeAsync(IEnumerable<int> patientIds, DateOnly from, DateOnly to)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.Patient).ThenInclude(p => p.User)
+            .Include(s => s.Therapist).ThenInclude(t => t.User)
+            .Include(s => s.SessionPayments).ThenInclude(sp => sp.Payment).ThenInclude(p => p.PaymentType)
+            .Where(s => patientIds.Contains(s.PatientId) && s.SessionDate >= from && s.SessionDate <= to)
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
 }

@@ -19,6 +19,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ICaretakerProfileService, CaretakerProfileService>();
         services.AddScoped<IHandleSessionEvent, SessionEventHandler>();
         services.AddScoped<IPaymentRecordService, PaymentRecordService>();
+        services.AddScoped<IAccountStatementService, AccountStatementService>();
         return services;
     }
 }

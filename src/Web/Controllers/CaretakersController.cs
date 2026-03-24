@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
+using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
 
@@ -12,16 +13,19 @@ public class CaretakersController : ControllerBase
 {
     private readonly ICaretakerProfileService _caretakerProfileService;
     private readonly IPaymentRecordService _paymentService;
+    private readonly IAccountStatementService _statementService;
     private readonly ILogger<CaretakersController> _logger;
 
     public CaretakersController(
         ILogger<CaretakersController> logger,
         ICaretakerProfileService caretakerProfileService,
-        IPaymentRecordService paymentService)
+        IPaymentRecordService paymentService,
+        IAccountStatementService statementService)
     {
         _logger = logger;
         _caretakerProfileService = caretakerProfileService;
         _paymentService = paymentService;
+        _statementService = statementService;
     }
 
     [HttpGet]
@@ -120,5 +124,16 @@ public class CaretakersController : ControllerBase
     {
         var sessions = await _paymentService.GetUnpaidSessionsForCaretakerAsync(id);
         return Ok(sessions);
+    }
+
+    [HttpGet("{id}/statement")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AccountStatement))]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetStatement(int id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        var statement = await _statementService.GetStatementAsync(id, from, to);
+        if (statement == null) return NotFound();
+        return Ok(statement);
     }
 }
