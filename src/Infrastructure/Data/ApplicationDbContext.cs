@@ -17,6 +17,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Payment> Payments { get; set; }
     public DbSet<SessionPayment> SessionPayments { get; set; }
     public DbSet<PaymentType> PaymentTypes { get; set; }
+    public DbSet<AppointmentStatus> AppointmentStatuses { get; set; }
+    public DbSet<AppointmentConfirmation> AppointmentConfirmations { get; set; }
 
     public override int SaveChanges()
     {
@@ -94,6 +96,12 @@ public class ApplicationDbContext : DbContext
             ts.HasKey(e => e.Id);
             ts.Property(e => e.Id).HasColumnName("SessionID");
             ts.Property(e => e.TherapyTypes).IsRequired(false);
+            ts.HasOne(e => e.AppointmentStatus)
+                .WithMany()
+                .HasForeignKey(e => e.AppointmentStatusId);
+            ts.HasMany(e => e.Confirmations)
+                .WithOne(c => c.TherapySession)
+                .HasForeignKey(c => c.SessionId);
         });
         modelBuilder.Entity<UserRole>(ur => {
             ur.ToTable("UserRole");
@@ -118,6 +126,17 @@ public class ApplicationDbContext : DbContext
             pt.ToTable("PaymentType");
             pt.HasKey(e => e.Id);
             pt.Property(e => e.Id).HasColumnName("PaymentTypeID");
+        });
+        modelBuilder.Entity<AppointmentStatus>(ast => {
+            ast.ToTable("AppointmentStatus");
+            ast.HasKey(e => e.Id);
+            ast.Property(e => e.Id).HasColumnName("AppointmentStatusID");
+        });
+        modelBuilder.Entity<AppointmentConfirmation>(ac => {
+            ac.ToTable("AppointmentConfirmation");
+            ac.HasKey(e => e.Id);
+            ac.Property(e => e.Id).HasColumnName("ConfirmationID");
+            ac.Property(e => e.SessionId).HasColumnName("SessionID");
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {

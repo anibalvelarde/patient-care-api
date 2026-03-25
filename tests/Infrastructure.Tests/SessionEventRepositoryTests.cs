@@ -26,6 +26,10 @@ public class SessionEventRepositoryTests
 
         using (var context = new ApplicationDbContext(options))
         {
+            // Seed appointment statuses needed for the Include
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, StatusName = "Completed", StatusDescription = "Session took place" });
+            await context.SaveChangesAsync();
+
             context.TherapySessions.Add(new TherapySession
             {
                 Id = 1,
