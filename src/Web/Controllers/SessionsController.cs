@@ -187,20 +187,41 @@ public class SessionsController : ControllerBase
 
     [HttpGet("unconfirmed")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
-    public async Task<IActionResult> GetUnconfirmed([FromQuery] string? from = null, [FromQuery] string? to = null)
+    public async Task<IActionResult> GetUnconfirmed([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
     {
-        var fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
-        var toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
+        DateOnly fromDate, toDate;
+        if (from != null || to != null)
+        {
+            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
+            toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
+        }
+        else
+        {
+            if (days > 30) days = 30;
+            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            toDate = fromDate.AddDays(days);
+        }
         var sessions = await _bookingService.GetUnconfirmedAsync(fromDate, toDate);
         return Ok(sessions);
     }
 
     [HttpGet("upcoming")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
-    public async Task<IActionResult> GetUpcoming([FromQuery] int days = 7)
+    public async Task<IActionResult> GetUpcoming([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
     {
-        if (days > 30) days = 30;
-        var sessions = await _bookingService.GetUpcomingAsync(days);
+        DateOnly fromDate, toDate;
+        if (from != null || to != null)
+        {
+            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
+            toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
+        }
+        else
+        {
+            if (days > 30) days = 30;
+            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            toDate = fromDate.AddDays(days);
+        }
+        var sessions = await _bookingService.GetUpcomingAsync(fromDate, toDate);
         return Ok(sessions);
     }
 

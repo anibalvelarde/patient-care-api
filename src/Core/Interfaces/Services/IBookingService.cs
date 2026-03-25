@@ -9,6 +9,6 @@ public interface IBookingService
     Task<SessionEvent> ConfirmAppointmentAsync(int sessionId, ConfirmationRequest request);
     Task<SessionEvent> CancelAppointmentAsync(int sessionId, string? reason);
     Task<IEnumerable<SessionEvent>> GetUnconfirmedAsync(DateOnly from, DateOnly to);
-    Task<IEnumerable<SessionEvent>> GetUpcomingAsync(int days);
+    Task<IEnumerable<SessionEvent>> GetUpcomingAsync(DateOnly from, DateOnly to);
     Task<IEnumerable<ConfirmationRecord>> GetConfirmationsAsync(int sessionId);
 }

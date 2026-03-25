@@ -74,11 +74,9 @@ public class BookingService : IBookingService
         return await _bookingRepository.GetByStatusAndDateRangeAsync(1, from, to); // Proposed
     }
 
-    public async Task<IEnumerable<SessionEvent>> GetUpcomingAsync(int days)
+    public async Task<IEnumerable<SessionEvent>> GetUpcomingAsync(DateOnly from, DateOnly to)
     {
-        var from = DateOnly.FromDateTime(DateTime.UtcNow);
-        var to = from.AddDays(days);
-        _logger.LogInformation("Fetching upcoming sessions for next {Days} days", days);
+        _logger.LogInformation("Fetching upcoming sessions from {From} to {To}", from, to);
         return await _bookingRepository.GetByStatusesAndDateRangeAsync(ActiveStatuses, from, to);
     }
 
