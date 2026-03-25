@@ -24,4 +24,7 @@ public class SessionEvent
     public string Notes { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set;}
+    public int AppointmentStatusId { get; set; } = 4;
+    public string StatusName { get; set; } = "Completed";
+    public bool IsConfirmed { get; set; }
 }

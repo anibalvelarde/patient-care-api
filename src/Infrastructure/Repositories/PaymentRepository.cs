@@ -13,8 +13,8 @@ public class PaymentRepository(ApplicationDbContext dbContext) :
         return await _dbContext.Payments
             .Include(p => p.Caretaker).ThenInclude(c => c.User)
             .Include(p => p.PaymentType)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt.User)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt!.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th!.User)
             .Where(p => p.CaretakerId == caretakerId)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
@@ -25,8 +25,8 @@ public class PaymentRepository(ApplicationDbContext dbContext) :
         return await _dbContext.Payments
             .Include(p => p.Caretaker).ThenInclude(c => c.User)
             .Include(p => p.PaymentType)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt.User)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt!.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th!.User)
             .FirstOrDefaultAsync(p => p.Id == paymentId);
     }
 
@@ -35,8 +35,8 @@ public class PaymentRepository(ApplicationDbContext dbContext) :
         return await _dbContext.Payments
             .Include(p => p.Caretaker).ThenInclude(c => c.User)
             .Include(p => p.PaymentType)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt.User)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt!.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th!.User)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();
     }
@@ -46,8 +46,8 @@ public class PaymentRepository(ApplicationDbContext dbContext) :
         return await _dbContext.Payments
             .Include(p => p.Caretaker).ThenInclude(c => c.User)
             .Include(p => p.PaymentType)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt.User)
-            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Patient).ThenInclude(pt => pt!.User)
+            .Include(p => p.SessionPayments).ThenInclude(sp => sp.TherapySession).ThenInclude(ts => ts.Therapist).ThenInclude(th => th!.User)
             .Where(p => p.CaretakerId == caretakerId && p.PaymentDate >= from && p.PaymentDate <= to)
             .OrderByDescending(p => p.PaymentDate)
             .ToListAsync();

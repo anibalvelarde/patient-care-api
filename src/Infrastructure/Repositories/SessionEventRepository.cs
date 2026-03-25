@@ -19,6 +19,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result;
@@ -34,6 +35,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result;        
@@ -48,6 +50,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result;        
@@ -61,6 +64,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result.FirstOrDefault();
@@ -79,6 +83,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
             .FirstAsync(ts => ts.Id == therapySessionId);
         therapySessionToUpdate = MapUpdatedTherapySession(updateRequest, therapySessionToUpdate);
         _dbContext.ChangeTracker.DetectChanges();
@@ -97,13 +102,21 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         therapySessionToUpdate.ProviderAmount = updateRequest.ProviderAmount;
         therapySessionToUpdate.Notes = updateRequest.Notes;
         therapySessionToUpdate.TherapyTypes = updateRequest.TherapyType;
+        if (updateRequest.AppointmentStatusId.HasValue)
+        {
+            therapySessionToUpdate.AppointmentStatusId = updateRequest.AppointmentStatusId.Value;
+        }
 
         return therapySessionToUpdate;
     }
 
+    private static readonly HashSet<int> ConfirmedStatuses = [2, 4, 6, 7]; // Confirmed, Completed, CheckedIn, InTherapy
+
     private static SessionEvent ExtractSessionEvent(TherapySession ts)
     {
         ArgumentNullException.ThrowIfNull(ts, nameof(ts) + " must not be null");
+
+        var statusName = ts.AppointmentStatus?.StatusName ?? "Completed";
 
         return new SessionEvent
         {
@@ -122,6 +135,9 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             IsPaidOff = ts.IsPaidOff,
             IsPastDue = ts.GetPastDue(),
             Notes = ts.Notes,
+            AppointmentStatusId = ts.AppointmentStatusId,
+            StatusName = statusName,
+            IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
         };
     }
 }

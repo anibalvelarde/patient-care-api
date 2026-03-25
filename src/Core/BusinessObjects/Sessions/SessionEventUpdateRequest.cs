@@ -18,4 +18,5 @@ public class SessionEventUpdateRequest
     public decimal ProviderAmount { get; set; }
     public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
+    public int? AppointmentStatusId { get; set; }
 }
