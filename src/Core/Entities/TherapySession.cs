@@ -27,9 +27,11 @@ public class TherapySession : AuditableEntityBase
     public string Notes { get; set; }
     public string TherapyTypes { get; set; }
     public int AppointmentStatusId { get; set; } = 4; // Default: Completed
+    public int? SiteId { get; set; }
     public Therapist? Therapist{ get; set; }
     public Patient? Patient{ get; set; }
     public AppointmentStatus? AppointmentStatus { get; set; }
+    public Site? Site { get; set; }
     public ICollection<SessionPayment> SessionPayments { get; set; } = [];
     public ICollection<AppointmentConfirmation> Confirmations { get; set; } = [];
 
