@@ -19,4 +19,5 @@ public class SessionEventRequest
     public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
     public int AppointmentStatusId { get; set; } = 1; // Default: Proposed
+    public int? SiteId { get; set; }
 }

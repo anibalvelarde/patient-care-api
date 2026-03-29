@@ -21,6 +21,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IPaymentRecordService, PaymentRecordService>();
         services.AddScoped<IAccountStatementService, AccountStatementService>();
         services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<ISiteProfileService, SiteProfileService>();
         return services;
     }
 }

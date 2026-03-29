@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<PaymentType> PaymentTypes { get; set; }
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; }
     public DbSet<AppointmentConfirmation> AppointmentConfirmations { get; set; }
+    public DbSet<Site> Sites { get; set; }
 
     public override int SaveChanges()
     {
@@ -102,6 +103,19 @@ public class ApplicationDbContext : DbContext
             ts.HasMany(e => e.Confirmations)
                 .WithOne(c => c.TherapySession)
                 .HasForeignKey(c => c.SessionId);
+            ts.HasOne(e => e.Site)
+                .WithMany(s => s.TherapySessions)
+                .HasForeignKey(e => e.SiteId);
+        });
+        modelBuilder.Entity<Site>(s => {
+            s.ToTable("Site");
+            s.HasKey(e => e.Id);
+            s.Property(e => e.Id).HasColumnName("SiteID");
+            s.Property(e => e.SiteName).IsRequired();
+            s.Property(e => e.RUC).IsRequired(false);
+            s.Property(e => e.Address).IsRequired(false);
+            s.Property(e => e.Latitude).IsRequired(false);
+            s.Property(e => e.Longitude).IsRequired(false);
         });
         modelBuilder.Entity<UserRole>(ur => {
             ur.ToTable("UserRole");

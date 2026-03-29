@@ -147,6 +147,8 @@ public class SessionEventHandler : IHandleSessionEvent
             AppointmentStatusId = newTherapySession.AppointmentStatusId,
             StatusName = newTherapySession.AppointmentStatus?.StatusName ?? "Proposed",
             IsConfirmed = confirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
+            SiteId = newTherapySession.SiteId,
+            SiteName = newTherapySession.Site?.SiteName,
         };
     }
 
@@ -196,7 +198,8 @@ public class SessionEventHandler : IHandleSessionEvent
             ProviderAmount = calcProviderAmt,
             GrossProfit = calcGrossProfit,
             Notes = req.Notes,
-            AppointmentStatusId = req.AppointmentStatusId
+            AppointmentStatusId = req.AppointmentStatusId,
+            SiteId = req.SiteId
         };
     }
 

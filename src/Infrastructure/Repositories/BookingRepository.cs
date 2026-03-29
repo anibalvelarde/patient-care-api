@@ -36,6 +36,7 @@ public class BookingRepository : IBookingRepository
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .Select(ts => MapToSessionEvent(ts))
             .FirstOrDefaultAsync();
     }
@@ -46,6 +47,7 @@ public class BookingRepository : IBookingRepository
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .FirstOrDefaultAsync(ts => ts.Id == sessionId)
             ?? throw new ArgumentException($"Session {sessionId} not found.");
 
@@ -97,6 +99,7 @@ public class BookingRepository : IBookingRepository
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .OrderBy(ts => ts.SessionDate)
             .ThenBy(ts => ts.SessionTime)
             .Select(ts => MapToSessionEvent(ts))
@@ -113,6 +116,7 @@ public class BookingRepository : IBookingRepository
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .OrderBy(ts => ts.SessionDate)
             .ThenBy(ts => ts.SessionTime)
             .Select(ts => MapToSessionEvent(ts))
@@ -160,6 +164,8 @@ public class BookingRepository : IBookingRepository
             AppointmentStatusId = ts.AppointmentStatusId,
             StatusName = statusName,
             IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
+            SiteId = ts.SiteId,
+            SiteName = ts.Site?.SiteName,
         };
     }
 }

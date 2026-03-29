@@ -20,6 +20,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result;
@@ -36,9 +37,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
-        return result;        
+        return result;
     }
 
     public async Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync()
@@ -51,10 +53,11 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
-        return result;        
-    }    
+        return result;
+    }
 
     public override async Task<SessionEvent?> GetByIdAsync(int id)
     {
@@ -65,6 +68,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
         return result.FirstOrDefault();
@@ -84,6 +88,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
             .FirstAsync(ts => ts.Id == therapySessionId);
         therapySessionToUpdate = MapUpdatedTherapySession(updateRequest, therapySessionToUpdate);
         _dbContext.ChangeTracker.DetectChanges();
@@ -105,6 +110,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         if (updateRequest.AppointmentStatusId.HasValue)
         {
             therapySessionToUpdate.AppointmentStatusId = updateRequest.AppointmentStatusId.Value;
+        }
+        if (updateRequest.SiteId.HasValue)
+        {
+            therapySessionToUpdate.SiteId = updateRequest.SiteId.Value;
         }
 
         return therapySessionToUpdate;
@@ -138,6 +147,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             AppointmentStatusId = ts.AppointmentStatusId,
             StatusName = statusName,
             IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
+            SiteId = ts.SiteId,
+            SiteName = ts.Site?.SiteName,
         };
     }
 }

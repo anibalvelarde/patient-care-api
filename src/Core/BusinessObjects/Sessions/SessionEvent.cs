@@ -27,4 +27,6 @@ public class SessionEvent
     public int AppointmentStatusId { get; set; } = 4;
     public string StatusName { get; set; } = "Completed";
     public bool IsConfirmed { get; set; }
+    public int? SiteId { get; set; }
+    public string? SiteName { get; set; }
 }
