@@ -20,6 +20,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; }
     public DbSet<AppointmentConfirmation> AppointmentConfirmations { get; set; }
     public DbSet<Site> Sites { get; set; }
+    public DbSet<RoleType> RoleTypes { get; set; }
+    public DbSet<SpecialtyType> SpecialtyTypes { get; set; }
 
     public override int SaveChanges()
     {
@@ -151,6 +153,16 @@ public class ApplicationDbContext : DbContext
             ac.HasKey(e => e.Id);
             ac.Property(e => e.Id).HasColumnName("ConfirmationID");
             ac.Property(e => e.SessionId).HasColumnName("SessionID");
+        });
+        modelBuilder.Entity<RoleType>(rt => {
+            rt.ToTable("RoleType");
+            rt.HasKey(e => e.Id);
+            rt.Property(e => e.Id).HasColumnName("RoleID");
+        });
+        modelBuilder.Entity<SpecialtyType>(st => {
+            st.ToTable("SpecialtyType");
+            st.HasKey(e => e.Id);
+            st.Property(e => e.Id).HasColumnName("SpecialtyID");
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {
