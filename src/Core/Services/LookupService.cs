@@ -98,12 +98,15 @@ public class LookupService : ILookupService
         _logger.LogInformation("Creating new {EntityType}", typeof(T).Name);
         ArgumentNullException.ThrowIfNull(request);
 
+        var now = DateTime.UtcNow;
         var entity = new T
         {
             Abbreviation = request.Abbreviation,
             Name = request.Name,
             Description = request.Description,
             SortOrder = (short)request.SortOrder,
+            CreatedTimestamp = now,
+            LastUpdatedTimestamp = now,
         };
 
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
@@ -125,6 +128,7 @@ public class LookupService : ILookupService
         if (request.Name != null) entity.Name = request.Name;
         if (request.Description != null) entity.Description = request.Description;
         if (request.SortOrder != null) entity.SortOrder = (short)request.SortOrder.Value;
+        entity.LastUpdatedTimestamp = DateTime.UtcNow;
 
         await repository.UpdateAsync(entity);
         _logger.LogInformation("Updated {EntityType} with ID: {Id}", typeof(T).Name, id);
