@@ -58,20 +58,20 @@ public class DbContextMappingTests
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 1,
-                PmtTypeAbbreviation = "CSH",
-                PmtTypeName = "Cash"
+                Abbreviation = "CSH",
+                Name = "Cash"
             });
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 2,
-                PmtTypeAbbreviation = "CHK",
-                PmtTypeName = "Check"
+                Abbreviation = "CHK",
+                Name = "Check"
             });
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 3,
-                PmtTypeAbbreviation = "CC",
-                PmtTypeName = "Credit Card"
+                Abbreviation = "CC",
+                Name = "Credit Card"
             });
             await context.SaveChangesAsync();
         }
@@ -81,9 +81,9 @@ public class DbContextMappingTests
         {
             var paymentTypes = await context.PaymentTypes.ToListAsync();
             Assert.Equal(3, paymentTypes.Count);
-            Assert.Contains(paymentTypes, pt => pt.PmtTypeAbbreviation == "CSH" && pt.PmtTypeName == "Cash");
-            Assert.Contains(paymentTypes, pt => pt.PmtTypeAbbreviation == "CHK" && pt.PmtTypeName == "Check");
-            Assert.Contains(paymentTypes, pt => pt.PmtTypeAbbreviation == "CC" && pt.PmtTypeName == "Credit Card");
+            Assert.Contains(paymentTypes, pt => pt.Abbreviation == "CSH" && pt.Name == "Cash");
+            Assert.Contains(paymentTypes, pt => pt.Abbreviation == "CHK" && pt.Name == "Check");
+            Assert.Contains(paymentTypes, pt => pt.Abbreviation == "CC" && pt.Name == "Credit Card");
         }
     }
 
@@ -174,8 +174,8 @@ public class DbContextMappingTests
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 1,
-                PmtTypeAbbreviation = "CSH",
-                PmtTypeName = "Cash"
+                Abbreviation = "CSH",
+                Name = "Cash"
             });
             await context.SaveChangesAsync();
         }

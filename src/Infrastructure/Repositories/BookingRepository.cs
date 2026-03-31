@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -16,15 +17,19 @@ public class BookingRepository : IBookingRepository
         _dbContext = dbContext;
     }
 
-    public async Task<IEnumerable<AppointmentStatusInfo>> GetAllStatusesAsync()
+    public async Task<IEnumerable<LookupItem>> GetAllStatusesAsync()
     {
         return await _dbContext.AppointmentStatuses
             .OrderBy(s => s.Id)
-            .Select(s => new AppointmentStatusInfo
+            .Select(s => new LookupItem
             {
-                AppointmentStatusId = s.Id,
-                StatusName = s.StatusName,
-                StatusDescription = s.StatusDescription,
+                Id = s.Id,
+                Abbreviation = s.Abbreviation,
+                Name = s.Name,
+                Description = s.Description,
+                SortOrder = s.SortOrder,
+                CreatedTimestamp = s.CreatedTimestamp,
+                LastUpdatedTimestamp = s.LastUpdatedTimestamp,
             })
             .ToListAsync();
     }
@@ -143,7 +148,7 @@ public class BookingRepository : IBookingRepository
 
     private static SessionEvent MapToSessionEvent(TherapySession ts)
     {
-        var statusName = ts.AppointmentStatus?.StatusName ?? "Completed";
+        var statusName = ts.AppointmentStatus?.Name ?? "Completed";
         return new SessionEvent
         {
             SessionId = ts.Id,

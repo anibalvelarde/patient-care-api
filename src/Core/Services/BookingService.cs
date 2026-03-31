@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -20,7 +21,7 @@ public class BookingService : IBookingService
         _bookingRepository = bookingRepository;
     }
 
-    public async Task<IEnumerable<AppointmentStatusInfo>> GetStatusesAsync()
+    public async Task<IEnumerable<LookupItem>> GetStatusesAsync()
     {
         _logger.LogInformation("Fetching all appointment statuses");
         return await _bookingRepository.GetAllStatusesAsync();

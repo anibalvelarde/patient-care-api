@@ -31,8 +31,8 @@ public class SessionPaymentEntityMappingTests
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 1,
-                PmtTypeAbbreviation = "CSH",
-                PmtTypeName = "Cash"
+                Abbreviation = "CSH",
+                Name = "Cash"
             });
             context.Patients.Add(new Patient
             {
@@ -110,8 +110,8 @@ public class SessionPaymentEntityMappingTests
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 1,
-                PmtTypeAbbreviation = "CSH",
-                PmtTypeName = "Cash"
+                Abbreviation = "CSH",
+                Name = "Cash"
             });
             context.Patients.Add(new Patient
             {
@@ -182,8 +182,8 @@ public class SessionPaymentEntityMappingTests
             context.PaymentTypes.Add(new PaymentType
             {
                 Id = 1,
-                PmtTypeAbbreviation = "CHK",
-                PmtTypeName = "Check"
+                Abbreviation = "CHK",
+                Name = "Check"
             });
             context.Patients.Add(new Patient
             {
