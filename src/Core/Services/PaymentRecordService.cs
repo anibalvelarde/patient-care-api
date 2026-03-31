@@ -43,6 +43,8 @@ public class PaymentRecordService : IPaymentRecordService
             Name = pt.Name,
             Description = pt.Description,
             SortOrder = pt.SortOrder,
+            CreatedTimestamp = pt.CreatedTimestamp,
+            LastUpdatedTimestamp = pt.LastUpdatedTimestamp,
         });
     }
 
@@ -211,6 +213,8 @@ public class PaymentRecordService : IPaymentRecordService
                     Name = sp.Payment.PaymentType.Name,
                     Description = sp.Payment.PaymentType.Description,
                     SortOrder = sp.Payment.PaymentType.SortOrder,
+                    CreatedTimestamp = sp.Payment.PaymentType.CreatedTimestamp,
+                    LastUpdatedTimestamp = sp.Payment.PaymentType.LastUpdatedTimestamp,
                 }
                 : new LookupItem(),
             CheckNumber = sp.Payment.CheckNumber
@@ -280,6 +284,8 @@ public class PaymentRecordService : IPaymentRecordService
                     Name = payment.PaymentType.Name,
                     Description = payment.PaymentType.Description,
                     SortOrder = payment.PaymentType.SortOrder,
+                    CreatedTimestamp = payment.PaymentType.CreatedTimestamp,
+                    LastUpdatedTimestamp = payment.PaymentType.LastUpdatedTimestamp,
                 }
                 : new LookupItem(),
             CheckNumber = payment.CheckNumber,

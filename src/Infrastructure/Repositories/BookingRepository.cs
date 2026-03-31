@@ -28,6 +28,8 @@ public class BookingRepository : IBookingRepository
                 Name = s.Name,
                 Description = s.Description,
                 SortOrder = s.SortOrder,
+                CreatedTimestamp = s.CreatedTimestamp,
+                LastUpdatedTimestamp = s.LastUpdatedTimestamp,
             })
             .ToListAsync();
     }

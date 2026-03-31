@@ -140,6 +140,8 @@ public class LookupService : ILookupService
             Name = entity.Name,
             Description = entity.Description,
             SortOrder = entity.SortOrder,
+            CreatedTimestamp = entity.CreatedTimestamp,
+            LastUpdatedTimestamp = entity.LastUpdatedTimestamp,
         };
     }
 }

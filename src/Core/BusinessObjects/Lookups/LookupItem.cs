@@ -7,4 +7,6 @@ public class LookupItem
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int SortOrder { get; set; }
+    public DateTime CreatedTimestamp { get; set; }
+    public DateTime LastUpdatedTimestamp { get; set; }
 }
