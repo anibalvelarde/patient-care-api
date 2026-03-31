@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -81,7 +82,7 @@ public class SessionsController : ControllerBase
     // --- Appointment Booking Endpoints ---
 
     [HttpGet("statuses")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<AppointmentStatusInfo>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LookupItem>))]
     public async Task<IActionResult> GetStatuses()
     {
         var statuses = await _bookingService.GetStatusesAsync();

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -31,15 +32,17 @@ public class PaymentRecordService : IPaymentRecordService
         _paymentTypeRepo = paymentTypeRepo;
     }
 
-    public async Task<IEnumerable<PaymentTypeInfo>> GetPaymentTypesAsync()
+    public async Task<IEnumerable<LookupItem>> GetPaymentTypesAsync()
     {
         _logger.LogInformation("Getting all payment types");
         var types = await _paymentTypeRepo.GetAllAsync();
-        return types.Select(pt => new PaymentTypeInfo
+        return types.Select(pt => new LookupItem
         {
-            PaymentTypeId = pt.Id,
-            Abbreviation = pt.PmtTypeAbbreviation,
-            Name = pt.PmtTypeName
+            Id = pt.Id,
+            Abbreviation = pt.Abbreviation,
+            Name = pt.Name,
+            Description = pt.Description,
+            SortOrder = pt.SortOrder,
         });
     }
 
@@ -201,13 +204,15 @@ public class PaymentRecordService : IPaymentRecordService
                 ? $"{sp.Payment.Caretaker.User.LastName}, {sp.Payment.Caretaker.User.FirstName} {sp.Payment.Caretaker.User.MiddleName}".Trim()
                 : string.Empty,
             PaymentType = sp.Payment.PaymentType != null
-                ? new PaymentTypeInfo
+                ? new LookupItem
                 {
-                    PaymentTypeId = sp.Payment.PaymentType.Id,
-                    Abbreviation = sp.Payment.PaymentType.PmtTypeAbbreviation,
-                    Name = sp.Payment.PaymentType.PmtTypeName
+                    Id = sp.Payment.PaymentType.Id,
+                    Abbreviation = sp.Payment.PaymentType.Abbreviation,
+                    Name = sp.Payment.PaymentType.Name,
+                    Description = sp.Payment.PaymentType.Description,
+                    SortOrder = sp.Payment.PaymentType.SortOrder,
                 }
-                : new PaymentTypeInfo(),
+                : new LookupItem(),
             CheckNumber = sp.Payment.CheckNumber
         });
     }
@@ -268,13 +273,15 @@ public class PaymentRecordService : IPaymentRecordService
             CaretakerId = payment.CaretakerId,
             CaretakerName = caretakerName,
             PaymentType = payment.PaymentType != null
-                ? new PaymentTypeInfo
+                ? new LookupItem
                 {
-                    PaymentTypeId = payment.PaymentType.Id,
-                    Abbreviation = payment.PaymentType.PmtTypeAbbreviation,
-                    Name = payment.PaymentType.PmtTypeName
+                    Id = payment.PaymentType.Id,
+                    Abbreviation = payment.PaymentType.Abbreviation,
+                    Name = payment.PaymentType.Name,
+                    Description = payment.PaymentType.Description,
+                    SortOrder = payment.PaymentType.SortOrder,
                 }
-                : new PaymentTypeInfo(),
+                : new LookupItem(),
             CheckNumber = payment.CheckNumber,
             Allocations = allocations,
             TotalAllocated = totalAllocated,

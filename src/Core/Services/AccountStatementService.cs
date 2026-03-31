@@ -81,7 +81,7 @@ public class AccountStatementService : IAccountStatementService
                 PaymentId = sp.PaymentId,
                 PaymentDate = sp.Payment.PaymentDate,
                 AmountAllocated = sp.AmountAllocated,
-                PaymentType = sp.Payment.PaymentType?.PmtTypeName ?? string.Empty,
+                PaymentType = sp.Payment.PaymentType?.Name ?? string.Empty,
                 CheckNumber = sp.Payment.CheckNumber
             }).ToList() ?? new List<ChargePaymentApplied>()
         }).ToList();
@@ -98,7 +98,7 @@ public class AccountStatementService : IAccountStatementService
             PaymentId = p.Id,
             PaymentDate = p.PaymentDate,
             Amount = p.Amount,
-            PaymentType = p.PaymentType?.PmtTypeName ?? string.Empty,
+            PaymentType = p.PaymentType?.Name ?? string.Empty,
             CheckNumber = p.CheckNumber,
             Allocations = p.SessionPayments?.Select(sp => new StatementPaymentAllocation
             {

@@ -145,7 +145,7 @@ public class SessionEventHandler : IHandleSessionEvent
             IsPaidOff = false,
             Notes = newTherapySession.Notes,
             AppointmentStatusId = newTherapySession.AppointmentStatusId,
-            StatusName = newTherapySession.AppointmentStatus?.StatusName ?? "Proposed",
+            StatusName = newTherapySession.AppointmentStatus?.Name ?? "Proposed",
             IsConfirmed = confirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
             SiteId = newTherapySession.SiteId,
             SiteName = newTherapySession.Site?.SiteName,

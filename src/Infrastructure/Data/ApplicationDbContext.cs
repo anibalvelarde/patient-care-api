@@ -142,11 +142,17 @@ public class ApplicationDbContext : DbContext
             pt.ToTable("PaymentType");
             pt.HasKey(e => e.Id);
             pt.Property(e => e.Id).HasColumnName("PaymentTypeID");
+            pt.Property(e => e.Abbreviation).HasColumnName("PmtTypeAbbreviation");
+            pt.Property(e => e.Name).HasColumnName("PmtTypeName");
+            pt.Property(e => e.Description).HasColumnName("PmtTypeDescription");
         });
         modelBuilder.Entity<AppointmentStatus>(ast => {
             ast.ToTable("AppointmentStatus");
             ast.HasKey(e => e.Id);
             ast.Property(e => e.Id).HasColumnName("AppointmentStatusID");
+            ast.Property(e => e.Abbreviation).HasColumnName("StatusAbbreviation");
+            ast.Property(e => e.Name).HasColumnName("StatusName");
+            ast.Property(e => e.Description).HasColumnName("StatusDescription");
         });
         modelBuilder.Entity<AppointmentConfirmation>(ac => {
             ac.ToTable("AppointmentConfirmation");
@@ -158,11 +164,17 @@ public class ApplicationDbContext : DbContext
             rt.ToTable("RoleType");
             rt.HasKey(e => e.Id);
             rt.Property(e => e.Id).HasColumnName("RoleID");
+            rt.Property(e => e.Abbreviation).HasColumnName("RoleAbbreviation");
+            rt.Property(e => e.Name).HasColumnName("RoleName");
+            rt.Property(e => e.Description).HasColumnName("RoleDescription");
         });
         modelBuilder.Entity<SpecialtyType>(st => {
             st.ToTable("SpecialtyType");
             st.HasKey(e => e.Id);
             st.Property(e => e.Id).HasColumnName("SpecialtyID");
+            st.Property(e => e.Abbreviation).HasColumnName("SpecialtyAbbreviation");
+            st.Property(e => e.Name).HasColumnName("SpecialtyName");
+            st.Property(e => e.Description).HasColumnName("SpecialtyDescription");
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {

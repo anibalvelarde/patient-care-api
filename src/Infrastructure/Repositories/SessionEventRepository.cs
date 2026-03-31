@@ -125,7 +125,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
     {
         ArgumentNullException.ThrowIfNull(ts, nameof(ts) + " must not be null");
 
-        var statusName = ts.AppointmentStatus?.StatusName ?? "Completed";
+        var statusName = ts.AppointmentStatus?.Name ?? "Completed";
 
         return new SessionEvent
         {

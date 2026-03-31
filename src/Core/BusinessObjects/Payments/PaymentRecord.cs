@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Payments;
 
 public class PaymentRecord
@@ -5,7 +7,7 @@ public class PaymentRecord
     public PaymentRecord()
     {
         CaretakerName = string.Empty;
-        PaymentType = new PaymentTypeInfo();
+        PaymentType = new LookupItem();
         Allocations = new List<AllocationDetail>();
     }
 
@@ -14,7 +16,7 @@ public class PaymentRecord
     public DateTime PaymentDate { get; set; }
     public int CaretakerId { get; set; }
     public string CaretakerName { get; set; }
-    public PaymentTypeInfo PaymentType { get; set; }
+    public LookupItem PaymentType { get; set; }
     public string? CheckNumber { get; set; }
     public List<AllocationDetail> Allocations { get; set; }
     public decimal TotalAllocated { get; set; }
