@@ -20,6 +20,7 @@ public class TherapistProfile : IProfile
     public string PhoneNumber { get; set; }
     public DateTime CreatedTimestamp    { get; set; }
     public bool IsActive { get; set; }
+    public List<TherapistSpecialtyItem> Specialties { get; set; } = [];
 
     int IProfile.Id => this.TherapistId;
     string IProfile.Name => this.TherapistName;

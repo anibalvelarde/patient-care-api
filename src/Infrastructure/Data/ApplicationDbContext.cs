@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Site> Sites { get; set; }
     public DbSet<RoleType> RoleTypes { get; set; }
     public DbSet<SpecialtyType> SpecialtyTypes { get; set; }
+    public DbSet<TherapistSpecialty> TherapistSpecialties { get; set; }
 
     public override int SaveChanges()
     {
@@ -175,6 +176,21 @@ public class ApplicationDbContext : DbContext
             st.Property(e => e.Abbreviation).HasColumnName("SpecialtyAbbreviation");
             st.Property(e => e.Name).HasColumnName("SpecialtyName");
             st.Property(e => e.Description).HasColumnName("SpecialtyDescription");
+        });
+        modelBuilder.Entity<TherapistSpecialty>(ts => {
+            ts.ToTable("TherapistSpecialty");
+            ts.HasKey(e => e.Id);
+            ts.Property(e => e.Id).HasColumnName("TherapistSpecialtyID");
+            ts.Property(e => e.TherapistId).HasColumnName("TherapistID");
+            ts.Property(e => e.SpecialtyId).HasColumnName("SpecialtyID");
+            ts.HasOne(e => e.Therapist)
+                .WithMany(t => t.TherapistSpecialties)
+                .HasForeignKey(e => e.TherapistId);
+            ts.HasOne(e => e.SpecialtyType)
+                .WithMany()
+                .HasForeignKey(e => e.SpecialtyId);
+            ts.HasIndex(e => new { e.TherapistId, e.SpecialtyId })
+                .IsUnique();
         });
         modelBuilder.Entity<PatientCaretaker>(entity =>
         {

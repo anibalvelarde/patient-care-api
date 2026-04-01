@@ -25,6 +25,8 @@ public class TherapistProfileUpdateRequest
     public decimal? FeePctPerSession { get; set; }   
     public decimal? FeePerSession { get; set; }
     public bool ActiveStatus { get; set; }
+    [MinLength(1)]
+    public List<int>? SpecialtyIds { get; set; }
     public override string ToString()
     {
         return $"FN: {this.FirstName} MN: {this.MiddleName} LN: {this.LastName} e: {this.Email} p: {this.PhoneNumber} DoB: {this.DateOfBirth.ToShortDateString()} Gender: {this.Gender} Fee: {this.FeePerSession} Fee %: {this.FeePctPerSession}";

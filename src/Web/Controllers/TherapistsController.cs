@@ -59,26 +59,40 @@ public class TherapistsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateTherapist([FromBody] TherapistProfileRequest therapistRequest)
     {
-        var createdTherapist = await _therapistProfileService.CreateAsync(therapistRequest);
-        return CreatedAtAction(nameof(GetTherapist), new { id = createdTherapist.TherapistId }, createdTherapist);
+        try
+        {
+            var createdTherapist = await _therapistProfileService.CreateAsync(therapistRequest);
+            return CreatedAtAction(nameof(GetTherapist), new { id = createdTherapist.TherapistId }, createdTherapist);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateTherapist(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)
     {
-        if (await _therapistProfileService.VerifyRequestAsync(id))
+        try
         {
-            var updateResult = await _therapistProfileService.UpdateAsync(id, therapistRequest);
-            if (updateResult)
+            if (await _therapistProfileService.VerifyRequestAsync(id))
             {
-                return NoContent();
+                var updateResult = await _therapistProfileService.UpdateAsync(id, therapistRequest);
+                if (updateResult)
+                {
+                    return NoContent();
+                }
+                else
+                {
+                    return BadRequest("Bad input?");
+                }
             }
-            else
-            {
-                return BadRequest("Bad input?");
-            }
+            return BadRequest();
         }
-        return BadRequest();
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 
     private async Task<TherapistPastDueInfo> PackagePastDueInfoAsync(int therapistId)

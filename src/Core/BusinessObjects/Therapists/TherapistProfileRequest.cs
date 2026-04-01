@@ -30,4 +30,7 @@ public class TherapistProfileRequest
     public string Gender { get; set; }
     public decimal FeePerSession { get; set; }
     public decimal FeePctPerSession { get; set; }
+    [Required]
+    [MinLength(1)]
+    public List<int> SpecialtyIds { get; set; } = [];
 }

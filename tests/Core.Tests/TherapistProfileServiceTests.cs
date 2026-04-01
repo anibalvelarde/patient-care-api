@@ -19,7 +19,8 @@ public class TherapistProfileServiceTests
         var fakeLogger = Mock.Of<ILogger<TherapistProfileService>>(); 
 
         // act
-        var svc = new TherapistProfileService(fakeLogger, fakeRepo, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakeSpecialtyRepo = Mock.Of<ITherapistSpecialtyRepository>();
+        var svc = new TherapistProfileService(fakeLogger, fakeRepo, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo, fakeSpecialtyRepo);
 
         // assert
         Assert.IsType<TherapistProfileService>(svc);
@@ -37,7 +38,8 @@ public class TherapistProfileServiceTests
         var expectedTherapist = new TherapistProfile { TherapistId = testId, TherapistName = "John Doe" };
         var _mockRepository = new Mock<ITherapistProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(expectedTherapist);
-        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakeSpecialtyRepo = Mock.Of<ITherapistSpecialtyRepository>();
+        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo, fakeSpecialtyRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -60,7 +62,8 @@ public class TherapistProfileServiceTests
         var expectedTherapist = new TherapistProfile { TherapistId = testId, TherapistName = "John Doe" };
         var _mockRepository = new Mock<ITherapistProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync((TherapistProfile?)null);
-        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakeSpecialtyRepo = Mock.Of<ITherapistSpecialtyRepository>();
+        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo, fakeSpecialtyRepo);
 
         // Act
         var result = await svc.GetByIdAsync(testId);
@@ -79,7 +82,8 @@ public class TherapistProfileServiceTests
         var fakeUserRoleRepo = Mock.Of<IUserRoleRepository>();
         var fakeLogger = Mock.Of<ILogger<TherapistProfileService>>(); 
 
-        var svc = new TherapistProfileService(fakeLogger, fakeRepo, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakeSpecialtyRepo = Mock.Of<ITherapistSpecialtyRepository>();
+        var svc = new TherapistProfileService(fakeLogger, fakeRepo, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo, fakeSpecialtyRepo);
 
         // Act & Assert
         await Assert.ThrowsAsync<NotImplementedException>(() => 
@@ -98,7 +102,8 @@ public class TherapistProfileServiceTests
         var _mockRepository = new Mock<ITherapistProfileRepository>(MockBehavior.Strict);
         _mockRepository.Setup(repo => repo.GetAllAsync())
             .ReturnsAsync([]);
-        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo);
+        var fakeSpecialtyRepo = Mock.Of<ITherapistSpecialtyRepository>();
+        var svc = new TherapistProfileService(fakeLogger, _mockRepository.Object, fakeTherapistRepo, fakeUserRepo, fakeUserRoleRepo, fakeSpecialtyRepo);
 
         // Act
         var result = await svc.GetAllAsync();
