@@ -11,8 +11,6 @@ public class TherapistProfileRequest
         this.MiddleName = string.Empty;
         this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
-        this.Gender = string.Empty;
-        this.DateOfBirth = DateTime.MinValue;
     }
 
     [Required]
@@ -21,13 +19,9 @@ public class TherapistProfileRequest
     [Required]
     public string LastName { get; set; }
     [Required]
-    public DateTime DateOfBirth { get; set; }
-    [Required]
     public string Email { get; set; }
     [Required]
     public string PhoneNumber { get; set; }
-    [Required]
-    public string Gender { get; set; }
     public decimal FeePerSession { get; set; }
     public decimal FeePctPerSession { get; set; }
     [Required]
