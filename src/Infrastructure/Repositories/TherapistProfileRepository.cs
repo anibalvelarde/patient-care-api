@@ -16,6 +16,7 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Therapists
             .Where(t => t.User != null)
             .Include(t => t.User)
+            .Include(t => t.TherapistSpecialties).ThenInclude(ts => ts.SpecialtyType)
             .Select(t => ExtractTherapistProfile(t))
             .ToListAsync();
         return result;
@@ -26,6 +27,7 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Therapists
         .Where(t => t.TherapistId == id)
         .Include(t => t.User)
+        .Include(t => t.TherapistSpecialties).ThenInclude(ts => ts.SpecialtyType)
         .Select(t => ExtractTherapistProfile(t))
         .ToListAsync();
 
@@ -92,7 +94,16 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
             PhoneNumber = t.User.PhoneNumber,
             CreatedTimestamp = t.User.CreatedTimestamp,
             FeePerSession = t.FeePerSession,
-            FeePctPerSession = t.FeePctPerSession
+            FeePctPerSession = t.FeePctPerSession,
+            Specialties = t.TherapistSpecialties
+                .Where(ts => ts.SpecialtyType != null)
+                .Select(ts => new TherapistSpecialtyItem
+                {
+                    SpecialtyId = ts.SpecialtyId,
+                    Abbreviation = ts.SpecialtyType!.Abbreviation,
+                    Name = ts.SpecialtyType.Name
+                })
+                .ToList()
         };
     }
 }

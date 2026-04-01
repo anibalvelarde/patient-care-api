@@ -13,14 +13,16 @@ public class TherapistProfileService : ITherapistProfileService
     private readonly ITherapistRepository _therapistRepo;
     private readonly IUserRepository _userRepo;
     private readonly IUserRoleRepository _userRoleRepo;
+    private readonly ITherapistSpecialtyRepository _specialtyRepo;
 
-    public TherapistProfileService(ILogger<TherapistProfileService> logger, ITherapistProfileRepository profileRepository, ITherapistRepository therapistRepository, IUserRepository userRepo, IUserRoleRepository userRoleRepo)
+    public TherapistProfileService(ILogger<TherapistProfileService> logger, ITherapistProfileRepository profileRepository, ITherapistRepository therapistRepository, IUserRepository userRepo, IUserRoleRepository userRoleRepo, ITherapistSpecialtyRepository specialtyRepo)
     {
         _logger = logger;
         _repository = profileRepository;
         _therapistRepo = therapistRepository;
         _userRepo = userRepo;
         _userRoleRepo = userRoleRepo;
+        _specialtyRepo = specialtyRepo;
     }
 
     public async Task<IEnumerable<TherapistProfile>> GetAllAsync()
@@ -46,21 +48,19 @@ public class TherapistProfileService : ITherapistProfileService
     public async Task<TherapistProfile> CreateAsync(TherapistProfileRequest therapistRequest)
     {
         _logger.LogInformation("Started a new Therapist Profile request.");
+
+        var invalidIds = await GetInvalidSpecialtyIdsAsync(therapistRequest.SpecialtyIds);
+        if (invalidIds.Any())
+            throw new ArgumentException($"Invalid specialty IDs: {string.Join(", ", invalidIds)}");
+
         var newUser = await _userRepo.AddAsync(MapToNewUser(therapistRequest));
         var newTherapist = await _therapistRepo.AddAsync(MapToNewTherapist(therapistRequest, newUser));
         var newRole = await _userRoleRepo.AddAsync(newTherapist.MintNewRole());
+        await _specialtyRepo.SetSpecialtiesAsync(newTherapist.TherapistId, therapistRequest.SpecialtyIds);
         _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Tid[{newTherapist.TherapistId}], Role[{newRole.UserRoleId}]");
-        return new TherapistProfile
-        {
-            TherapistId = newTherapist.TherapistId,
-            UserId = newUser.Id,
-            TherapistName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
-            Email = newUser.Email,
-            PhoneNumber = newUser.PhoneNumber,
-            CreatedTimestamp = newUser.CreatedTimestamp,
-            FeePerSession = newTherapist.FeePerSession,
-            FeePctPerSession = newTherapist.FeePctPerSession,
-        };
+
+        var profile = await _repository.GetByIdAsync(newTherapist.TherapistId);
+        return profile!;
     }
 
     public async Task<bool> UpdateAsync(int therapistAggId, TherapistProfileUpdateRequest updateRequest)
@@ -71,6 +71,15 @@ public class TherapistProfileService : ITherapistProfileService
         var profileOnFile = await this.GetByIdAsync(therapistAggId);
         if (profileOnFile != null)
         {
+            if (updateRequest.SpecialtyIds != null)
+            {
+                var invalidIds = await GetInvalidSpecialtyIdsAsync(updateRequest.SpecialtyIds);
+                if (invalidIds.Any())
+                    throw new ArgumentException($"Invalid specialty IDs: {string.Join(", ", invalidIds)}");
+
+                await _specialtyRepo.SetSpecialtiesAsync(profileOnFile.TherapistId, updateRequest.SpecialtyIds);
+            }
+
             await _repository.UpdateAsync(profileOnFile.TherapistId, profileOnFile.UserId, updateRequest);
             return true;
         }
@@ -94,6 +103,14 @@ public class TherapistProfileService : ITherapistProfileService
             return true;
         }
         return false;
+    }
+
+    private async Task<List<int>> GetInvalidSpecialtyIdsAsync(IEnumerable<int> specialtyIds)
+    {
+        var ids = specialtyIds.Distinct().ToList();
+        var validIds = await _specialtyRepo.GetValidSpecialtyIdsAsync(ids);
+        var validSet = validIds.ToHashSet();
+        return ids.Where(id => !validSet.Contains(id)).ToList();
     }
 
     private static Therapist MapToNewTherapist(TherapistProfileRequest therapistRequest, User user)

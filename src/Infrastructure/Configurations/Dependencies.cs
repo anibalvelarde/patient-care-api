@@ -58,6 +58,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IPatientCaretakerRepository, PatientCaretakerRepository>();
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<ISiteRepository, SiteRepository>();
+        services.AddScoped<ITherapistSpecialtyRepository, TherapistSpecialtyRepository>();
         return services;
     }
 }
