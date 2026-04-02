@@ -4,18 +4,9 @@
 
 A .NET 8 REST API for managing therapy clinic operations (patients, therapists, caretakers, sessions, billing) built for the Neurocorp platform. Part of a three-repo system: Vue UI, this API, and a MySQL database.
 
-## Default Behavior
+## Cross-Project Context
 
-When starting a new conversation or after a `/clear`, follow this sequence before doing any work:
-
-1. **Enter plan mode first.** For any non-trivial request (bug fix, new feature, refactor), enter plan mode before writing code. Only skip planning for single-line fixes, typos, or questions.
-2. **Orient yourself.** Quickly review:
-   - This file (`CLAUDE.md`) for project conventions
-   - `docs/architecture.md` for system design context
-   - `docs/adr/` for architectural decisions already made
-   - `git log --oneline -10` for recent changes and active work
-3. **Confirm the task.** Summarize your understanding of what the user wants and your proposed approach before implementing. Ask clarifying questions if the request is ambiguous.
-4. **Run verification after changes.** Always run `npx vue-tsc --noEmit` and `npm run lint` from `app-ui/` before considering work complete.
+Part of NeuroCorp multi-project system. See `../CLAUDE.md` for system map, dependency ordering, branch workflow, and kanban integration. Always produce curl test commands for new/modified endpoints.
 
 ## Architecture
 
@@ -70,17 +61,3 @@ dotnet run --project src/Web/Web.csproj   # starts on http://localhost:5245
 - **Database**: MySQL via Pomelo EF Core provider; connection built from env vars (`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`)
 - **Testing**: xUnit + Moq + FluentAssertions; test projects mirror `src/` structure
 
-## Coordinator Context
-
-This project is part of a multi-repo system managed by a coordinator instance at `../patient-care-super/`.
-
-- **Coordinator guide**: `../patient-care-super/CLAUDE.md`
-- **API contracts**: `../patient-care-super/_contracts/`
-- **Active plans**: `../patient-care-super/planning/active/`
-
-### Dependency Position
-
-DB schema changes must land before yours. UI consumes your output. When making changes:
-1. DB layer (`../patient-care-db/`) applies schema changes first
-2. You update entities, repositories, services, and controllers
-3. UI layer (`../patient-care-ui-vue/`) updates last to consume your endpoints
