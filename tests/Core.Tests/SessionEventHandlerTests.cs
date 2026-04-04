@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.Services;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
+using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -108,5 +109,131 @@ public class SessionEventHandlerTests
 
         // Assert
         Assert.Empty(result);
+    }
+
+    // --- Specialty Resolution Tests (WP-9B) ---
+
+    private void SetupCreateAsyncDependencies()
+    {
+        _mockPatientService
+            .Setup(s => s.GetByIdAsync(1))
+            .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "Test Patient" });
+        _mockTherapistService
+            .Setup(s => s.GetByIdAsync(1))
+            .ReturnsAsync(new TherapistProfile { TherapistId = 1, TherapistName = "Test Therapist", FeePerSession = 25m });
+        _mockTherapySessionRepository
+            .Setup(r => r.AddAsync(It.IsAny<TherapySession>()))
+            .ReturnsAsync((TherapySession ts) => ts);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenSpecialtyTypeIdProvided_ResolvesSpecialtyAndBackfillsTherapyTypes()
+    {
+        // Arrange
+        SetupCreateAsyncDependencies();
+        var specialty = new SpecialtyType { Id = 5, Abbreviation = "TC", Name = "Conduct Therapy", IsDiscovery = false };
+        _mockSpecialtyTypeRepository
+            .Setup(r => r.GetByIdAsync(5))
+            .ReturnsAsync(specialty);
+
+        var request = new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Amount = 100m, Duration = 60,
+            SpecialtyTypeId = 5, TherapyType = "N/A"
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(request);
+
+        // Assert
+        Assert.Equal(5, result.SpecialtyTypeId);
+        Assert.Equal("TC", result.SpecialtyAbbreviation);
+        Assert.Equal("Conduct Therapy", result.SpecialtyName);
+        Assert.False(result.IsDiscovery);
+        Assert.Equal("TC", result.TherapyTypes); // backfilled from specialty abbreviation
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenFreeTextTherapyType_ResolvesSpecialtyTypeId()
+    {
+        // Arrange
+        SetupCreateAsyncDependencies();
+        var specialties = new List<SpecialtyType>
+        {
+            new() { Id = 2, Abbreviation = "FS", Name = "Physiotherapy", IsDiscovery = false },
+            new() { Id = 6, Abbreviation = "TL", Name = "Language Therapy", IsDiscovery = false },
+        };
+        _mockSpecialtyTypeRepository
+            .Setup(r => r.GetAllAsync())
+            .ReturnsAsync(specialties);
+
+        var request = new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Amount = 100m, Duration = 60,
+            TherapyType = "FS" // free-text, no SpecialtyTypeId
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(request);
+
+        // Assert
+        Assert.Equal(2, result.SpecialtyTypeId);
+        Assert.Equal("FS", result.SpecialtyAbbreviation);
+        Assert.Equal("Physiotherapy", result.SpecialtyName);
+        Assert.False(result.IsDiscovery);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenNoSpecialtyInfo_TherapyTypesUsedAsIs()
+    {
+        // Arrange
+        SetupCreateAsyncDependencies();
+        _mockSpecialtyTypeRepository
+            .Setup(r => r.GetAllAsync())
+            .ReturnsAsync(new List<SpecialtyType>());
+
+        var request = new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Amount = 100m, Duration = 60,
+            TherapyType = "N/A" // default, no match expected
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(request);
+
+        // Assert
+        Assert.Null(result.SpecialtyTypeId);
+        Assert.Null(result.SpecialtyAbbreviation);
+        Assert.Null(result.IsDiscovery);
+        Assert.Equal("N/A", result.TherapyTypes);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenDiscoverySpecialtyProvided_IsDiscoveryIsTrue()
+    {
+        // Arrange
+        SetupCreateAsyncDependencies();
+        var discovery = new SpecialtyType { Id = 8, Abbreviation = "Obs-TO", Name = "Observacion TO", IsDiscovery = true };
+        _mockSpecialtyTypeRepository
+            .Setup(r => r.GetByIdAsync(8))
+            .ReturnsAsync(discovery);
+
+        var request = new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Amount = 100m, Duration = 60,
+            SpecialtyTypeId = 8
+        };
+
+        // Act
+        var result = await _sut.CreateAsync(request);
+
+        // Assert
+        Assert.Equal(8, result.SpecialtyTypeId);
+        Assert.True(result.IsDiscovery);
+        Assert.Equal("Obs-TO", result.TherapyTypes);
     }
 }
