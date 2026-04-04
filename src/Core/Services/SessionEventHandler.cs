@@ -16,14 +16,16 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly ITherapySessionRepository _therapySessionRepository;
     private readonly IPatientProfileService _patientService;
     private readonly ITherapistProfileService _therapistService;
+    private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
 
-    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc)
+    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo)
     {
         _logger = logger;
         _repository = repo;
         _therapySessionRepository = therapySessionRepo;
         _patientService = patientSvc;
         _therapistService = therapistSvc;
+        _specialtyTypeRepository = specialtyTypeRepo;
     }
 
     public async Task<IEnumerable<SessionEvent>> GetAllAsync()
@@ -127,7 +129,8 @@ public class SessionEventHandler : IHandleSessionEvent
     {
         _logger.LogInformation("Started creating a new therapy session from request.");
         var (pProfile, tProfile) = await FetchTargetPartiesAsync(request);
-        var newTherapySession = await _therapySessionRepository.AddAsync(MapToNewSessionEvent(pProfile!, tProfile!, request));
+        var specialty = await ResolveSpecialtyAsync(request);
+        var newTherapySession = await _therapySessionRepository.AddAsync(MapToNewSessionEvent(pProfile!, tProfile!, request, specialty));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
         var confirmedStatuses = new HashSet<int> { 2, 4, 6, 7 };
         return new SessionEvent()
@@ -149,6 +152,10 @@ public class SessionEventHandler : IHandleSessionEvent
             IsConfirmed = confirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
             SiteId = newTherapySession.SiteId,
             SiteName = newTherapySession.Site?.SiteName,
+            SpecialtyTypeId = newTherapySession.SpecialtyTypeId,
+            SpecialtyAbbreviation = specialty?.Abbreviation,
+            SpecialtyName = specialty?.Name,
+            IsDiscovery = specialty?.IsDiscovery,
         };
     }
 
@@ -181,17 +188,19 @@ public class SessionEventHandler : IHandleSessionEvent
         return false;
     }
 
-    private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req)
+    private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req, SpecialtyType? specialty)
     {
         var calcProviderAmt = tProfile.CalculateFee(req.Amount);
         var calcGrossProfit = CalculateGrossProfit(tProfile, req);
+        // When SpecialtyTypeId is provided, populate TherapyTypes from specialty for backward compat
+        var therapyTypes = specialty != null ? specialty.Abbreviation : req.TherapyType;
         return new TherapySession()
         {
             PatientId = pProfile.PatientId,
             TherapistId = tProfile.TherapistId,
             SessionDate = req.SessionDate,
             SessionTime = req.SessionTime,
-            TherapyTypes = req.TherapyType,
+            TherapyTypes = therapyTypes,
             Duration = req.Duration,
             Amount = req.Amount,
             DiscountAmount = req.Discount,
@@ -199,13 +208,43 @@ public class SessionEventHandler : IHandleSessionEvent
             GrossProfit = calcGrossProfit,
             Notes = req.Notes,
             AppointmentStatusId = req.AppointmentStatusId,
-            SiteId = req.SiteId
+            SiteId = req.SiteId,
+            SpecialtyTypeId = specialty?.Id ?? req.SpecialtyTypeId,
         };
     }
 
     private static decimal CalculateGrossProfit(TherapistProfile tProfile, SessionEventRequest request)
     {
         return request.Amount - request.Discount - tProfile.CalculateFee(request.Amount);
+    }
+
+    private async Task<SpecialtyType?> ResolveSpecialtyAsync(SessionEventRequest request)
+    {
+        // If SpecialtyTypeId is provided, use it directly
+        if (request.SpecialtyTypeId.HasValue)
+        {
+            var specialty = await _specialtyTypeRepository.GetByIdAsync(request.SpecialtyTypeId.Value);
+            if (specialty == null)
+            {
+                _logger.LogWarning("SpecialtyTypeId {Id} not found, ignoring", request.SpecialtyTypeId.Value);
+            }
+            return specialty;
+        }
+
+        // If only free-text TherapyType is provided, try to resolve by abbreviation
+        if (!string.IsNullOrEmpty(request.TherapyType) && request.TherapyType != "N/A")
+        {
+            var allSpecialties = await _specialtyTypeRepository.GetAllAsync();
+            var matched = allSpecialties.FirstOrDefault(s =>
+                s.Abbreviation.Equals(request.TherapyType, StringComparison.OrdinalIgnoreCase));
+            if (matched != null)
+            {
+                _logger.LogInformation("Resolved free-text TherapyType '{Type}' to SpecialtyTypeId {Id}", request.TherapyType, matched.Id);
+            }
+            return matched;
+        }
+
+        return null;
     }
 
     private async Task<(PatientProfile?, TherapistProfile?)> FetchTargetPartiesAsync(SessionEventRequest request)

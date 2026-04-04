@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.Services;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
+using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
 
@@ -14,6 +15,7 @@ public class SessionEventHandlerTests
     private readonly Mock<ITherapySessionRepository> _mockTherapySessionRepository;
     private readonly Mock<IPatientProfileService> _mockPatientService;
     private readonly Mock<ITherapistProfileService> _mockTherapistService;
+    private readonly Mock<IRepository<SpecialtyType>> _mockSpecialtyTypeRepository;
     private readonly SessionEventHandler _sut;
 
     public SessionEventHandlerTests()
@@ -23,12 +25,14 @@ public class SessionEventHandlerTests
         _mockTherapySessionRepository = new Mock<ITherapySessionRepository>();
         _mockPatientService = new Mock<IPatientProfileService>();
         _mockTherapistService = new Mock<ITherapistProfileService>();
+        _mockSpecialtyTypeRepository = new Mock<IRepository<SpecialtyType>>();
         _sut = new SessionEventHandler(
             fakeLogger,
             _mockRepository.Object,
             _mockTherapySessionRepository.Object,
             _mockTherapistService.Object,
-            _mockPatientService.Object);
+            _mockPatientService.Object,
+            _mockSpecialtyTypeRepository.Object);
     }
 
     [Fact]

@@ -23,6 +23,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<RoleType> RoleTypes { get; set; }
     public DbSet<SpecialtyType> SpecialtyTypes { get; set; }
     public DbSet<TherapistSpecialty> TherapistSpecialties { get; set; }
+    public DbSet<TreatmentPlan> TreatmentPlans { get; set; }
+    public DbSet<TreatmentPlanLine> TreatmentPlanLines { get; set; }
 
     public override int SaveChanges()
     {
@@ -109,6 +111,14 @@ public class ApplicationDbContext : DbContext
             ts.HasOne(e => e.Site)
                 .WithMany(s => s.TherapySessions)
                 .HasForeignKey(e => e.SiteId);
+            ts.HasOne(e => e.SpecialtyType)
+                .WithMany()
+                .HasForeignKey(e => e.SpecialtyTypeId);
+            ts.HasOne(e => e.TreatmentPlanLine)
+                .WithMany(tpl => tpl.TherapySessions)
+                .HasForeignKey(e => e.TreatmentPlanLineId)
+                .HasConstraintName("TherapySession_ibfk_planline");
+            ts.Property(e => e.TreatmentPlanLineId).HasColumnName("TreatmentPlanLineID");
         });
         modelBuilder.Entity<Site>(s => {
             s.ToTable("Site");
@@ -215,6 +225,41 @@ public class ApplicationDbContext : DbContext
             // Unique constraint to prevent duplicate caretaker assignments per patient
             entity.HasIndex(pc => new { pc.PatientId, pc.CaretakerId })
                 .IsUnique();
+        });
+        modelBuilder.Entity<TreatmentPlan>(tp => {
+            tp.ToTable("TreatmentPlan");
+            tp.HasKey(e => e.Id);
+            tp.Property(e => e.Id).HasColumnName("TreatmentPlanID");
+            tp.Property(e => e.PatientId).HasColumnName("PatientID");
+            tp.Property(e => e.DiscoverySessionId).HasColumnName("DiscoverySessionID");
+            tp.Property(e => e.CreatedByTherapistId).HasColumnName("CreatedByTherapistID");
+            tp.Property(e => e.ResultsDocumentUrl).IsRequired(false);
+            tp.Property(e => e.Notes).IsRequired(false);
+            tp.HasOne(e => e.Patient)
+                .WithMany()
+                .HasForeignKey(e => e.PatientId);
+            tp.HasOne(e => e.DiscoverySession)
+                .WithMany()
+                .HasForeignKey(e => e.DiscoverySessionId);
+            tp.HasOne(e => e.CreatedByTherapist)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByTherapistId);
+            tp.HasMany(e => e.Lines)
+                .WithOne(l => l.TreatmentPlan)
+                .HasForeignKey(l => l.TreatmentPlanId);
+        });
+        modelBuilder.Entity<TreatmentPlanLine>(tpl => {
+            tpl.ToTable("TreatmentPlanLine");
+            tpl.HasKey(e => e.Id);
+            tpl.Property(e => e.Id).HasColumnName("TreatmentPlanLineID");
+            tpl.Property(e => e.TreatmentPlanId).HasColumnName("TreatmentPlanID");
+            tpl.Property(e => e.PreferredTherapistId).HasColumnName("PreferredTherapistID");
+            tpl.HasOne(e => e.SpecialtyType)
+                .WithMany()
+                .HasForeignKey(e => e.SpecialtyTypeId);
+            tpl.HasOne(e => e.PreferredTherapist)
+                .WithMany()
+                .HasForeignKey(e => e.PreferredTherapistId);
         });
     }
 

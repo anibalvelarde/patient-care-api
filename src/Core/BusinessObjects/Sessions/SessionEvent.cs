@@ -29,4 +29,8 @@ public class SessionEvent
     public bool IsConfirmed { get; set; }
     public int? SiteId { get; set; }
     public string? SiteName { get; set; }
+    public int? SpecialtyTypeId { get; set; }
+    public string? SpecialtyAbbreviation { get; set; }
+    public string? SpecialtyName { get; set; }
+    public bool? IsDiscovery { get; set; }
 }

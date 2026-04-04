@@ -20,4 +20,5 @@ public class SessionEventRequest
     public string Notes { get; set; }
     public int AppointmentStatusId { get; set; } = 1; // Default: Proposed
     public int? SiteId { get; set; }
+    public int? SpecialtyTypeId { get; set; }
 }
