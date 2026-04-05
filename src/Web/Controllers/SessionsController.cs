@@ -49,8 +49,15 @@ public class SessionsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateSession([FromBody] SessionEventRequest sessionRequest)
     {
-        var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
-        return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
+        try
+        {
+            var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
+            return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPut("{id}")]
