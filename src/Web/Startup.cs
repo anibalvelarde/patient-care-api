@@ -11,6 +11,7 @@ using Neurocorp.Api.Web.Middleware.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
+using Neurocorp.Api.Web.Middleware;
 
 namespace Neurocorp.Api.Web;
 
@@ -41,7 +42,10 @@ public class Startup(IConfiguration configuration)
                     .AllowAnyMethod()
                     .AllowCredentials());
         });
-        services.AddControllers();
+        services.AddControllers(options =>
+        {
+            options.Filters.Add<DuplicateKeyExceptionFilter>();
+        });
 
         // Register the Swagger generator, defining one or more Swagger documents
         services.AddSwaggerGen(c =>

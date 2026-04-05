@@ -56,10 +56,10 @@ public class TherapistProfileService : ITherapistProfileService
         var newUser = await _userRepo.AddAsync(MapToNewUser(therapistRequest));
         var newTherapist = await _therapistRepo.AddAsync(MapToNewTherapist(therapistRequest, newUser));
         var newRole = await _userRoleRepo.AddAsync(newTherapist.MintNewRole());
-        await _specialtyRepo.SetSpecialtiesAsync(newTherapist.TherapistId, therapistRequest.SpecialtyIds);
-        _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Tid[{newTherapist.TherapistId}], Role[{newRole.UserRoleId}]");
+        await _specialtyRepo.SetSpecialtiesAsync(newTherapist.Id, therapistRequest.SpecialtyIds);
+        _logger.LogInformation($"New Therapist Profile was created: Uid[{newUser.Id}], Tid[{newTherapist.Id}], Role[{newRole.UserRoleId}]");
 
-        var profile = await _repository.GetByIdAsync(newTherapist.TherapistId);
+        var profile = await _repository.GetByIdAsync(newTherapist.Id);
         return profile!;
     }
 
