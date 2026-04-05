@@ -124,6 +124,9 @@ public class SessionEventHandlerTests
         _mockTherapySessionRepository
             .Setup(r => r.AddAsync(It.IsAny<TherapySession>()))
             .ReturnsAsync((TherapySession ts) => ts);
+        _mockTherapySessionRepository
+            .Setup(r => r.HasCompletedDiscoveryAsync(It.IsAny<int>()))
+            .ReturnsAsync(true);
     }
 
     [Fact]

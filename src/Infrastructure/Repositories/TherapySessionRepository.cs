@@ -30,4 +30,21 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ThenBy(s => s.SessionTime)
             .ToListAsync();
     }
+
+    public async Task<bool> HasCompletedDiscoveryAsync(int patientId)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.SpecialtyType)
+            .AnyAsync(s => s.PatientId == patientId
+                && s.AppointmentStatusId == 4
+                && s.SpecialtyType != null
+                && s.SpecialtyType.IsDiscovery);
+    }
+
+    public async Task<TherapySession?> GetByIdWithSpecialtyAsync(int id)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.SpecialtyType)
+            .FirstOrDefaultAsync(s => s.Id == id);
+    }
 }

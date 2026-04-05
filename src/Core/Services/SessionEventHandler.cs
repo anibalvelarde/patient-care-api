@@ -130,6 +130,16 @@ public class SessionEventHandler : IHandleSessionEvent
         _logger.LogInformation("Started creating a new therapy session from request.");
         var (pProfile, tProfile) = await FetchTargetPartiesAsync(request);
         var specialty = await ResolveSpecialtyAsync(request);
+
+        // Discovery-first enforcement: treatment specialties require a completed discovery session
+        if (specialty != null && !specialty.IsDiscovery)
+        {
+            var hasDiscovery = await _therapySessionRepository.HasCompletedDiscoveryAsync(request.PatientId);
+            if (!hasDiscovery)
+                throw new ArgumentException(
+                    "Patient requires a completed discovery session before treatment sessions can be scheduled.");
+        }
+
         var newTherapySession = await _therapySessionRepository.AddAsync(MapToNewSessionEvent(pProfile!, tProfile!, request, specialty));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
         var confirmedStatuses = new HashSet<int> { 2, 4, 6, 7 };
