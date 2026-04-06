@@ -7,6 +7,7 @@ using Neurocorp.Api.Web.Controllers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using FluentAssertions;
 using System.Linq;
 using Castle.Core.Logging;
@@ -18,6 +19,7 @@ public class PatientsControllerTests
 {
     private readonly Mock<IPatientProfileService> _mockPatientProfileService;
     private readonly Mock<IHandleSessionEvent> _mockSessionEventHandler;
+    private readonly Mock<ISessionEventRepository> _mockSessionEventRepository;
     private readonly PatientsController _controller;
 
     public PatientsControllerTests()
@@ -25,7 +27,8 @@ public class PatientsControllerTests
         var fakeLogger = Mock.Of<ILogger<PatientsController>>();
         _mockPatientProfileService = new Mock<IPatientProfileService>();
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
-        _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object);
+        _mockSessionEventRepository = new Mock<ISessionEventRepository>();
+        _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object, _mockSessionEventRepository.Object);
     }
 
     [Fact]

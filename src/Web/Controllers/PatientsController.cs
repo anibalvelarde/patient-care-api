@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Common;
 
@@ -13,12 +14,18 @@ public class PatientsController : ControllerBase
 {
     private readonly IPatientProfileService _patientProfileService;
     private readonly IHandleSessionEvent _sessionEventHandler;
+    private readonly ISessionEventRepository _sessionEventRepository;
     private readonly ILogger<PatientsController> _logger;
 
-    public PatientsController(ILogger<PatientsController> logger, IPatientProfileService patientProfileService, IHandleSessionEvent sessionEventHandler)
+    public PatientsController(
+        ILogger<PatientsController> logger,
+        IPatientProfileService patientProfileService,
+        IHandleSessionEvent sessionEventHandler,
+        ISessionEventRepository sessionEventRepository)
     {
         _patientProfileService = patientProfileService;
         _sessionEventHandler = sessionEventHandler;
+        _sessionEventRepository = sessionEventRepository;
         _logger = logger;
     }
 
@@ -72,6 +79,17 @@ public class PatientsController : ControllerBase
     {
         var caretakers = await _patientProfileService.GetCaretakersForPatientAsync(id);
         return Ok(caretakers);
+    }
+
+    [HttpGet("{patientId}/sessions")]
+    [ProducesResponseType(typeof(IEnumerable<SessionEvent>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPatientSessions(
+        int patientId,
+        [FromQuery] bool? isDiscovery = null,
+        [FromQuery] string? status = null)
+    {
+        var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, isDiscovery, status);
+        return Ok(sessions);
     }
 
     [HttpPost]

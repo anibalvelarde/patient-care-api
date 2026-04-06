@@ -16,6 +16,7 @@ public class PatientProfileService : IPatientProfileService
     private readonly IUserRepository _userRepo;
     private readonly IUserRoleRepository _userRoleRepo;
     private readonly IPatientCaretakerRepository _patientCaretakerRepo;
+    private readonly ITherapySessionRepository _therapySessionRepo;
     private readonly ILogger<PatientProfileService> _logger;
 
     public PatientProfileService(
@@ -24,13 +25,15 @@ public class PatientProfileService : IPatientProfileService
         IPatientRepository patientRepository,
         IUserRepository userRepo,
         IUserRoleRepository userRoleRepo,
-        IPatientCaretakerRepository patientCaretakerRepo)
+        IPatientCaretakerRepository patientCaretakerRepo,
+        ITherapySessionRepository therapySessionRepo)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
         _userRepo = userRepo;
         _userRoleRepo = userRoleRepo;
         _patientCaretakerRepo = patientCaretakerRepo;
+        _therapySessionRepo = therapySessionRepo;
         _logger = logger;
     }
 
@@ -43,7 +46,12 @@ public class PatientProfileService : IPatientProfileService
     public async Task<PatientProfile?> GetByIdAsync(int id)
     {
         _logger.LogInformation("Getting patient profile by ID: {Id}", id);
-        return await _repository.GetByIdAsync(id);
+        var profile = await _repository.GetByIdAsync(id);
+        if (profile != null)
+        {
+            profile.HasCompletedDiscovery = await _therapySessionRepo.HasCompletedDiscoveryAsync(profile.PatientId);
+        }
+        return profile;
     }
 
     public async Task<PatientProfile> CreateAsync(PatientProfile patient)

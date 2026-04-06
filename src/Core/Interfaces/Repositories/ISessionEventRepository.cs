@@ -7,5 +7,6 @@ public interface ISessionEventRepository : IRepository<SessionEvent>
 {
     public Task<IReadOnlyList<SessionEvent>> GetAllByTargetDateAsync(DateOnly targetDate);
     public Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync();
+    public Task<IReadOnlyList<SessionEvent>> GetByPatientIdAsync(int patientId, bool? isDiscovery = null, string? status = null);
     public Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest);
 }

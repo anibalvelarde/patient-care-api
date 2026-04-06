@@ -152,6 +152,13 @@ public class TreatmentPlanService : ITreatmentPlanService
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
         if (plan.PlanStatus != "Draft")
             throw new ArgumentException($"Cannot activate a plan with status '{plan.PlanStatus}'. Only Draft plans can be activated.");
+
+        // Check for existing active plan
+        var existingPlans = await _planRepository.GetByPatientIdAsync(plan.PatientId);
+        var activePlan = existingPlans.FirstOrDefault(p => p.PlanStatus == "Active" && p.Id != id);
+        if (activePlan != null)
+            throw new ArgumentException($"Patient already has an active treatment plan (Plan #{activePlan.Id}). Cancel or complete it before activating another.");
+
         plan.PlanStatus = "Active";
         await _planRepository.UpdateAsync(plan);
         return MapToProfile(plan);
