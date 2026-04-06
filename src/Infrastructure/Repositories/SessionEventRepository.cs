@@ -62,6 +62,32 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return result;
     }
 
+    public async Task<IReadOnlyList<SessionEvent>> GetByPatientIdAsync(int patientId, bool? isDiscovery = null, string? status = null)
+    {
+        var query = _dbContext.TherapySessions
+            .Where(ts => ts.PatientId == patientId &&
+                         ts.Patient != null &&
+                         ts.Therapist != null);
+
+        if (isDiscovery.HasValue)
+            query = query.Where(ts => ts.SpecialtyType != null && ts.SpecialtyType.IsDiscovery == isDiscovery.Value);
+
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(ts => ts.AppointmentStatus != null && ts.AppointmentStatus.Name == status);
+
+        var result = await query
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.User)
+            .Include(ts => ts.Therapist)
+                .ThenInclude(t => t!.User)
+            .Include(ts => ts.AppointmentStatus)
+            .Include(ts => ts.Site)
+            .Include(ts => ts.SpecialtyType)
+            .Select(ts => ExtractSessionEvent(ts))
+            .ToListAsync();
+        return result;
+    }
+
     public override async Task<SessionEvent?> GetByIdAsync(int id)
     {
         var result = await _dbContext.TherapySessions
