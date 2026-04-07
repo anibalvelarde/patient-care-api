@@ -24,6 +24,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ISiteProfileService, SiteProfileService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ITreatmentPlanService, TreatmentPlanService>();
+        services.AddScoped<IBulkSchedulingService, BulkSchedulingService>();
         return services;
     }
 }
