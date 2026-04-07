@@ -347,7 +347,7 @@ public class BulkSchedulingService : IBulkSchedulingService
             return 0m;
 
         if (therapist.FeePctPerSession > 0)
-            return Math.Round(netAmount * therapist.FeePctPerSession / 100m, 2);
+            return Math.Round(netAmount * therapist.FeePctPerSession, 2);
 
         if (therapist.FeePerSession > 0)
             return therapist.FeePerSession;

@@ -92,7 +92,7 @@ public class BulkSchedulingServiceTests
         // 2 weeks, 1 session/week = 2 sessions
         var plan = CreateActivePlan(weeks: 2, frequency: 1);
         SetupCommonMocks(plan);
-        SetupTherapist(10, "Dr.", "Smith", feePct: 40);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
         _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
 
         var request = new BulkScheduleRequest
@@ -116,7 +116,7 @@ public class BulkSchedulingServiceTests
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         plan.Lines.First().Duration = 45; // 45 min
         SetupCommonMocks(plan);
-        SetupTherapist(10, "Dr.", "Smith", feePct: 40);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
         _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
 
         var request = new BulkScheduleRequest
@@ -158,7 +158,7 @@ public class BulkSchedulingServiceTests
     {
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         SetupCommonMocks(plan);
-        SetupTherapist(10, "Dr.", "Smith", feePct: 40);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
         _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
 
         // Therapist 10 is already booked on the target date/time
@@ -201,8 +201,8 @@ public class BulkSchedulingServiceTests
 
         var therapists = new List<Therapist>
         {
-            new() { Id = 10, TherapistId = 10, FeePctPerSession = 40, User = new User { FirstName = "Dr.", LastName = "New" } },
-            new() { Id = 20, TherapistId = 20, FeePctPerSession = 35, User = new User { FirstName = "Dr.", LastName = "Familiar" } }
+            new() { Id = 10, TherapistId = 10, FeePctPerSession = 0.40m, User = new User { FirstName = "Dr.", LastName = "New" } },
+            new() { Id = 20, TherapistId = 20, FeePctPerSession = 0.35m, User = new User { FirstName = "Dr.", LastName = "Familiar" } }
         };
         _mockTherapistRepo.Setup(r => r.GetByIdsWithUserAsync(It.IsAny<IEnumerable<int>>()))
             .ReturnsAsync(therapists);
@@ -249,7 +249,7 @@ public class BulkSchedulingServiceTests
 
         var therapists = new List<Therapist>
         {
-            new() { Id = 10, TherapistId = 10, FeePctPerSession = 40, User = new User { FirstName = "Dr.", LastName = "Smith" } },
+            new() { Id = 10, TherapistId = 10, FeePctPerSession = 0.40m, User = new User { FirstName = "Dr.", LastName = "Smith" } },
             new() { Id = 20, TherapistId = 20, FeePerSession = 30, User = new User { FirstName = "Dr.", LastName = "Override" } }
         };
         _mockTherapistRepo.Setup(r => r.GetByIdsWithUserAsync(It.IsAny<IEnumerable<int>>()))
