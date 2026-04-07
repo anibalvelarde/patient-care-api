@@ -47,4 +47,18 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .Include(s => s.SpecialtyType)
             .FirstOrDefaultAsync(s => s.Id == id);
     }
+
+    public async Task<IReadOnlyList<TherapySession>> GetCompletedDiscoverySessionsAsync(int patientId)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.SpecialtyType)
+            .Include(s => s.Therapist).ThenInclude(t => t!.User)
+            .Where(s => s.PatientId == patientId
+                && s.AppointmentStatusId == 4
+                && s.SpecialtyType != null
+                && s.SpecialtyType.IsDiscovery)
+            .OrderByDescending(s => s.SessionDate)
+            .ThenByDescending(s => s.SessionTime)
+            .ToListAsync();
+    }
 }

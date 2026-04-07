@@ -78,6 +78,14 @@ public class SessionsController : ControllerBase
         return BadRequest();
     }
 
+    [HttpGet("patient/{patientId}/discovery")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DiscoverySessionSummary>))]
+    public async Task<IActionResult> GetCompletedDiscoverySessions(int patientId)
+    {
+        var sessions = await _sessionEventHandler.GetCompletedDiscoverySessionsAsync(patientId);
+        return Ok(sessions);
+    }
+
     [HttpGet("{id}/payments")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionPaymentDetail>))]
     public async Task<IActionResult> GetSessionPayments(int id)

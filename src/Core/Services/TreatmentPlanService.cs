@@ -153,6 +153,11 @@ public class TreatmentPlanService : ITreatmentPlanService
         if (plan.PlanStatus != "Draft")
             throw new ArgumentException($"Cannot activate a plan with status '{plan.PlanStatus}'. Only Draft plans can be activated.");
 
+        // Line count must match weekly frequency
+        var lineCount = plan.Lines.Count;
+        if (lineCount != plan.WeeklyFrequency)
+            throw new ArgumentException($"Cannot activate: line count ({lineCount}) does not match sessions per week ({plan.WeeklyFrequency}). Adjust the plan lines or weekly frequency first.");
+
         // Check for existing active plan
         var existingPlans = await _planRepository.GetByPatientIdAsync(plan.PatientId);
         var activePlan = existingPlans.FirstOrDefault(p => p.PlanStatus == "Active" && p.Id != id);

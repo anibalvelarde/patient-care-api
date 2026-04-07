@@ -11,4 +11,5 @@ public interface IHandleSessionEvent : IService<SessionEvent>
     public Task<SessionEvent> CreateAsync(SessionEventRequest request);
     public Task<bool> UpdateAsync(int SessionEventId, SessionEventUpdateRequest request);
     public Task<bool> VerifyRequestAsync(int sessionAggId, SessionEventUpdateRequest request);
+    public Task<IEnumerable<DiscoverySessionSummary>> GetCompletedDiscoverySessionsAsync(int patientId);
 }
