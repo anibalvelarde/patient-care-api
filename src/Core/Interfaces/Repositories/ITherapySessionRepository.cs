@@ -8,4 +8,5 @@ public interface ITherapySessionRepository : IRepository<TherapySession>
     Task<IReadOnlyList<TherapySession>> GetByPatientIdsAndDateRangeAsync(IEnumerable<int> patientIds, DateOnly from, DateOnly to);
     Task<bool> HasCompletedDiscoveryAsync(int patientId);
     Task<TherapySession?> GetByIdWithSpecialtyAsync(int id);
+    Task<IReadOnlyList<TherapySession>> GetCompletedDiscoverySessionsAsync(int patientId);
 }

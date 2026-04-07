@@ -257,6 +257,18 @@ public class SessionEventHandler : IHandleSessionEvent
         return null;
     }
 
+    public async Task<IEnumerable<DiscoverySessionSummary>> GetCompletedDiscoverySessionsAsync(int patientId)
+    {
+        var sessions = await _therapySessionRepository.GetCompletedDiscoverySessionsAsync(patientId);
+        return sessions.Select(s => new DiscoverySessionSummary
+        {
+            SessionId = s.Id,
+            SessionDate = s.SessionDate,
+            SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? "N/A",
+            TherapistName = s.Therapist?.User?.GetFullName() ?? "Unknown",
+        });
+    }
+
     private async Task<(PatientProfile?, TherapistProfile?)> FetchTargetPartiesAsync(SessionEventRequest request)
     {
         return await FetchTargetPartiesAsync(request.PatientId, request.TherapistId);

@@ -33,4 +33,5 @@ public class SessionEvent
     public string? SpecialtyAbbreviation { get; set; }
     public string? SpecialtyName { get; set; }
     public bool? IsDiscovery { get; set; }
+    public decimal ProviderAmount { get; set; }
 }

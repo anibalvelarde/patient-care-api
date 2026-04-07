@@ -188,6 +188,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             SpecialtyAbbreviation = ts.SpecialtyType?.Abbreviation,
             SpecialtyName = ts.SpecialtyType?.Name,
             IsDiscovery = ts.SpecialtyType?.IsDiscovery,
+            ProviderAmount = ts.ProviderAmount,
         };
     }
 }
