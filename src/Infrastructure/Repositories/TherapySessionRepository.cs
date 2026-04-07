@@ -61,4 +61,51 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ThenByDescending(s => s.SessionTime)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<TherapySession>> GetByTherapistAndDateRangeAsync(int therapistId, DateOnly fromDate, DateOnly toDate)
+    {
+        return await _dbContext.TherapySessions
+            .Where(s => s.TherapistId == therapistId
+                && s.SessionDate >= fromDate
+                && s.SessionDate <= toDate
+                && s.AppointmentStatusId != 3) // Exclude cancelled
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<TherapySession>> GetByTreatmentPlanIdAsync(int treatmentPlanId)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.Therapist).ThenInclude(t => t!.User)
+            .Include(s => s.SpecialtyType)
+            .Include(s => s.AppointmentStatus)
+            .Where(s => s.TreatmentPlanLineId != null
+                && s.TreatmentPlanLine!.TreatmentPlanId == treatmentPlanId)
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<int>> GetTherapistIdsForPatientAsync(int patientId)
+    {
+        return await _dbContext.TherapySessions
+            .Where(s => s.PatientId == patientId && s.AppointmentStatusId != 3)
+            .GroupBy(s => s.TherapistId)
+            .OrderByDescending(g => g.Max(s => s.SessionDate))
+            .Select(g => g.Key)
+            .ToListAsync();
+    }
+
+    public async Task AddRangeAsync(IEnumerable<TherapySession> sessions)
+    {
+        await _dbContext.TherapySessions.AddRangeAsync(sessions);
+        await _dbContext.SaveChangesAsync();
+    }
+
+    public async Task<bool> HasSessionsForPlanAsync(int treatmentPlanId)
+    {
+        return await _dbContext.TherapySessions
+            .AnyAsync(s => s.TreatmentPlanLineId != null
+                && s.TreatmentPlanLine!.TreatmentPlanId == treatmentPlanId
+                && s.AppointmentStatusId != 3); // Exclude cancelled
+    }
 }

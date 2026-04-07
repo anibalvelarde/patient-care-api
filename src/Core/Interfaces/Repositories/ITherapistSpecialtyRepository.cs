@@ -4,4 +4,5 @@ public interface ITherapistSpecialtyRepository
 {
     Task SetSpecialtiesAsync(int therapistId, IEnumerable<int> specialtyIds);
     Task<IEnumerable<int>> GetValidSpecialtyIdsAsync(IEnumerable<int> candidateIds);
+    Task<IReadOnlyList<int>> GetTherapistIdsBySpecialtyAsync(int specialtyId);
 }

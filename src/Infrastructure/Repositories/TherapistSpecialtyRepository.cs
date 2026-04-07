@@ -50,4 +50,14 @@ public class TherapistSpecialtyRepository : ITherapistSpecialtyRepository
             .Select(st => st.Id)
             .ToListAsync();
     }
+
+    public async Task<IReadOnlyList<int>> GetTherapistIdsBySpecialtyAsync(int specialtyId)
+    {
+        return await _dbContext.TherapistSpecialties
+            .Where(ts => ts.SpecialtyId == specialtyId)
+            .Select(ts => ts.TherapistId)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToListAsync();
+    }
 }

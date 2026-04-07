@@ -10,11 +10,16 @@ public class TreatmentPlansController : ControllerBase
 {
     private readonly ILogger<TreatmentPlansController> _logger;
     private readonly ITreatmentPlanService _service;
+    private readonly IBulkSchedulingService _schedulingService;
 
-    public TreatmentPlansController(ILogger<TreatmentPlansController> logger, ITreatmentPlanService service)
+    public TreatmentPlansController(
+        ILogger<TreatmentPlansController> logger,
+        ITreatmentPlanService service,
+        IBulkSchedulingService schedulingService)
     {
         _logger = logger;
         _service = service;
+        _schedulingService = schedulingService;
     }
 
     [HttpPost]
@@ -111,6 +116,55 @@ public class TreatmentPlansController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpPost("{id}/schedule")]
+    [ProducesResponseType(typeof(BulkScheduleResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Schedule(int id, [FromBody] BulkScheduleRequest request)
+    {
+        try
+        {
+            var result = await _schedulingService.ScheduleAsync(id, request);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/sessions")]
+    [ProducesResponseType(typeof(IReadOnlyList<PlanSessionInfo>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSessions(int id)
+    {
+        try
+        {
+            var result = await _schedulingService.GetSessionsAsync(id);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/progress")]
+    [ProducesResponseType(typeof(PlanProgressSummary), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProgress(int id)
+    {
+        try
+        {
+            var result = await _schedulingService.GetProgressAsync(id);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { error = ex.Message });
         }
     }
 }
