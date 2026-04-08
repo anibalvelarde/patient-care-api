@@ -191,11 +191,23 @@ public class TreatmentPlanService : ITreatmentPlanService
         return MapToProfile(plan);
     }
 
+    private static string BuildDisplayTitle(TreatmentPlan plan)
+    {
+        var lastName = plan.Patient?.User?.LastName ?? "?";
+        var firstInitial = plan.Patient?.User?.FirstName?.Length > 0
+            ? $"{plan.Patient.User.FirstName[0]}."
+            : "?";
+        var dateStr = plan.CreatedTimestamp.ToString("yyyy-MM-dd");
+        var freq = $"{plan.WeeklyFrequency}x/week";
+        return $"TP | {lastName}, {firstInitial} | {dateStr} | {freq}";
+    }
+
     private static TreatmentPlanProfile MapToProfile(TreatmentPlan plan)
     {
         return new TreatmentPlanProfile
         {
             Id = plan.Id,
+            DisplayTitle = BuildDisplayTitle(plan),
             PatientId = plan.PatientId,
             PatientName = plan.Patient?.User != null
                 ? $"{plan.Patient.User.FirstName} {plan.Patient.User.LastName}".Trim()

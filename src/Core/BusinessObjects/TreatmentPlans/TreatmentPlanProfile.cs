@@ -3,6 +3,7 @@ namespace Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 public class TreatmentPlanProfile
 {
     public int Id { get; set; }
+    public string DisplayTitle { get; set; } = string.Empty;
     public int PatientId { get; set; }
     public string PatientName { get; set; } = string.Empty;
     public int DiscoverySessionId { get; set; }

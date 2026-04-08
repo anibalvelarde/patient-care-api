@@ -45,6 +45,10 @@ public class Startup(IConfiguration configuration)
         services.AddControllers(options =>
         {
             options.Filters.Add<DuplicateKeyExceptionFilter>();
+        })
+        .AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new TimeOnlyJsonConverterFactory());
         });
 
         // Register the Swagger generator, defining one or more Swagger documents
