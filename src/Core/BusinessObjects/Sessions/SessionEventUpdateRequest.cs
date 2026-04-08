@@ -19,6 +19,7 @@ public class SessionEventUpdateRequest
     public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
     public int? AppointmentStatusId { get; set; }
+    public int? TherapistId { get; set; }
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
 }

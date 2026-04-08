@@ -208,6 +208,19 @@ public class BulkSchedulingService : IBulkSchedulingService
             }
         }
 
+        // Only persist if there are zero conflicts (atomic: all-or-nothing)
+        if (result.Conflicts.Count > 0)
+        {
+            result.Sessions.Clear();
+            result.SessionsCreated = 0;
+
+            _logger.LogInformation(
+                "Bulk scheduling aborted for PlanId:{PlanId}: {Conflicts} conflicts found, no sessions created",
+                planId, result.Conflicts.Count);
+
+            return result;
+        }
+
         // Batch save
         if (sessionsToCreate.Count > 0)
         {

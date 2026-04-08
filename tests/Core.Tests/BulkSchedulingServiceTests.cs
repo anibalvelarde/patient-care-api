@@ -272,6 +272,41 @@ public class BulkSchedulingServiceTests
     }
 
     [Fact]
+    public async Task ScheduleAsync_ConflictDetection_DoesNotPersistAnySessions()
+    {
+        // Arrange: 2 weeks, but week 1 has a conflict — no sessions should be persisted at all
+        var plan = CreateActivePlan(weeks: 2, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+
+        // Therapist 10 is booked on week 1 target date
+        _mockSessionRepo.Setup(r => r.GetByTherapistAndDateRangeAsync(10, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new()
+                {
+                    TherapistId = 10,
+                    SessionDate = new DateOnly(2026, 4, 13), // Week 1 Monday
+                    SessionTime = new TimeOnly(10, 0),
+                    Duration = 60,
+                    AppointmentStatusId = 2
+                }
+            });
+
+        var request = new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 };
+
+        // Act
+        var result = await _sut.ScheduleAsync(1, request);
+
+        // Assert: atomic — no sessions created, even though week 2 would be valid
+        Assert.Equal(0, result.SessionsCreated);
+        Assert.Empty(result.Sessions);
+        Assert.NotEmpty(result.Conflicts);
+        _mockSessionRepo.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetProgressAsync_ComputesCorrectSummary()
     {
         var plan = CreateActivePlan(weeks: 4, frequency: 1);

@@ -142,6 +142,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         {
             therapySessionToUpdate.AppointmentStatusId = updateRequest.AppointmentStatusId.Value;
         }
+        if (updateRequest.TherapistId.HasValue)
+        {
+            therapySessionToUpdate.TherapistId = updateRequest.TherapistId.Value;
+        }
         if (updateRequest.SiteId.HasValue)
         {
             therapySessionToUpdate.SiteId = updateRequest.SiteId.Value;
