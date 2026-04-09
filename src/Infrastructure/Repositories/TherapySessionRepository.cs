@@ -108,4 +108,20 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
                 && s.TreatmentPlanLine!.TreatmentPlanId == treatmentPlanId
                 && s.AppointmentStatusId != 3); // Exclude cancelled
     }
+
+    public async Task<IReadOnlyList<TherapySession>> GetBySiteAndDateRangeAsync(int siteId, DateOnly from, DateOnly to)
+    {
+        return await _dbContext.TherapySessions
+            .Include(s => s.Patient).ThenInclude(p => p!.User)
+            .Include(s => s.Therapist).ThenInclude(t => t!.User)
+            .Include(s => s.SpecialtyType)
+            .Include(s => s.AppointmentStatus)
+            .Where(s => s.SiteId == siteId
+                && s.SessionDate >= from
+                && s.SessionDate <= to
+                && s.AppointmentStatusId != 3) // Exclude cancelled
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
 }

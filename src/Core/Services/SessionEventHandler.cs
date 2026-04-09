@@ -17,8 +17,9 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly IPatientProfileService _patientService;
     private readonly ITherapistProfileService _therapistService;
     private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
+    private readonly ITherapistSpecialtyRepository _therapistSpecialtyRepository;
 
-    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo)
+    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo)
     {
         _logger = logger;
         _repository = repo;
@@ -26,6 +27,7 @@ public class SessionEventHandler : IHandleSessionEvent
         _patientService = patientSvc;
         _therapistService = therapistSvc;
         _specialtyTypeRepository = specialtyTypeRepo;
+        _therapistSpecialtyRepository = therapistSpecialtyRepo;
     }
 
     public async Task<IEnumerable<SessionEvent>> GetAllAsync()
@@ -138,6 +140,16 @@ public class SessionEventHandler : IHandleSessionEvent
             if (!hasDiscovery)
                 throw new ArgumentException(
                     "Patient requires a completed discovery session before treatment sessions can be scheduled.");
+        }
+
+        // Specialty validation: therapist must hold the requested specialty
+        if (specialty != null && request.SpecialtyTypeId.HasValue)
+        {
+            var hasSpecialty = await _therapistSpecialtyRepository
+                .HasTherapistSpecialtyAsync(request.TherapistId, specialty.Id);
+            if (!hasSpecialty)
+                throw new ArgumentException(
+                    $"Therapist {tProfile!.TherapistName} does not have the {specialty.Name} qualification.");
         }
 
         var newTherapySession = await _therapySessionRepository.AddAsync(MapToNewSessionEvent(pProfile!, tProfile!, request, specialty));

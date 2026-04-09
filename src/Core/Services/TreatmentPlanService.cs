@@ -191,6 +191,51 @@ public class TreatmentPlanService : ITreatmentPlanService
         return MapToProfile(plan);
     }
 
+    private const int CancelledStatusId = 3;
+    private const int CompletedStatusId = 4;
+
+    public async Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync()
+    {
+        var activePlans = await _planRepository.GetActiveWithLinesAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var summaries = new List<ActivePlanSummary>();
+
+        foreach (var plan in activePlans)
+        {
+            var sessions = await _sessionRepository.GetByTreatmentPlanIdAsync(plan.Id);
+
+            var sessionsCreated = sessions.Count;
+            var sessionsCompleted = sessions.Count(s => s.AppointmentStatusId == CompletedStatusId);
+            var sessionsCancelled = sessions.Count(s => s.AppointmentStatusId == CancelledStatusId);
+            var sessionsRemaining = sessions.Count(s => s.AppointmentStatusId != CancelledStatusId && s.AppointmentStatusId != CompletedStatusId);
+
+            summaries.Add(new ActivePlanSummary
+            {
+                PlanId = plan.Id,
+                DisplayTitle = BuildDisplayTitle(plan),
+                PatientId = plan.PatientId,
+                PatientName = plan.Patient?.User != null
+                    ? $"{plan.Patient.User.FirstName} {plan.Patient.User.LastName}".Trim()
+                    : string.Empty,
+                PlanStatus = plan.PlanStatus,
+                WeeklyFrequency = plan.WeeklyFrequency,
+                DurationWeeks = plan.DurationWeeks,
+                TotalPlanned = plan.DurationWeeks * plan.WeeklyFrequency,
+                SessionsCreated = sessionsCreated,
+                SessionsCompleted = sessionsCompleted,
+                SessionsRemaining = sessionsRemaining,
+                NextUpcomingDate = sessions
+                    .Where(s => s.SessionDate >= today && s.AppointmentStatusId != CancelledStatusId)
+                    .OrderBy(s => s.SessionDate)
+                    .Select(s => (DateOnly?)s.SessionDate)
+                    .FirstOrDefault(),
+                NeedsAttention = sessionsRemaining == 0,
+            });
+        }
+
+        return summaries;
+    }
+
     private static string BuildDisplayTitle(TreatmentPlan plan)
     {
         var lastName = plan.Patient?.User?.LastName ?? "?";

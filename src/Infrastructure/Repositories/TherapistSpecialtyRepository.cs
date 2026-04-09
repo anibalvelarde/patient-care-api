@@ -60,4 +60,10 @@ public class TherapistSpecialtyRepository : ITherapistSpecialtyRepository
             .OrderBy(id => id)
             .ToListAsync();
     }
+
+    public async Task<bool> HasTherapistSpecialtyAsync(int therapistId, int specialtyId)
+    {
+        return await _dbContext.TherapistSpecialties
+            .AnyAsync(ts => ts.TherapistId == therapistId && ts.SpecialtyId == specialtyId);
+    }
 }

@@ -11,4 +11,5 @@ public interface ITreatmentPlanService
     Task<TreatmentPlanProfile> ActivateAsync(int id);
     Task<TreatmentPlanProfile> CompleteAsync(int id);
     Task<TreatmentPlanProfile> CancelAsync(int id);
+    Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync();
 }

@@ -17,6 +17,7 @@ public class SessionEventHandlerTests
     private readonly Mock<IPatientProfileService> _mockPatientService;
     private readonly Mock<ITherapistProfileService> _mockTherapistService;
     private readonly Mock<IRepository<SpecialtyType>> _mockSpecialtyTypeRepository;
+    private readonly Mock<ITherapistSpecialtyRepository> _mockTherapistSpecialtyRepository;
     private readonly SessionEventHandler _sut;
 
     public SessionEventHandlerTests()
@@ -27,13 +28,15 @@ public class SessionEventHandlerTests
         _mockPatientService = new Mock<IPatientProfileService>();
         _mockTherapistService = new Mock<ITherapistProfileService>();
         _mockSpecialtyTypeRepository = new Mock<IRepository<SpecialtyType>>();
+        _mockTherapistSpecialtyRepository = new Mock<ITherapistSpecialtyRepository>();
         _sut = new SessionEventHandler(
             fakeLogger,
             _mockRepository.Object,
             _mockTherapySessionRepository.Object,
             _mockTherapistService.Object,
             _mockPatientService.Object,
-            _mockSpecialtyTypeRepository.Object);
+            _mockSpecialtyTypeRepository.Object,
+            _mockTherapistSpecialtyRepository.Object);
     }
 
     [Fact]
@@ -126,6 +129,9 @@ public class SessionEventHandlerTests
             .ReturnsAsync((TherapySession ts) => ts);
         _mockTherapySessionRepository
             .Setup(r => r.HasCompletedDiscoveryAsync(It.IsAny<int>()))
+            .ReturnsAsync(true);
+        _mockTherapistSpecialtyRepository
+            .Setup(r => r.HasTherapistSpecialtyAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(true);
     }
 
