@@ -6,4 +6,5 @@ public interface ITreatmentPlanRepository : IRepository<TreatmentPlan>
 {
     Task<TreatmentPlan?> GetByIdWithLinesAsync(int id);
     Task<IReadOnlyList<TreatmentPlan>> GetByPatientIdAsync(int patientId);
+    Task<IReadOnlyList<TreatmentPlan>> GetActiveWithLinesAsync();
 }

@@ -14,4 +14,5 @@ public interface ITherapySessionRepository : IRepository<TherapySession>
     Task<IReadOnlyList<int>> GetTherapistIdsForPatientAsync(int patientId);
     Task AddRangeAsync(IEnumerable<TherapySession> sessions);
     Task<bool> HasSessionsForPlanAsync(int treatmentPlanId);
+    Task<IReadOnlyList<TherapySession>> GetBySiteAndDateRangeAsync(int siteId, DateOnly from, DateOnly to);
 }

@@ -38,6 +38,14 @@ public class TreatmentPlansController : ControllerBase
         }
     }
 
+    [HttpGet("active-summary")]
+    [ProducesResponseType(typeof(IReadOnlyList<ActivePlanSummary>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetActiveSummary()
+    {
+        var results = await _service.GetActiveSummaryAsync();
+        return Ok(results);
+    }
+
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -14,17 +14,20 @@ public class SessionsController : ControllerBase
     private readonly IHandleSessionEvent _sessionEventHandler;
     private readonly IPaymentRecordService _paymentService;
     private readonly IBookingService _bookingService;
+    private readonly IScheduleMatrixService _scheduleMatrixService;
 
     public SessionsController(
         ILogger<SessionsController> loger,
         IHandleSessionEvent handler,
         IPaymentRecordService paymentService,
-        IBookingService bookingService)
+        IBookingService bookingService,
+        IScheduleMatrixService scheduleMatrixService)
     {
         _logger = loger;
         _sessionEventHandler = handler;
         _paymentService = paymentService;
         _bookingService = bookingService;
+        _scheduleMatrixService = scheduleMatrixService;
     }
 
     [HttpGet("{dateString}/all")]
@@ -35,6 +38,23 @@ public class SessionsController : ControllerBase
         var targetDate = ConvertStringToDateOnly(dateString);
         var sessions = await _sessionEventHandler.GetAllByTargetDateAsync(targetDate);
         return Ok(sessions);
+    }
+
+    [HttpGet("{dateString}/schedule-matrix")]
+    [ProducesResponseType(typeof(ScheduleMatrixResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery] int siteId)
+    {
+        try
+        {
+            var targetDate = ConvertStringToDateOnly(dateString);
+            var result = await _scheduleMatrixService.GetMatrixAsync(targetDate, siteId);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpGet("pastdue")]
