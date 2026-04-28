@@ -1,5 +1,3 @@
-using Neurocorp.Api.Core.BusinessObjects.Lookups;
-
 namespace Neurocorp.Api.Core.BusinessObjects.Payments;
 
 public class SessionPaymentDetail
@@ -7,7 +5,7 @@ public class SessionPaymentDetail
     public SessionPaymentDetail()
     {
         CaretakerName = string.Empty;
-        PaymentType = new LookupItem();
+        PaymentType = new PaymentTypeInfo();
     }
 
     public int SessionPaymentId { get; set; }
@@ -17,6 +15,6 @@ public class SessionPaymentDetail
     public decimal PaymentTotalAmount { get; set; }
     public int CaretakerId { get; set; }
     public string CaretakerName { get; set; }
-    public LookupItem PaymentType { get; set; }
+    public PaymentTypeInfo PaymentType { get; set; }
     public string? CheckNumber { get; set; }
 }
