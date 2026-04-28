@@ -1,11 +1,10 @@
-using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 
 namespace Neurocorp.Api.Core.Interfaces.Services;
 
 public interface IPaymentRecordService
 {
-    Task<IEnumerable<LookupItem>> GetPaymentTypesAsync();
+    Task<IEnumerable<PaymentTypeInfo>> GetPaymentTypesAsync();
     Task<IEnumerable<PaymentRecord>> GetByCaretakerAsync(int caretakerId);
     Task<IEnumerable<PaymentRecord>> GetAllAsync();
     Task<PaymentRecord?> GetByIdAsync(int paymentId);

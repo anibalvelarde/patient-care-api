@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Interfaces.Services;
 
@@ -19,7 +18,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("types")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LookupItem>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentTypeInfo>))]
     public async Task<IActionResult> GetPaymentTypes()
     {
         var types = await _paymentService.GetPaymentTypesAsync();
