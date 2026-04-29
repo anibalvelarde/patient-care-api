@@ -1,0 +1,194 @@
+using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Statements;
+using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Interfaces.Repositories;
+using Neurocorp.Api.Core.Interfaces.Services;
+
+namespace Neurocorp.Api.Core.Services;
+
+public class TherapistStatementService : ITherapistStatementService
+{
+    private const string StatusCompleted = "Completed";
+    private const string StatusCancelled = "Cancelled";
+    private const string StatusNoShow = "NoShow";
+
+    private readonly ITherapistProfileService _therapistProfileService;
+    private readonly ITherapySessionRepository _sessionRepo;
+    private readonly IRepository<AppointmentStatus> _appointmentStatusRepo;
+    private readonly ILogger<TherapistStatementService> _logger;
+
+    public TherapistStatementService(
+        ILogger<TherapistStatementService> logger,
+        ITherapistProfileService therapistProfileService,
+        ITherapySessionRepository sessionRepo,
+        IRepository<AppointmentStatus> appointmentStatusRepo)
+    {
+        _logger = logger;
+        _therapistProfileService = therapistProfileService;
+        _sessionRepo = sessionRepo;
+        _appointmentStatusRepo = appointmentStatusRepo;
+    }
+
+    public async Task<TherapistStatement?> GetStatementAsync(int therapistId, DateOnly? from, DateOnly? to)
+    {
+        _logger.LogInformation("Generating therapist statement for therapist {TherapistId}", therapistId);
+
+        // 1. Verify therapist exists
+        var therapist = await _therapistProfileService.GetByIdAsync(therapistId);
+        if (therapist == null)
+        {
+            _logger.LogWarning("Therapist {TherapistId} not found", therapistId);
+            return null;
+        }
+
+        // 2. Default date range: last 90 days
+        var periodStart = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-90));
+        var periodEnd = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        if (periodEnd < periodStart)
+        {
+            throw new ArgumentException("Query parameter 'to' must be on or after 'from'.");
+        }
+
+        // 3. Resolve appointment-status IDs by name (configurable lookup, never hardcoded)
+        var allStatuses = await _appointmentStatusRepo.GetAllAsync();
+        var statusByName = allStatuses
+            .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        var includedStatusIds = new List<int>();
+        int? completedId = null;
+        foreach (var name in new[] { StatusCompleted, StatusCancelled, StatusNoShow })
+        {
+            if (statusByName.TryGetValue(name, out var status))
+            {
+                includedStatusIds.Add(status.Id);
+                if (string.Equals(name, StatusCompleted, StringComparison.OrdinalIgnoreCase))
+                {
+                    completedId = status.Id;
+                }
+            }
+            else
+            {
+                _logger.LogWarning("AppointmentStatus '{Name}' not found in lookup table", name);
+            }
+        }
+
+        // 4. Pull sessions for therapist within range, restricted to the three statuses
+        var sessions = await _sessionRepo.GetByTherapistIdAndDateRangeAsync(
+            therapistId, periodStart, periodEnd, includedStatusIds);
+
+        // 5. Group by patient → emit blocks, sorted by patient name
+        var patientBlocks = sessions
+            .GroupBy(s => s.PatientId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var patientName = ResolvePatientName(first.Patient);
+
+                var sessionRows = g
+                    .OrderBy(s => s.SessionDate)
+                    .ThenBy(s => s.SessionTime)
+                    .Select(s => MapSession(s, completedId))
+                    .ToList();
+
+                var subtotalFee = sessionRows.Sum(r => r.Amount);
+                var subtotalDiscount = sessionRows.Sum(r => r.DiscountAmount);
+                var subtotalProvider = sessionRows.Where(r => r.IsBillable).Sum(r => r.ProviderAmount);
+                var completedCount = sessionRows.Count(r => r.IsBillable);
+                var nonBillableCount = sessionRows.Count - completedCount;
+
+                return new TherapistStatementPatient
+                {
+                    PatientId = g.Key,
+                    PatientName = patientName,
+                    Sessions = sessionRows,
+                    SubtotalFee = subtotalFee,
+                    SubtotalDiscount = subtotalDiscount,
+                    SubtotalProviderAmount = subtotalProvider,
+                    CompletedCount = completedCount,
+                    NonBillableCount = nonBillableCount,
+                };
+            })
+            .OrderBy(b => b.PatientName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // 6. Compute summary
+        var totalCompleted = patientBlocks.Sum(p => p.CompletedCount);
+        var totalNonBillable = patientBlocks.Sum(p => p.NonBillableCount);
+        var totalFee = patientBlocks.Sum(p => p.SubtotalFee);
+        var totalDiscount = patientBlocks.Sum(p => p.SubtotalDiscount);
+        var totalProvider = patientBlocks.Sum(p => p.SubtotalProviderAmount);
+        var totalServicePaymentsApplied = 0m; // pro-forma: ServicePayments not tracked yet
+        var estimatedAmountDue = totalProvider - totalServicePaymentsApplied;
+
+        var summary = new TherapistStatementSummary
+        {
+            TotalCompletedSessions = totalCompleted,
+            TotalNonBillableSessions = totalNonBillable,
+            TotalFee = totalFee,
+            TotalDiscount = totalDiscount,
+            TotalProviderAmount = totalProvider,
+            TotalServicePaymentsApplied = totalServicePaymentsApplied,
+            EstimatedAmountDue = estimatedAmountDue,
+        };
+
+        return new TherapistStatement
+        {
+            TherapistId = therapist.TherapistId,
+            TherapistName = therapist.TherapistName,
+            StatementDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            PeriodStart = periodStart.ToString("yyyy-MM-dd"),
+            PeriodEnd = periodEnd.ToString("yyyy-MM-dd"),
+            IsProForma = true,
+            Patients = patientBlocks,
+            ServicePayments = new List<ServicePaymentItem>(),
+            Summary = summary,
+        };
+    }
+
+    private static TherapistStatementSession MapSession(TherapySession s, int? completedStatusId)
+    {
+        var statusName = s.AppointmentStatus?.Name ?? string.Empty;
+        var isBillable = completedStatusId.HasValue && s.AppointmentStatusId == completedStatusId.Value;
+
+        return new TherapistStatementSession
+        {
+            SessionId = s.Id,
+            SessionDate = s.SessionDate.ToString("yyyy-MM-dd"),
+            SessionTime = s.SessionTime.ToString("HH:mm"),
+            TherapyType = ResolveTherapyType(s),
+            Amount = s.Amount,
+            DiscountAmount = s.DiscountAmount,
+            ProviderAmount = isBillable ? s.ProviderAmount : 0m,
+            StatusName = statusName,
+            IsBillable = isBillable,
+        };
+    }
+
+    /// <summary>
+    /// Therapy Type fallback chain (per WP-13B):
+    ///   1. SpecialtyType.Name (FK-resolved)
+    ///   2. TherapySession.TherapyTypes (legacy text column)
+    ///   3. "N/A"
+    /// </summary>
+    private static string ResolveTherapyType(TherapySession s)
+    {
+        if (s.SpecialtyType != null && !string.IsNullOrWhiteSpace(s.SpecialtyType.Name))
+        {
+            return s.SpecialtyType.Name;
+        }
+        if (!string.IsNullOrWhiteSpace(s.TherapyTypes))
+        {
+            return s.TherapyTypes;
+        }
+        return "N/A";
+    }
+
+    private static string ResolvePatientName(Patient? patient)
+    {
+        if (patient?.User == null) return string.Empty;
+        var middle = string.IsNullOrWhiteSpace(patient.User.MiddleName) ? string.Empty : $" {patient.User.MiddleName}";
+        return $"{patient.User.LastName}, {patient.User.FirstName}{middle}".Trim();
+    }
+}

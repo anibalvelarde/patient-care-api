@@ -17,6 +17,7 @@ public class TherapistsControllerTests
 {
     private readonly Mock<ITherapistProfileService> _mockService;
     private readonly Mock<IHandleSessionEvent> _mockSessionEventHandler;
+    private readonly Mock<ITherapistStatementService> _mockStatementService;
     private readonly TherapistsController _controller;
 
     public TherapistsControllerTests()
@@ -24,7 +25,12 @@ public class TherapistsControllerTests
         var fakeLogger = Mock.Of<ILogger<TherapistsController>>();
         _mockService = new Mock<ITherapistProfileService>();
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
-        _controller = new TherapistsController(fakeLogger, _mockService.Object, _mockSessionEventHandler.Object);
+        _mockStatementService = new Mock<ITherapistStatementService>();
+        _controller = new TherapistsController(
+            fakeLogger,
+            _mockService.Object,
+            _mockSessionEventHandler.Object,
+            _mockStatementService.Object);
     }
 
     [Fact]

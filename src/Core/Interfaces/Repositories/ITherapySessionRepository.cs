@@ -10,6 +10,7 @@ public interface ITherapySessionRepository : IRepository<TherapySession>
     Task<TherapySession?> GetByIdWithSpecialtyAsync(int id);
     Task<IReadOnlyList<TherapySession>> GetCompletedDiscoverySessionsAsync(int patientId);
     Task<IReadOnlyList<TherapySession>> GetByTherapistAndDateRangeAsync(int therapistId, DateOnly fromDate, DateOnly toDate);
+    Task<IReadOnlyList<TherapySession>> GetByTherapistIdAndDateRangeAsync(int therapistId, DateOnly from, DateOnly to, IEnumerable<int> statusIds);
     Task<IReadOnlyList<TherapySession>> GetByTreatmentPlanIdAsync(int treatmentPlanId);
     Task<IReadOnlyList<int>> GetTherapistIdsForPatientAsync(int patientId);
     Task AddRangeAsync(IEnumerable<TherapySession> sessions);

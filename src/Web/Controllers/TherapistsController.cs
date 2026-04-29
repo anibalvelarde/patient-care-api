@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
+using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
@@ -13,12 +14,18 @@ public class TherapistsController : ControllerBase
 {
     private readonly ITherapistProfileService _therapistProfileService;
     private readonly IHandleSessionEvent _sessionEventHandler;
+    private readonly ITherapistStatementService _therapistStatementService;
     private readonly ILogger<TherapistsController> _logger;
 
-    public TherapistsController(ILogger<TherapistsController> logger, ITherapistProfileService therapistProfileService, IHandleSessionEvent sesssionEventHandler)
+    public TherapistsController(
+        ILogger<TherapistsController> logger,
+        ITherapistProfileService therapistProfileService,
+        IHandleSessionEvent sesssionEventHandler,
+        ITherapistStatementService therapistStatementService)
     {
         _therapistProfileService = therapistProfileService;
         _sessionEventHandler = sesssionEventHandler;
+        _therapistStatementService = therapistStatementService;
         _logger = logger;
     }
 
@@ -88,6 +95,30 @@ public class TherapistsController : ControllerBase
                 }
             }
             return BadRequest();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpGet("{id}/statement")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistStatement))]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> GetStatement(int id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        try
+        {
+            if (from.HasValue && to.HasValue && to.Value < from.Value)
+            {
+                return BadRequest("Query parameter 'to' must be on or after 'from'.");
+            }
+
+            var statement = await _therapistStatementService.GetStatementAsync(id, from, to);
+            if (statement == null) return NotFound();
+            return Ok(statement);
         }
         catch (ArgumentException ex)
         {

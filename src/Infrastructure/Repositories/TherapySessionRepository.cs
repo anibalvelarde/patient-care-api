@@ -72,6 +72,23 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ToListAsync();
     }
 
+    public async Task<IReadOnlyList<TherapySession>> GetByTherapistIdAndDateRangeAsync(
+        int therapistId, DateOnly from, DateOnly to, IEnumerable<int> statusIds)
+    {
+        var statusIdList = statusIds.ToList();
+        return await _dbContext.TherapySessions
+            .Include(s => s.Patient).ThenInclude(p => p!.User)
+            .Include(s => s.SpecialtyType)
+            .Include(s => s.AppointmentStatus)
+            .Where(s => s.TherapistId == therapistId
+                && s.SessionDate >= from
+                && s.SessionDate <= to
+                && statusIdList.Contains(s.AppointmentStatusId))
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
+
     public async Task<IReadOnlyList<TherapySession>> GetByTreatmentPlanIdAsync(int treatmentPlanId)
     {
         return await _dbContext.TherapySessions

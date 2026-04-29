@@ -20,6 +20,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IHandleSessionEvent, SessionEventHandler>();
         services.AddScoped<IPaymentRecordService, PaymentRecordService>();
         services.AddScoped<IAccountStatementService, AccountStatementService>();
+        services.AddScoped<ITherapistStatementService, TherapistStatementService>();
         services.AddScoped<IBookingService, BookingService>();
         services.AddScoped<ISiteProfileService, SiteProfileService>();
         services.AddScoped<ILookupService, LookupService>();
