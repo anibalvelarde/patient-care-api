@@ -166,6 +166,68 @@ public class SessionPaymentEntityMappingTests
     }
 
     [Fact]
+    public async Task SessionPayment_AuditColumns_AreStamped_OnSave()
+    {
+        var options = CreateInMemoryOptions("SessionPayment_AuditColumns_AreStamped_OnSave");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Caretakers.Add(new Caretaker
+            {
+                Id = 1,
+                Notes = "Test",
+                User = new User { Id = 1, FirstName = "Audit", LastName = "Tester" }
+            });
+            context.PaymentTypes.Add(new PaymentType { Id = 1, Abbreviation = "CSH", Name = "Cash" });
+            context.Patients.Add(new Patient { Id = 1, User = new User { Id = 2, FirstName = "P", LastName = "X" } });
+            context.Therapists.Add(new Therapist { Id = 1, User = new User { Id = 3, FirstName = "T", LastName = "Y" } });
+            context.TherapySessions.Add(new TherapySession
+            {
+                Id = 1,
+                PatientId = 1,
+                TherapistId = 1,
+                SessionDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                SessionTime = TimeOnly.FromDateTime(DateTime.UtcNow),
+                Amount = 100m,
+                Notes = "Test"
+            });
+            context.Payments.Add(new Payment
+            {
+                Id = 1,
+                CaretakerId = 1,
+                PaymentTypeId = 1,
+                Amount = 100m,
+                PaymentDate = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+        }
+
+        DateTime before;
+        using (var context = new ApplicationDbContext(options))
+        {
+            before = DateTime.UtcNow;
+            context.SessionPayments.Add(new SessionPayment
+            {
+                Id = 1,
+                PaymentId = 1,
+                TherapySessionId = 1,
+                AmountAllocated = 100m
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var sp = await context.SessionPayments.FindAsync(1);
+            Assert.NotNull(sp);
+            Assert.NotEqual(default, sp.CreatedTimestamp);
+            Assert.NotEqual(default, sp.LastUpdatedTimestamp);
+            Assert.True(sp.CreatedTimestamp >= before.AddSeconds(-1));
+            Assert.True(sp.LastUpdatedTimestamp >= before.AddSeconds(-1));
+        }
+    }
+
+    [Fact]
     public async Task SessionPayment_NavigationProperties_LoadCorrectly()
     {
         // Arrange

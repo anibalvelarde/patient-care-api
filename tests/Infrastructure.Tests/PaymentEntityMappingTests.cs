@@ -213,6 +213,49 @@ public class PaymentEntityMappingTests
     }
 
     [Fact]
+    public async Task Payment_AuditColumns_AreStamped_OnSave()
+    {
+        var options = CreateInMemoryOptions("Payment_AuditColumns_AreStamped_OnSave");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Caretakers.Add(new Caretaker
+            {
+                Id = 1,
+                Notes = "Test caretaker",
+                User = new User { Id = 1, FirstName = "Audit", LastName = "Tester" }
+            });
+            context.PaymentTypes.Add(new PaymentType { Id = 1, Abbreviation = "CSH", Name = "Cash" });
+            await context.SaveChangesAsync();
+        }
+
+        DateTime before;
+        using (var context = new ApplicationDbContext(options))
+        {
+            before = DateTime.UtcNow;
+            context.Payments.Add(new Payment
+            {
+                Id = 1,
+                CaretakerId = 1,
+                PaymentTypeId = 1,
+                Amount = 250.00m,
+                PaymentDate = before
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var payment = await context.Payments.FindAsync(1);
+            Assert.NotNull(payment);
+            Assert.NotEqual(default, payment.CreatedTimestamp);
+            Assert.NotEqual(default, payment.LastUpdatedTimestamp);
+            Assert.True(payment.CreatedTimestamp >= before.AddSeconds(-1));
+            Assert.True(payment.LastUpdatedTimestamp >= before.AddSeconds(-1));
+        }
+    }
+
+    [Fact]
     public async Task Payment_CheckNumber_CanBeNull()
     {
         // Arrange

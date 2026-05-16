@@ -6,13 +6,11 @@ public class Patient : PersonBase
 {
     public Patient()
     {
-        this.Gender = string.Empty;
-        this.MedicalRecordNumber = string.Empty;
     }
 
     public DateTime? DateOfBirth { get; set; }
-    public string Gender { get; set; }
-    public string MedicalRecordNumber { get; set; }
+    public string? Gender { get; set; }
+    public string? MedicalRecordNumber { get; set; }
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public bool HasTemporaryMrn()
