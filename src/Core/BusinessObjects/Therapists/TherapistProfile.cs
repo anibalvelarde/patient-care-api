@@ -7,8 +7,6 @@ public class TherapistProfile : IProfile
     public TherapistProfile()
     {
         TherapistName = string.Empty;
-        Email = string.Empty;
-        PhoneNumber = string.Empty;
     }
 
     public int TherapistId { get; set; }
@@ -16,8 +14,8 @@ public class TherapistProfile : IProfile
     public decimal FeePerSession { get; set; }
     public decimal FeePctPerSession { get; set; }
     public string TherapistName { get; set; }
-    public string Email { get; set; }
-    public string PhoneNumber { get; set; }
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
     public DateTime CreatedTimestamp    { get; set; }
     public bool IsActive { get; set; }
     public List<TherapistSpecialtyItem> Specialties { get; set; } = [];

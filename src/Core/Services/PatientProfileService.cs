@@ -104,7 +104,7 @@ public class PatientProfileService : IPatientProfileService
         if (profileOnFile != null)
         {
             if (updateRequest.ActiveStatus
-                && profileOnFile.MedicalRecordNumber.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase))
+                && (profileOnFile.MedicalRecordNumber?.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase) ?? false))
             {
                 throw new InvalidOperationException(
                     "Cannot activate a patient with a temporary Medical Record Number. Assign a permanent MRN first.");

@@ -2,14 +2,13 @@ using System.Collections.Generic;
 
 namespace Neurocorp.Api.Core.Entities;
 
-public class Payment
+public class Payment : AuditableEntityBase
 {
     public Payment()
     {
         this.Caretaker = null!;
         this.SessionPayments = [];
     }
-    public int Id { get; set; }
     public int CaretakerId { get; set; }
     public Caretaker Caretaker { get; set; }
     public int PaymentTypeId { get; set; }
