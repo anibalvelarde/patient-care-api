@@ -19,26 +19,21 @@ public class SessionsControllerTests
 
     public SessionsControllerTests()
     {
-        var fakeLogger = Mock.Of<ILogger<SessionsController>>();
+        // After the Chunk 4 split, SessionsController only handles core session events
+        // (booking/schedule/payments moved to their own controllers), so it depends on
+        // IHandleSessionEvent alone.
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>(MockBehavior.Strict);
-        var mockPaymentService = Mock.Of<IPaymentRecordService>();
-        var mockBookingService = Mock.Of<IBookingService>();
-        var mockScheduleMatrixService = Mock.Of<IScheduleMatrixService>();
-        _controller = new SessionsController(fakeLogger, _mockSessionEventHandler.Object, mockPaymentService, mockBookingService, mockScheduleMatrixService);
+        _controller = new SessionsController(_mockSessionEventHandler.Object);
     }
 
     [Fact]
     public void Should_Initialize()
     {
         // arrange
-        var fakeLogger = Mock.Of<ILogger<SessionsController>>();
         var fakeEvHandler = Mock.Of<IHandleSessionEvent>();
 
         // act
-        var fakePaymentService = Mock.Of<IPaymentRecordService>();
-        var fakeBookingService = Mock.Of<IBookingService>();
-        var fakeScheduleMatrixService = Mock.Of<IScheduleMatrixService>();
-        var sut = new SessionsController(fakeLogger, fakeEvHandler, fakePaymentService, fakeBookingService, fakeScheduleMatrixService);
+        var sut = new SessionsController(fakeEvHandler);
 
         // assert
         sut.Should().NotBeNull();
