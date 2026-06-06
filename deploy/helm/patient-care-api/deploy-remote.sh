@@ -54,6 +54,13 @@ fi
 echo "  K3s cluster reachable."
 echo ""
 
+# Fail early if the JWT signing key is missing — the API crash-loops without it outside Development.
+if [ -z "${JWT_SIGNING_KEY:-}" ]; then
+  echo "Error: JWT_SIGNING_KEY is not set. Generate one with 'openssl rand -base64 48' and add"
+  echo "  'JWT_SIGNING_KEY=<value>' to your .env."
+  exit 1
+fi
+
 # ── Build helm command ───────────────────────────────────────────
 HELM_CMD="helm upgrade --install patient-care-api $CHART_DIR"
 HELM_CMD="$HELM_CMD --set database.host=$DATABASE_HOST"
@@ -61,6 +68,7 @@ HELM_CMD="$HELM_CMD --set database.port=$DATABASE_PORT"
 HELM_CMD="$HELM_CMD --set database.name=$DATABASE_NAME"
 HELM_CMD="$HELM_CMD --set database.user=$DATABASE_USER"
 HELM_CMD="$HELM_CMD --set database.password=$DATABASE_PASSWORD"
+HELM_CMD="$HELM_CMD --set jwt.signingKey=$JWT_SIGNING_KEY"
 
 if [ -n "$IMAGE_TAG" ]; then
   HELM_CMD="$HELM_CMD --set image.tag=$IMAGE_TAG"

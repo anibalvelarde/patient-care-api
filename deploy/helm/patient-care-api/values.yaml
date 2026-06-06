@@ -20,6 +20,12 @@ database:
   user: ""
   password: ""
 
+# HMAC-SHA256 signing key for JWT access/refresh tokens. Required (no default) — the API fails
+# fast outside Development if it is unset. Provide via --set jwt.signingKey=... or the deploy
+# scripts (which read JWT_SIGNING_KEY from .env). Never commit a real key. Generate: openssl rand -base64 48
+jwt:
+  signingKey: ""
+
 healthCheck:
   liveness:
     path: /api/health/live
