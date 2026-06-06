@@ -28,10 +28,16 @@ public static class NeurocorpConfigurationExtensions
             .Replace("{{DB_USER}}", dbUser)
             .Replace("{{MYSQL_PASSWORD}}", dbPassword);
 
-        // Register ApplicationDbContext with MySQL|
-        services.AddDbContextPool<ApplicationDbContext>(options =>
+        // Register ApplicationDbContext with MySQL.
+        // NOTE: switched from AddDbContextPool to AddDbContext in Chunk 1B. Pooling
+        // requires a single (DbContextOptions) constructor and cannot inject the
+        // request-scoped ICurrentUserService needed to stamp LastUpdatedByUserId with
+        // the real authenticated user. A scoped context is the standard pattern for
+        // auditing; pooling can be re-introduced later with a pool-safe accessor if
+        // profiling shows it is needed.
+        services.AddDbContext<ApplicationDbContext>(options =>
             options.UseMySql(
-                cn!.ToString(), 
+                cn!.ToString(),
                 ServerVersion.AutoDetect(cn),
                 options => options.EnableRetryOnFailure(
                     maxRetryCount: 5,
@@ -60,6 +66,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ISiteRepository, SiteRepository>();
         services.AddScoped<ITherapistSpecialtyRepository, TherapistSpecialtyRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
+        services.AddScoped<IAuthRepository, AuthRepository>();
         return services;
     }
 }

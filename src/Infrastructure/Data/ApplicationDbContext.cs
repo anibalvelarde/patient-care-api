@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Interfaces.Services;
 
 namespace Neurocorp.Api.Infrastructure.Data;
 
@@ -7,9 +8,22 @@ public class ApplicationDbContext : DbContext
 {
     private static readonly int DEFAULT_SYSTEM_USER_ID = 0;
 
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
+    private readonly ICurrentUserService? _currentUserService;
+
+    // The optional ICurrentUserService keeps existing `new ApplicationDbContext(options)`
+    // call sites (notably the test suite, which uses the in-memory provider) working
+    // unchanged. At runtime the DI container supplies the HttpContext-backed implementation
+    // so audit columns are stamped with the real authenticated user instead of 0.
+    public ApplicationDbContext(
+        DbContextOptions<ApplicationDbContext> options,
+        ICurrentUserService? currentUserService = null) : base(options)
+    {
+        _currentUserService = currentUserService;
+    }
 
     public DbSet<User> Users { get; set; }
+    public DbSet<RoleClaim> RoleClaims { get; set; }
+    public DbSet<UserClaim> UserClaims { get; set; }
     public DbSet<Patient> Patients { get; set; }
     public DbSet<Caretaker> Caretakers { get; set; }
     public DbSet<Therapist> Therapists { get; set; }
@@ -135,6 +149,18 @@ public class ApplicationDbContext : DbContext
             ur.HasKey(e => e.Id);
             ur.Property(e => e.Id).HasColumnName("UserRoleID");
             ur.Ignore(e => e.RoleCreatedOn);
+        });
+        modelBuilder.Entity<RoleClaim>(rc => {
+            rc.ToTable("RoleClaim");
+            rc.HasKey(e => e.Id);
+            rc.Property(e => e.Id).HasColumnName("RoleClaimID");
+            rc.Property(e => e.RoleId).HasColumnName("RoleID");
+        });
+        modelBuilder.Entity<UserClaim>(uc => {
+            uc.ToTable("UserClaim");
+            uc.HasKey(e => e.Id);
+            uc.Property(e => e.Id).HasColumnName("UserClaimID");
+            uc.Property(e => e.UserId).HasColumnName("UserID");
         });
         modelBuilder.Entity<Payment>(p => {
             p.ToTable("Payment");
@@ -265,7 +291,9 @@ public class ApplicationDbContext : DbContext
 
     private int GetCurrentUserId()
     {
-        // Your logic to get the current user ID
-        return DEFAULT_SYSTEM_USER_ID; // Placeholder implementation
-    }    
+        // Resolved from the authenticated principal at request time. Falls back to the
+        // system id (0) for unauthenticated contexts: background/hosted services, the
+        // bootstrap path, and tests that construct the context without DI.
+        return _currentUserService?.UserId ?? DEFAULT_SYSTEM_USER_ID;
+    }
 }

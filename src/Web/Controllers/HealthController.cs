@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using System.Reflection;
@@ -5,6 +6,7 @@ using Neurocorp.Api.Web.Middleware.HealthChecks;
 
 namespace Neurocorp.Api.Web.Controllers;
 
+[AllowAnonymous]
 [ApiController]
 [Route("api/[controller]")]
 public class HealthController : ControllerBase

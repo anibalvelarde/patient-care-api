@@ -1,3 +1,5 @@
+using System;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -11,13 +13,20 @@ using Neurocorp.Api.Web.Middleware.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.IdentityModel.Tokens;
+using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authentication;
+using Neurocorp.Api.Web.Authorization;
 using Neurocorp.Api.Web.Middleware;
 
 namespace Neurocorp.Api.Web;
 
-public class Startup(IConfiguration configuration)
+public class Startup(IConfiguration configuration, IWebHostEnvironment environment)
 {
     public IConfiguration Configuration { get; } = configuration;
+    public IWebHostEnvironment Environment { get; } = environment;
 
     // This method gets called by the runtime. Use this method to add services to the container.
     public void ConfigureServices(IServiceCollection services)
@@ -60,6 +69,53 @@ public class Startup(IConfiguration configuration)
         // Register the hosted service
         services.AddHostedService<DbContextWarmupService>();
 
+        // --- Authentication & Authorization (Chunk 1B) ---
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
+        // Dynamic policy provider so [Authorize(Policy = "claim:Type:Value")] works without
+        // registering each permission policy explicitly.
+        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+
+        var signingKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(JwtConfig.ResolveSigningKey(Configuration, Environment)));
+
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                // Keep custom claim types (e.g. "System", "uid") verbatim instead of the
+                // default SOAP-style remapping, so policy handlers match what we issued.
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = JwtConfig.Issuer(Configuration),
+                    ValidateAudience = true,
+                    ValidAudience = JwtConfig.Audience(Configuration),
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = signingKey,
+                    ClockSkew = TimeSpan.FromSeconds(30),
+                    NameClaimType = "name",
+                    RoleClaimType = "role"
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnChallenge = AuthProblemDetails.OnChallenge,
+                    OnForbidden = AuthProblemDetails.OnForbidden
+                };
+            });
+
+        // Secure by default: every endpoint requires an authenticated user unless it opts
+        // out with [AllowAnonymous] (login, refresh, health checks).
+        services.AddAuthorization(options =>
+        {
+            options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+        });
+
         // Register dependencies with DI framework
         services.AddCoreDependencies(Configuration);
         services.AddInfrastructureServices(Configuration);
@@ -79,7 +135,11 @@ public class Startup(IConfiguration configuration)
         app.UseRouting();
         app.UseCors("AllowedOrigins");
 
+        app.UseAuthentication();
         app.UseAuthorization();
+
+        // Restricts a must-change-password session to the password-change flow until resolved.
+        app.UseMiddleware<PasswordChangeRequiredMiddleware>();
 
         app.UseEndpoints(endpoints =>
         {

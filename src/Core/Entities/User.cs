@@ -19,6 +19,19 @@ public class User : PersonBase
     public string? PhoneNumber { get; set; }
     public bool ActiveStatus { get; set; }
 
+    // --- Authentication columns (added in DB migration V017 / Chunk 1A) ---
+    // Local password authentication. Null for users that authenticate only via an external IdP.
+    public string? PasswordHash { get; set; }
+    public string? PasswordSalt { get; set; }
+    public DateTime? PasswordChangedAt { get; set; }
+    public bool MustChangePassword { get; set; }
+    public DateTime? LastLoginAt { get; set; }
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockoutUntil { get; set; }
+    // External IdP identity (forward-looking; unused until a future IdP migration).
+    public string? ExternalSubject { get; set; }
+    public string? ExternalIssuer { get; set; }
+
     public string GetFullName()
     {
         var middle = MiddleName?.Trim();
