@@ -1,0 +1,83 @@
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
+using Neurocorp.Api.Core.Exceptions;
+
+namespace Neurocorp.Api.Web.Middleware;
+
+/// <summary>
+/// Central exception → RFC 7807 ProblemDetails translation for the whole API. Registered via
+/// <c>AddExceptionHandler</c> + <c>UseExceptionHandler</c>. Known domain/validation/persistence
+/// exceptions become specific 4xx responses; anything unmapped becomes a generic 500 (no internal
+/// details leak to the client — the full exception is logged instead). 401/403 are produced
+/// earlier by the auth layer (AuthProblemDetails / PasswordChangeRequiredMiddleware) and never
+/// reach here. The shared ProblemDetails shape (type/instance/traceId) is applied centrally by
+/// CustomizeProblemDetails in Startup.
+/// </summary>
+public sealed class GlobalExceptionHandler : IExceptionHandler
+{
+    private const int MySqlDuplicateKey = 1062;
+
+    private readonly IProblemDetailsService _problemDetailsService;
+    private readonly ILogger<GlobalExceptionHandler> _logger;
+
+    public GlobalExceptionHandler(IProblemDetailsService problemDetailsService, ILogger<GlobalExceptionHandler> logger)
+    {
+        _problemDetailsService = problemDetailsService;
+        _logger = logger;
+    }
+
+    public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
+    {
+        var (status, title, detail) = Map(exception);
+
+        if (status >= StatusCodes.Status500InternalServerError)
+        {
+            _logger.LogError(exception, "Unhandled exception ({Type}) on {Method} {Path}",
+                exception.GetType().Name, httpContext.Request.Method, httpContext.Request.Path);
+        }
+        else
+        {
+            _logger.LogInformation("Handled {Type} on {Method} {Path}: {Message}",
+                exception.GetType().Name, httpContext.Request.Method, httpContext.Request.Path, exception.Message);
+        }
+
+        httpContext.Response.StatusCode = status;
+
+        return await _problemDetailsService.TryWriteAsync(new ProblemDetailsContext
+        {
+            HttpContext = httpContext,
+            Exception = exception,
+            ProblemDetails = new ProblemDetails { Status = status, Title = title, Detail = detail },
+        });
+    }
+
+    private static (int status, string title, string? detail) Map(Exception exception) => exception switch
+    {
+        NotFoundException => (StatusCodes.Status404NotFound, "Not Found", exception.Message),
+
+        // Covers ArgumentNullException / ArgumentOutOfRangeException too (both derive from ArgumentException).
+        ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", exception.Message),
+
+        DbUpdateException dbEx when IsDuplicateKey(dbEx) =>
+            (StatusCodes.Status409Conflict, "Conflict", DuplicateKeyMessage(dbEx)),
+
+        // Unmapped: do not leak internals — generic message; full exception is logged above.
+        _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred.", null),
+    };
+
+    private static bool IsDuplicateKey(DbUpdateException dbEx) =>
+        dbEx.InnerException is MySqlException { Number: MySqlDuplicateKey };
+
+    private static string DuplicateKeyMessage(DbUpdateException dbEx)
+    {
+        var message = dbEx.InnerException?.Message ?? string.Empty;
+        if (message.Contains("uq_systemuser_email", StringComparison.OrdinalIgnoreCase))
+        {
+            return "A user with this email address already exists.";
+        }
+        return "A record with this value already exists.";
+    }
+}

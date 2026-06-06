@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -51,14 +52,28 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
                     .AllowAnyMethod()
                     .AllowCredentials());
         });
-        services.AddControllers(options =>
-        {
-            options.Filters.Add<DuplicateKeyExceptionFilter>();
-        })
+        services.AddControllers()
         .AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new TimeOnlyJsonConverterFactory());
         });
+
+        // Centralized RFC 7807 error handling (Chunk 3A). AddProblemDetails enables the shared
+        // ProblemDetails service; CustomizeProblemDetails stamps a consistent shape (type/instance/
+        // traceId) on EVERY ProblemDetails — model-validation 400s, auth Problem() results, and the
+        // GlobalExceptionHandler below — matching the 1B auth error shape.
+        services.AddProblemDetails(options =>
+        {
+            options.CustomizeProblemDetails = context =>
+            {
+                var status = context.ProblemDetails.Status ?? context.HttpContext.Response.StatusCode;
+                context.ProblemDetails.Status = status;
+                context.ProblemDetails.Type = $"https://httpstatuses.io/{status}";
+                context.ProblemDetails.Instance ??= $"{context.HttpContext.Request.Method} {context.HttpContext.Request.Path}";
+                context.ProblemDetails.Extensions["traceId"] = Activity.Current?.Id ?? context.HttpContext.TraceIdentifier;
+            };
+        });
+        services.AddExceptionHandler<GlobalExceptionHandler>();
 
         // Register the Swagger generator, defining one or more Swagger documents
         services.AddSwaggerGen(c =>
@@ -124,9 +139,13 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
     // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
     public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
     {
+        // First in the pipeline so it converts ALL exceptions (every environment) into the
+        // standard ProblemDetails via GlobalExceptionHandler. Full exception detail goes to logs,
+        // not the response — so we intentionally do not use the developer exception page.
+        app.UseExceptionHandler();
+
         if (env.IsDevelopment())
         {
-            app.UseDeveloperExceptionPage();
             app.UseSwagger();
             app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Web API v1"));
         }
