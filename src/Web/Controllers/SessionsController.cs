@@ -1,33 +1,23 @@
 using Microsoft.AspNetCore.Mvc;
-using Neurocorp.Api.Core.BusinessObjects.Lookups;
-using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Common;
 
 namespace Neurocorp.Api.Web.Controllers;
 
+// Core session-event endpoints. Booking lifecycle, schedule matrix, and session-payment queries
+// were split out of this former god controller (Chunk 4) into BookingController,
+// ScheduleController, and SessionPaymentsController — all sharing the api/sessions route prefix so
+// existing URLs are unchanged.
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/sessions")]
 public class SessionsController : ControllerBase
 {
-    private readonly ILogger<SessionsController> _logger;
     private readonly IHandleSessionEvent _sessionEventHandler;
-    private readonly IPaymentRecordService _paymentService;
-    private readonly IBookingService _bookingService;
-    private readonly IScheduleMatrixService _scheduleMatrixService;
 
-    public SessionsController(
-        ILogger<SessionsController> loger,
-        IHandleSessionEvent handler,
-        IPaymentRecordService paymentService,
-        IBookingService bookingService,
-        IScheduleMatrixService scheduleMatrixService)
+    public SessionsController(IHandleSessionEvent handler)
     {
-        _logger = loger;
         _sessionEventHandler = handler;
-        _paymentService = paymentService;
-        _bookingService = bookingService;
-        _scheduleMatrixService = scheduleMatrixService;
     }
 
     [HttpGet("{dateString}/all")]
@@ -35,19 +25,9 @@ public class SessionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllEventsForADate(string dateString)
     {
-        var targetDate = ConvertStringToDateOnly(dateString);
+        var targetDate = RouteDates.ParseOrToday(dateString);
         var sessions = await _sessionEventHandler.GetAllByTargetDateAsync(targetDate);
         return Ok(sessions);
-    }
-
-    [HttpGet("{dateString}/schedule-matrix")]
-    [ProducesResponseType(typeof(ScheduleMatrixResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery] int siteId)
-    {
-        var targetDate = ConvertStringToDateOnly(dateString);
-        var result = await _scheduleMatrixService.GetMatrixAsync(targetDate, siteId);
-        return Ok(result);
     }
 
     [HttpGet("pastdue")]
@@ -91,138 +71,4 @@ public class SessionsController : ControllerBase
         var sessions = await _sessionEventHandler.GetCompletedDiscoverySessionsAsync(patientId);
         return Ok(sessions);
     }
-
-    [HttpGet("{id}/payments")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionPaymentDetail>))]
-    public async Task<IActionResult> GetSessionPayments(int id)
-    {
-        var payments = await _paymentService.GetPaymentsForSessionAsync(id);
-        return Ok(payments);
-    }
-
-    // --- Appointment Booking Endpoints ---
-
-    [HttpGet("statuses")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LookupItem>))]
-    public async Task<IActionResult> GetStatuses()
-    {
-        var statuses = await _bookingService.GetStatusesAsync();
-        return Ok(statuses);
-    }
-
-    [HttpPut("{id}/confirm")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ConfirmAppointment(int id, [FromBody] ConfirmationRequest request)
-    {
-        var result = await _bookingService.ConfirmAppointmentAsync(id, request);
-        return Ok(result);
-    }
-
-    [HttpPut("{id}/cancel")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CancelAppointment(int id, [FromBody] CancelRequest request)
-    {
-        var result = await _bookingService.CancelAppointmentAsync(id, request.Reason);
-        return Ok(result);
-    }
-
-    [HttpPut("{id}/complete")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CompleteAppointment(int id)
-    {
-        var result = await _bookingService.UpdateStatusAsync(id, 4); // Completed
-        return Ok(result);
-    }
-
-    [HttpPut("{id}/noshow")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> NoShowAppointment(int id)
-    {
-        var result = await _bookingService.UpdateStatusAsync(id, 5); // NoShow
-        return Ok(result);
-    }
-
-    [HttpPut("{id}/checkin")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CheckInAppointment(int id)
-    {
-        var result = await _bookingService.UpdateStatusAsync(id, 6); // CheckedIn
-        return Ok(result);
-    }
-
-    [HttpPut("{id}/start-therapy")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> StartTherapy(int id)
-    {
-        var result = await _bookingService.UpdateStatusAsync(id, 7); // InTherapy
-        return Ok(result);
-    }
-
-    [HttpGet("unconfirmed")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
-    public async Task<IActionResult> GetUnconfirmed([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
-    {
-        DateOnly fromDate, toDate;
-        if (from != null || to != null)
-        {
-            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
-            toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
-        }
-        else
-        {
-            if (days > 30) days = 30;
-            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            toDate = fromDate.AddDays(days);
-        }
-        var sessions = await _bookingService.GetUnconfirmedAsync(fromDate, toDate);
-        return Ok(sessions);
-    }
-
-    [HttpGet("upcoming")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
-    public async Task<IActionResult> GetUpcoming([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
-    {
-        DateOnly fromDate, toDate;
-        if (from != null || to != null)
-        {
-            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
-            toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
-        }
-        else
-        {
-            if (days > 30) days = 30;
-            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
-            toDate = fromDate.AddDays(days);
-        }
-        var sessions = await _bookingService.GetUpcomingAsync(fromDate, toDate);
-        return Ok(sessions);
-    }
-
-    [HttpGet("{id}/confirmations")]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<ConfirmationRecord>))]
-    public async Task<IActionResult> GetConfirmations(int id)
-    {
-        var confirmations = await _bookingService.GetConfirmationsAsync(id);
-        return Ok(confirmations);
-    }
-
-    public static DateOnly ConvertStringToDateOnly(string dateString)
-    {
-        if (DateOnly.TryParse(dateString, out DateOnly date))
-        {
-            return date;
-        }
-        else
-        {
-            return DateOnly.FromDateTime(DateTime.UtcNow);
-        }
-    }
-
 }
