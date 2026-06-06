@@ -27,6 +27,12 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ITreatmentPlanService, TreatmentPlanService>();
         services.AddScoped<IBulkSchedulingService, BulkSchedulingService>();
         services.AddScoped<IScheduleMatrixService, ScheduleMatrixService>();
+
+        // Authentication / authorization (Chunk 1B). Token + current-user
+        // implementations live in the Web layer (composition root) because they
+        // depend on JWT and HttpContext; the orchestration + hashing are here.
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
         return services;
     }
 }
