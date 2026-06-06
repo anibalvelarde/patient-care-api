@@ -50,7 +50,9 @@ public class LookupsControllerTests
         var result = await _controller.GetAll("invalid");
 
         // Assert
-        Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
+        Assert.IsType<ProblemDetails>(problem.Value);
     }
 
     // --- GetById ---
@@ -96,7 +98,9 @@ public class LookupsControllerTests
         var result = await _controller.GetById("invalid", 1);
 
         // Assert
-        Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
+        Assert.IsType<ProblemDetails>(problem.Value);
     }
 
     // --- Create ---
@@ -131,7 +135,9 @@ public class LookupsControllerTests
         var result = await _controller.Create("invalid", request);
 
         // Assert
-        Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
+        Assert.IsType<ProblemDetails>(problem.Value);
     }
 
     // --- Update ---
@@ -177,6 +183,8 @@ public class LookupsControllerTests
         var result = await _controller.Update("invalid", 1, request);
 
         // Assert
-        Assert.IsType<BadRequestObjectResult>(result);
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
+        Assert.IsType<ProblemDetails>(problem.Value);
     }
 }

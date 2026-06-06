@@ -58,72 +58,52 @@ public class TherapistsController : ControllerBase
         var pastDueInfo = await PackagePastDueInfoAsync(id);
         if (pastDueInfo is not null && pastDueInfo.Party!.IsValid)
         {
-            return Ok(pastDueInfo);  
+            return Ok(pastDueInfo);
         }
         return NotFound();
     }
 
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(TherapistProfile))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateTherapist([FromBody] TherapistProfileRequest therapistRequest)
     {
-        try
-        {
-            var createdTherapist = await _therapistProfileService.CreateAsync(therapistRequest);
-            return CreatedAtAction(nameof(GetTherapist), new { id = createdTherapist.TherapistId }, createdTherapist);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var createdTherapist = await _therapistProfileService.CreateAsync(therapistRequest);
+        return CreatedAtAction(nameof(GetTherapist), new { id = createdTherapist.TherapistId }, createdTherapist);
     }
 
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateTherapist(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)
     {
-        try
+        if (!await _therapistProfileService.VerifyRequestAsync(id))
         {
-            if (await _therapistProfileService.VerifyRequestAsync(id))
-            {
-                var updateResult = await _therapistProfileService.UpdateAsync(id, therapistRequest);
-                if (updateResult)
-                {
-                    return NoContent();
-                }
-                else
-                {
-                    return BadRequest("Bad input?");
-                }
-            }
-            return BadRequest();
+            throw new ArgumentException($"The update request is not valid for therapist {id}.");
         }
-        catch (ArgumentException ex)
+        if (!await _therapistProfileService.UpdateAsync(id, therapistRequest))
         {
-            return BadRequest(ex.Message);
+            throw new ArgumentException($"Therapist {id} could not be updated.");
         }
+        return NoContent();
     }
 
     [HttpGet("{id}/statement")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistStatement))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetStatement(int id, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
-        try
+        if (from.HasValue && to.HasValue && to.Value < from.Value)
         {
-            if (from.HasValue && to.HasValue && to.Value < from.Value)
-            {
-                return BadRequest("Query parameter 'to' must be on or after 'from'.");
-            }
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: "Query parameter 'to' must be on or after 'from'.", title: "Bad Request");
+        }
 
-            var statement = await _therapistStatementService.GetStatementAsync(id, from, to);
-            if (statement == null) return NotFound();
-            return Ok(statement);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var statement = await _therapistStatementService.GetStatementAsync(id, from, to);
+        if (statement == null) return NotFound();
+        return Ok(statement);
     }
 
     private async Task<TherapistPastDueInfo> PackagePastDueInfoAsync(int therapistId)
@@ -148,8 +128,8 @@ public class TherapistsController : ControllerBase
                 PastDueTotalAmount = totalPastDueAmount,
                 AmountPaidSoFar = totalPaidSoFar,
                 Delinquency = patientPastDueSessions,
-            };    
-        }        
+            };
+        }
         return new TherapistPastDueInfo() { Party = new NotFoundProfile() };
-    }    
+    }
 }

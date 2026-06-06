@@ -50,34 +50,20 @@ public class PaymentsController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(PaymentRecord))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreatePayment([FromBody] PaymentRecordRequest request)
     {
-        try
-        {
-            var created = await _paymentService.CreateAsync(request);
-            return CreatedAtAction(nameof(GetPayment), new { id = created.PaymentId }, created);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var created = await _paymentService.CreateAsync(request);
+        return CreatedAtAction(nameof(GetPayment), new { id = created.PaymentId }, created);
     }
 
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdatePayment(int id, [FromBody] PaymentRecordUpdateRequest request)
     {
-        try
-        {
-            await _paymentService.UpdateAsync(id, request);
-            return NoContent();
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        await _paymentService.UpdateAsync(id, request);
+        return NoContent();
     }
 }
