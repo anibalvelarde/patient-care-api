@@ -42,19 +42,12 @@ public class SessionsController : ControllerBase
 
     [HttpGet("{dateString}/schedule-matrix")]
     [ProducesResponseType(typeof(ScheduleMatrixResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery] int siteId)
     {
-        try
-        {
-            var targetDate = ConvertStringToDateOnly(dateString);
-            var result = await _scheduleMatrixService.GetMatrixAsync(targetDate, siteId);
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var targetDate = ConvertStringToDateOnly(dateString);
+        var result = await _scheduleMatrixService.GetMatrixAsync(targetDate, siteId);
+        return Ok(result);
     }
 
     [HttpGet("pastdue")]
@@ -67,35 +60,28 @@ public class SessionsController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateSession([FromBody] SessionEventRequest sessionRequest)
     {
-        try
-        {
-            var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
-            return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
+        return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
     }
 
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateSession(int id, [FromBody] SessionEventUpdateRequest sessionUpdateRequest)
     {
-        if(await _sessionEventHandler.VerifyRequestAsync(id, sessionUpdateRequest))
+        if (!await _sessionEventHandler.VerifyRequestAsync(id, sessionUpdateRequest))
         {
-            var updateResult = await _sessionEventHandler.UpdateAsync(id, sessionUpdateRequest);
-            if (updateResult)
-            {
-                return NoContent();
-            }
-            else
-            {
-                return BadRequest("Bad input?");
-            }
+            throw new ArgumentException($"The update request is not valid for session {id}.");
         }
-        return BadRequest();
+        if (!await _sessionEventHandler.UpdateAsync(id, sessionUpdateRequest))
+        {
+            throw new ArgumentException($"Session {id} could not be updated.");
+        }
+        return NoContent();
     }
 
     [HttpGet("patient/{patientId}/discovery")]
@@ -126,99 +112,57 @@ public class SessionsController : ControllerBase
 
     [HttpPut("{id}/confirm")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ConfirmAppointment(int id, [FromBody] ConfirmationRequest request)
     {
-        try
-        {
-            var result = await _bookingService.ConfirmAppointmentAsync(id, request);
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.ConfirmAppointmentAsync(id, request);
+        return Ok(result);
     }
 
     [HttpPut("{id}/cancel")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CancelAppointment(int id, [FromBody] CancelRequest request)
     {
-        try
-        {
-            var result = await _bookingService.CancelAppointmentAsync(id, request.Reason);
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.CancelAppointmentAsync(id, request.Reason);
+        return Ok(result);
     }
 
     [HttpPut("{id}/complete")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CompleteAppointment(int id)
     {
-        try
-        {
-            var result = await _bookingService.UpdateStatusAsync(id, 4); // Completed
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.UpdateStatusAsync(id, 4); // Completed
+        return Ok(result);
     }
 
     [HttpPut("{id}/noshow")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> NoShowAppointment(int id)
     {
-        try
-        {
-            var result = await _bookingService.UpdateStatusAsync(id, 5); // NoShow
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.UpdateStatusAsync(id, 5); // NoShow
+        return Ok(result);
     }
 
     [HttpPut("{id}/checkin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CheckInAppointment(int id)
     {
-        try
-        {
-            var result = await _bookingService.UpdateStatusAsync(id, 6); // CheckedIn
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.UpdateStatusAsync(id, 6); // CheckedIn
+        return Ok(result);
     }
 
     [HttpPut("{id}/start-therapy")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> StartTherapy(int id)
     {
-        try
-        {
-            var result = await _bookingService.UpdateStatusAsync(id, 7); // InTherapy
-            return Ok(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var result = await _bookingService.UpdateStatusAsync(id, 7); // InTherapy
+        return Ok(result);
     }
 
     [HttpGet("unconfirmed")]
