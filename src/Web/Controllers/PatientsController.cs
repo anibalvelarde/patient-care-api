@@ -93,6 +93,8 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(PatientProfile))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
     {
         var createdPatient = await _patientProfileService.CreateAsync(patientRequest);
@@ -100,28 +102,30 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
-        if (await _patientProfileService.VerifyRequestAsync(id))
+        if (!await _patientProfileService.VerifyRequestAsync(id))
         {
-            try
-            {
-                var updateResult = await _patientProfileService.UpdateAsync(id, patientRequest);
-                if (updateResult)
-                {
-                    return NoContent();
-                }
-                else
-                {
-                    return BadRequest("Bad input?");
-                }
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"The update request is not valid for patient {id}.", title: "Bad Request");
         }
-        return BadRequest();
+        try
+        {
+            if (!await _patientProfileService.UpdateAsync(id, patientRequest))
+            {
+                return Problem(statusCode: StatusCodes.Status400BadRequest,
+                    detail: $"Patient {id} could not be updated.", title: "Bad Request");
+            }
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Domain-rule violation surfaced as a 400 (kept explicit — the global handler maps
+            // InvalidOperationException to 500, not 400).
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: ex.Message, title: "Bad Request");
+        }
     }
 
     private async Task<PatientPastDueInfo> PackagePastDueInfoAsync(int patientId)

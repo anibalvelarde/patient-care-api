@@ -49,6 +49,8 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpPost]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(CaretakerProfile))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateCaretaker([FromBody] CaretakerProfileRequest createRequest)
     {
         var createdCaretaker = await _caretakerProfileService.CreateAsync(createRequest);
@@ -56,21 +58,19 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateCaretaker(int id, [FromBody] CaretakerProfileUpdateRequest updateRequest)
     {
-        if (await _caretakerProfileService.VerifyRequestAsync(id, updateRequest))
+        if (!await _caretakerProfileService.VerifyRequestAsync(id, updateRequest))
         {
-            var updateResult = await _caretakerProfileService.UpdateAsync(id, updateRequest);
-            if (updateResult)
-            {
-                return NoContent();
-            }
-            else
-            {
-                return BadRequest("Bad input?");
-            }
+            throw new ArgumentException($"The update request is not valid for caretaker {id}.");
         }
-        return BadRequest();
+        if (!await _caretakerProfileService.UpdateAsync(id, updateRequest))
+        {
+            throw new ArgumentException($"Caretaker {id} could not be updated.");
+        }
+        return NoContent();
     }
 
     [HttpGet("{id}/patients")]
@@ -84,7 +84,7 @@ public class CaretakersController : ControllerBase
 
     [HttpPost("{id}/patients")]
     [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> LinkPatient(int id, [FromBody] PatientLinkRequest request)
     {
@@ -93,7 +93,8 @@ public class CaretakersController : ControllerBase
         {
             return Created($"/api/caretakers/{id}/patients", null);
         }
-        return BadRequest("Link already exists or invalid data.");
+        return Problem(statusCode: StatusCodes.Status400BadRequest,
+            detail: "Link already exists or invalid data.", title: "Bad Request");
     }
 
     [HttpDelete("{id}/patients/{patientId}")]

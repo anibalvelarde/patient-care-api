@@ -17,11 +17,12 @@ public class LookupsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LookupItem>), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAll(string tableName)
     {
         if (!_lookupService.IsValidTableName(tableName))
-            return BadRequest($"Invalid lookup table name: {tableName}");
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Invalid lookup table name: {tableName}", title: "Bad Request");
 
         var items = await _lookupService.GetAllAsync(tableName);
         return Ok(items);
@@ -29,12 +30,13 @@ public class LookupsController : ControllerBase
 
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(LookupItem), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(string tableName, int id)
     {
         if (!_lookupService.IsValidTableName(tableName))
-            return BadRequest($"Invalid lookup table name: {tableName}");
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Invalid lookup table name: {tableName}", title: "Bad Request");
 
         var item = await _lookupService.GetByIdAsync(tableName, id);
         if (item == null) return NotFound();
@@ -43,11 +45,12 @@ public class LookupsController : ControllerBase
 
     [HttpPost]
     [ProducesResponseType(typeof(LookupItem), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(string tableName, [FromBody] LookupCreateRequest request)
     {
         if (!_lookupService.IsValidTableName(tableName))
-            return BadRequest($"Invalid lookup table name: {tableName}");
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Invalid lookup table name: {tableName}", title: "Bad Request");
 
         var created = await _lookupService.CreateAsync(tableName, request);
         return CreatedAtAction(nameof(GetById), new { tableName, id = created.Id }, created);
@@ -55,12 +58,13 @@ public class LookupsController : ControllerBase
 
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(string tableName, int id, [FromBody] LookupUpdateRequest request)
     {
         if (!_lookupService.IsValidTableName(tableName))
-            return BadRequest($"Invalid lookup table name: {tableName}");
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Invalid lookup table name: {tableName}", title: "Bad Request");
 
         var updated = await _lookupService.UpdateAsync(tableName, id, request);
         if (!updated) return NotFound();
