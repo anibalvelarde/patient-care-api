@@ -1,0 +1,322 @@
+{
+  "_meta": {
+    "generatedAt": "2026-06-10T22:19:19-05:00",
+    "generator": "tools/generate-access-manifest.sh",
+    "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
+    "semanticHash": "69f62853bf1b",
+    "source": "access-control-matrix.md"
+  },
+  "claims": [
+    {
+      "claim": "Admin.Lookups.AppointmentStatus.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Lookups.AppointmentStatus.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.Lookups.PaymentType.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Lookups.PaymentType.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.Lookups.RoleType.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Lookups.RoleType.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.Lookups.SpecialtyType.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Lookups.SpecialtyType.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.Sites.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Sites.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.Users.Manage",
+      "grants": []
+    },
+    {
+      "claim": "Admin.Users.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Admin.View",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Appointments.Book",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Appointments.ProviderAmount",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Appointments.Reassign",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Appointments.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Caretakers.Edit",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Caretakers.LinkPatient",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Caretakers.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Dashboard.PlanAlerts",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Dashboard.ProviderAmount",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Dashboard.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Patients.Delinquent.View",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Patients.Edit",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Patients.LinkCaretaker",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Patients.StartDiscovery",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Patients.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Payments.Adjust",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Payments.Record",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Payments.Split",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Payments.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Schedule.Book",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Schedule.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Statements.Caretaker.View",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Statements.Therapist.View",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Statements.View",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "System.Diagnostics",
+      "grants": []
+    },
+    {
+      "claim": "Therapists.Delinquent.View",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Therapists.Edit",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Therapists.ManageSpecialties",
+      "grants": [
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Therapists.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "TreatmentPlans.Edit",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "TreatmentPlans.View",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    }
+  ],
+  "roles": {
+    "granular": [
+      "MGR",
+      "AM",
+      "FD"
+    ],
+    "restricted": [
+      "THERAPIST",
+      "CARETAKER",
+      "PATIENT"
+    ],
+    "wildcard": [
+      "SYSADMIN"
+    ]
+  }
+}

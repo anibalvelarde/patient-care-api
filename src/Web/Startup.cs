@@ -124,6 +124,9 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
 
         // Secure by default: every endpoint requires an authenticated user unless it opts
         // out with [AllowAnonymous] (login, refresh, health checks).
+        // Granular [Authorize(Policy = "claim:Permission:<value>")] decorations are governed by
+        // the access-control matrix anchored at AccessControlManifest.SemanticHash (WP-17);
+        // AccessControlConformanceTests enforces code/manifest agreement.
         services.AddAuthorization(options =>
         {
             options.FallbackPolicy = new AuthorizationPolicyBuilder()
