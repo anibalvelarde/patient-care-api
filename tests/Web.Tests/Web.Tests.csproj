@@ -27,6 +27,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- WP-17B-1: vendored access-control manifest + accepted undecorated-action baseline -->
+    <Content Include="..\..\docs\access-control-matrix.json" Link="access-control-matrix.json"
+             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Authorization\conformance-baseline.txt" Link="conformance-baseline.txt"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Web\Web.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Core\Core.csproj" />
