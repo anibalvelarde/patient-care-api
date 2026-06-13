@@ -52,7 +52,12 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
                     .AllowAnyMethod()
                     .AllowCredentials());
         });
-        services.AddControllers()
+        services.AddControllers(options =>
+        {
+            // WP-17 field-level confidentiality: strips SessionEvent.ProviderAmount from responses
+            // for callers lacking Appointments.ProviderAmount (FrontDesk). See ProviderAmountResultFilter.
+            options.Filters.Add<ProviderAmountResultFilter>();
+        })
         .AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new TimeOnlyJsonConverterFactory());
