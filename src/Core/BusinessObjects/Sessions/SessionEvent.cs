@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 public class SessionEvent
@@ -33,5 +35,11 @@ public class SessionEvent
     public string? SpecialtyAbbreviation { get; set; }
     public string? SpecialtyName { get; set; }
     public bool? IsDiscovery { get; set; }
-    public decimal ProviderAmount { get; set; }
+
+    // WP-17 access-control: ProviderAmount (therapist payout) is confidential — matrix grants
+    // Appointments.ProviderAmount to MGR/AM only (FrontDesk excluded). ProviderAmountResultFilter
+    // sets this to null for callers lacking that claim, and WhenWritingNull omits the property
+    // entirely from the JSON so FD never receives the figure (not just a zeroed value).
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? ProviderAmount { get; set; }
 }
