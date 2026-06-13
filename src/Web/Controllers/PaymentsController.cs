@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -17,6 +19,9 @@ public class PaymentsController : ControllerBase
         _paymentService = paymentService;
     }
 
+    // WP-17 access-control (decision D-1): intentionally authenticated-only — payment-type
+    // reference data for dropdowns that every role needs; not matrix-gated. Stays in
+    // conformance-baseline.txt. See planning/active/wp-17b2-endpoint-claim-map.md.
     [HttpGet("types")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentTypeInfo>))]
     public async Task<IActionResult> GetPaymentTypes()
@@ -57,6 +62,10 @@ public class PaymentsController : ControllerBase
         return CreatedAtAction(nameof(GetPayment), new { id = created.PaymentId }, created);
     }
 
+    // WP-17 (D-3): editing/correcting an existing payment is Payments.Adjust (MGR, AM) — FD can
+    // Record (create) payments but not adjust them. Payments.Refund (MGR only) is a separate,
+    // not-yet-built capability. (CreatePayment → Payments.Record lands with the unambiguous batch.)
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsAdjust)]
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

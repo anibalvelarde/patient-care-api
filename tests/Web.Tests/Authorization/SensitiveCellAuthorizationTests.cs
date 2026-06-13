@@ -23,6 +23,7 @@ namespace Neurocorp.Api.Web.Tests.Authorization;
 ///   Statements.Therapist.View [AM,MGR] GET  /api/therapists/{id}/statement
 ///   Patients.Delinquent.View  [AM,MGR] GET  /api/patients/pastdue, /api/patients/{id}/pastdue
 ///   Therapists.Delinquent.View [AM,MGR] GET /api/therapists/{id}/pastdue
+///   Payments.Adjust       [AM,MGR]      PUT  /api/payments/{id}
 /// </summary>
 public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFactory>
 {
@@ -49,6 +50,8 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/patients/pastdue", "FD")]
     [InlineData("GET", "/api/patients/1/pastdue", "FD")]
     [InlineData("GET", "/api/therapists/1/pastdue", "FD")]
+    // Payments.Adjust [AM,MGR] — FD can Record but not adjust an existing payment.
+    [InlineData("PUT", "/api/payments/1", "FD")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -74,6 +77,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/patients/pastdue", "MGR")]
     [InlineData("GET", "/api/patients/1/pastdue", "AM")]
     [InlineData("GET", "/api/therapists/1/pastdue", "MGR")]
+    // Payments.Adjust [AM,MGR].
+    [InlineData("PUT", "/api/payments/1", "AM")]
+    [InlineData("PUT", "/api/payments/1", "MGR")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));

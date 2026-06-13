@@ -1,7 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -18,6 +20,9 @@ public class BookingController : ControllerBase
         _bookingService = bookingService;
     }
 
+    // WP-17 access-control (decision D-1): intentionally authenticated-only — appointment-status
+    // reference data for dropdowns that every role needs; not matrix-gated. Stays in
+    // conformance-baseline.txt. See planning/active/wp-17b2-endpoint-claim-map.md.
     [HttpGet("statuses")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LookupItem>))]
     public async Task<IActionResult> GetStatuses()
@@ -26,6 +31,10 @@ public class BookingController : ControllerBase
         return Ok(statuses);
     }
 
+    // WP-17 (D-2): Appointments.Book is the appointment WRITE capability — create/edit plus every
+    // lifecycle transition (confirm/cancel/complete/no-show/check-in/start-therapy). Reassign and
+    // ProviderAmount visibility are deliberately separate claims.
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/confirm")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
@@ -36,6 +45,7 @@ public class BookingController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/cancel")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -45,6 +55,7 @@ public class BookingController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/complete")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -54,6 +65,7 @@ public class BookingController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/noshow")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -63,6 +75,7 @@ public class BookingController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/checkin")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -72,6 +85,7 @@ public class BookingController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}/start-therapy")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionEvent))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

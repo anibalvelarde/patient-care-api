@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 using Neurocorp.Api.Web.Common;
 
 namespace Neurocorp.Api.Web.Controllers;
@@ -39,6 +41,8 @@ public class SessionsController : ControllerBase
         return Ok(sessions);
     }
 
+    // WP-17 (D-2): a session is an appointment — create/edit gated by Appointments.Book.
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -48,6 +52,7 @@ public class SessionsController : ControllerBase
         return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
     }
 
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsBook)]
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

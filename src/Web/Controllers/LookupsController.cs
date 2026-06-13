@@ -15,6 +15,11 @@ public class LookupsController : ControllerBase
         _lookupService = lookupService;
     }
 
+    // WP-17 access-control (decision D-1): the lookup READ endpoints (GetAll/GetById) are
+    // intentionally authenticated-only — runtime reference data every role needs to populate
+    // dropdowns. They are deliberately NOT gated behind Admin.Lookups.*.View, which governs the
+    // admin management screen. Tracked as undecorated in conformance-baseline.txt. (Manage —
+    // Create/Update — is a separate, still-open decision, D-10.)
     [HttpGet]
     [ProducesResponseType(typeof(IEnumerable<LookupItem>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -28,6 +33,7 @@ public class LookupsController : ControllerBase
         return Ok(items);
     }
 
+    // WP-17 D-1: authenticated-only reference read (see GetAll above).
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(LookupItem), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

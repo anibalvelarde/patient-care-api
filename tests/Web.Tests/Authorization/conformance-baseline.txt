@@ -5,16 +5,10 @@
 # listed here. Format: ControllerName.ActionName
 AuthController.ChangePassword
 AuthController.Me
-BookingController.CancelAppointment
-BookingController.CheckInAppointment
-BookingController.CompleteAppointment
-BookingController.ConfirmAppointment
 BookingController.GetConfirmations
 BookingController.GetStatuses
 BookingController.GetUnconfirmed
 BookingController.GetUpcoming
-BookingController.NoShowAppointment
-BookingController.StartTherapy
 CaretakersController.CreateCaretaker
 CaretakersController.GetAllCaretakers
 CaretakersController.GetCaretaker
@@ -38,14 +32,11 @@ PaymentsController.CreatePayment
 PaymentsController.GetPayment
 PaymentsController.GetPaymentTypes
 PaymentsController.GetPayments
-PaymentsController.UpdatePayment
 ScheduleController.GetScheduleMatrix
 SessionPaymentsController.GetSessionPayments
-SessionsController.CreateSession
 SessionsController.GetAllEventsForADate
 SessionsController.GetAllPastDueSessionEvents
 SessionsController.GetCompletedDiscoverySessions
-SessionsController.UpdateSession
 TherapistsController.CreateTherapist
 TherapistsController.GetAllTherapists
 TherapistsController.GetTherapist

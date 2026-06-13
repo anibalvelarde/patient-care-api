@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-06-10T22:19:19-05:00",
+    "generatedAt": "2026-06-13T08:34:47-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "69f62853bf1b",
+    "semanticHash": "a6bb1eade5ec",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -191,6 +191,7 @@
     {
       "claim": "Payments.Adjust",
       "grants": [
+        "AM",
         "MGR"
       ]
     },
@@ -199,6 +200,12 @@
       "grants": [
         "AM",
         "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "Payments.Refund",
+      "grants": [
         "MGR"
       ]
     },
