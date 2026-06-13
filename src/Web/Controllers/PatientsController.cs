@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -5,6 +6,7 @@ using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -50,6 +52,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("{id:int}/pastdue")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsDelinquentView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientPastDueInfo))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -64,6 +67,7 @@ public class PatientsController : ControllerBase
     }    
 
     [HttpGet("pastdue")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsDelinquentView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientPastDueInfo>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllPastDuePatients()

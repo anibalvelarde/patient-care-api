@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
@@ -5,6 +6,7 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -50,6 +52,7 @@ public class TherapistsController : ControllerBase
     }
 
     [HttpGet("{id}/pastdue")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TherapistsDelinquentView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistPastDueInfo))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -89,6 +92,7 @@ public class TherapistsController : ControllerBase
     }
 
     [HttpGet("{id}/statement")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.StatementsTherapistView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistStatement))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
