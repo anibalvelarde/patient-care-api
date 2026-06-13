@@ -6,6 +6,10 @@ using Neurocorp.Api.Web.Controllers;
 
 namespace Web.Tests.Controllers;
 
+// These unit tests exercise the action bodies directly (status-code / service-call logic). The WP-17
+// (D-10) per-type Manage authorization lives in the [LookupManageAuthorize] filter, which runs in the
+// pipeline, not on a direct method call — it is covered end-to-end in
+// Authorization/SensitiveCellAuthorizationTests (wrong-type 403, normal-role 403, sysadmin allowed).
 public class LookupsControllerTests
 {
     private readonly Mock<ILookupService> _mockService;

@@ -150,11 +150,40 @@ public class AccessControlConformanceTests
 
     // ── 5: undecorated-action baseline (ratchet) ─────────────────────────────────
 
+    // WP-17 (D-10): actions authorized by a route-aware authorization FILTER ([LookupManageAuthorize])
+    // rather than a static [Authorize(Policy=…)] attribute. They are genuinely access-controlled — they
+    // do NOT rely on the authenticated-only fallback — so they belong here, not in
+    // conformance-baseline.txt. Used where one attribute can't express the policy: LookupsController is
+    // generic over {tableName}, so Create/Update pick the per-type Admin.Lookups.<Type>.Manage claim at
+    // runtime. Enforcement is proven by SensitiveCellAuthorizationTests (per-type 403s); this allowlist
+    // only keeps such actions out of the fallback baseline.
+    private static readonly HashSet<string> ImperativelyAuthorized = new()
+    {
+        "LookupsController.Create",
+        "LookupsController.Update",
+    };
+
+    [Fact]
+    public void ImperativelyAuthorizedAllowlist_OnlyNamesRealUndecoratedActions()
+    {
+        // Guard against drift: every allowlisted action must still exist AND still lack a claim-policy
+        // attribute (otherwise it should be decorated normally and removed from this allowlist).
+        var undecoratedIds = EnumerateActions()
+            .Where(a => !a.IsAnonymous && a.ClaimPolicies.Count == 0)
+            .Select(a => a.Id)
+            .ToHashSet();
+
+        ImperativelyAuthorized.Except(undecoratedIds).Should().BeEmpty(
+            "every entry in ImperativelyAuthorized must name an existing action with no claim-policy " +
+            "attribute — a stale entry (renamed/removed/now-attribute-decorated) must be cleaned up");
+    }
+
     [Fact]
     public void ActionsWithoutClaimPolicies_ExactlyMatchTheBaseline()
     {
         var undecorated = EnumerateActions()
             .Where(a => !a.IsAnonymous && a.ClaimPolicies.Count == 0)
+            .Where(a => !ImperativelyAuthorized.Contains(a.Id))
             .Select(a => a.Id)
             .OrderBy(id => id, StringComparer.Ordinal)
             .ToList();

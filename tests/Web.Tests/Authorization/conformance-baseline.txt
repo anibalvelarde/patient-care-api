@@ -9,14 +9,14 @@
 #   BookingController.GetStatuses         — D-1 reference data (appointment statuses for dropdowns)
 #   LookupsController.GetAll/GetById      — D-1 reference data (runtime dropdown reads)
 #   PaymentsController.GetPaymentTypes    — D-1 reference data (payment types for dropdowns)
-#   LookupsController.Create/Update       — D-10 OPEN (coarse vs per-type lookup-manage authz)
 #   TreatmentPlansController.Schedule     — D-6 OPEN (TreatmentPlans.Edit vs Schedule.Book)
+#
+# NOT here (authorized imperatively, see AccessControlConformanceTests.ImperativelyAuthorized):
+#   LookupsController.Create/Update       — D-10 per-type Admin.Lookups.<Type>.Manage at runtime
 AuthController.ChangePassword
 AuthController.Me
 BookingController.GetStatuses
-LookupsController.Create
 LookupsController.GetAll
 LookupsController.GetById
-LookupsController.Update
 PaymentsController.GetPaymentTypes
 TreatmentPlansController.Schedule
