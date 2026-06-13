@@ -32,7 +32,6 @@ PaymentsController.CreatePayment
 PaymentsController.GetPayment
 PaymentsController.GetPaymentTypes
 PaymentsController.GetPayments
-PaymentsController.UpdatePayment
 ScheduleController.GetScheduleMatrix
 SessionPaymentsController.GetSessionPayments
 SessionsController.GetAllEventsForADate

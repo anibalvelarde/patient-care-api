@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -60,6 +62,10 @@ public class PaymentsController : ControllerBase
         return CreatedAtAction(nameof(GetPayment), new { id = created.PaymentId }, created);
     }
 
+    // WP-17 (D-3): editing/correcting an existing payment is Payments.Adjust (MGR, AM) — FD can
+    // Record (create) payments but not adjust them. Payments.Refund (MGR only) is a separate,
+    // not-yet-built capability. (CreatePayment → Payments.Record lands with the unambiguous batch.)
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsAdjust)]
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
