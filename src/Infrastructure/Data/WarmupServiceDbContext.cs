@@ -20,8 +20,11 @@ public class DbContextWarmupService : IHostedService
         using (var scope = _serviceProvider.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            // Perform a dummy query to trigger the model loading
-            await dbContext.TherapySessions.FirstOrDefaultAsync();
+            // Execute a trivial query to force EF model compilation + open the DB connection.
+            // AnyAsync (SELECT EXISTS ...) does this without fetching an arbitrary row, so it
+            // avoids the FirstWithoutOrderByAndFilter warning (EF 10103) a bare FirstOrDefault
+            // would raise — the result is discarded either way.
+            await dbContext.TherapySessions.AnyAsync();
         }
     }
 
