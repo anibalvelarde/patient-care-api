@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 using Neurocorp.Api.Web.Common;
 
 namespace Neurocorp.Api.Web.Controllers;
@@ -19,6 +21,7 @@ public class ScheduleController : ControllerBase
     }
 
     [HttpGet("{dateString}/schedule-matrix")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ScheduleView)]
     [ProducesResponseType(typeof(ScheduleMatrixResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery] int siteId)

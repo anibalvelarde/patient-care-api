@@ -96,6 +96,7 @@ public class BookingController : ControllerBase
     }
 
     [HttpGet("unconfirmed")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
     public async Task<IActionResult> GetUnconfirmed([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
     {
@@ -116,6 +117,7 @@ public class BookingController : ControllerBase
     }
 
     [HttpGet("upcoming")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
     public async Task<IActionResult> GetUpcoming([FromQuery] string? from = null, [FromQuery] string? to = null, [FromQuery] int days = 7)
     {
@@ -136,6 +138,7 @@ public class BookingController : ControllerBase
     }
 
     [HttpGet("{id}/confirmations")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<ConfirmationRecord>))]
     public async Task<IActionResult> GetConfirmations(int id)
     {

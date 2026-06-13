@@ -32,6 +32,7 @@ public class TherapistsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TherapistsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<TherapistProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllTherapists()
@@ -41,6 +42,7 @@ public class TherapistsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TherapistsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TherapistProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -66,7 +68,10 @@ public class TherapistsController : ControllerBase
         return NotFound();
     }
 
+    // WP-17: Therapists.Edit is AM/MGR only — FD can view therapists but not create/edit them
+    // (unlike Patients/Caretakers edit, which FD holds).
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TherapistsEdit)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(TherapistProfile))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateTherapist([FromBody] TherapistProfileRequest therapistRequest)
@@ -76,6 +81,7 @@ public class TherapistsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TherapistsEdit)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateTherapist(int id, [FromBody] TherapistProfileUpdateRequest therapistRequest)

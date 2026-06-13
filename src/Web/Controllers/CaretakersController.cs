@@ -31,6 +31,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<CaretakerProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllCaretakers()
@@ -40,6 +41,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CaretakerProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -51,6 +53,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersEdit)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(CaretakerProfile))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateCaretaker([FromBody] CaretakerProfileRequest createRequest)
@@ -60,6 +63,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersEdit)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateCaretaker(int id, [FromBody] CaretakerProfileUpdateRequest updateRequest)
@@ -76,6 +80,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpGet("{id}/patients")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<CaretakerPatientSummary>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetCaretakerPatients(int id)
@@ -85,6 +90,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpPost("{id}/patients")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -100,6 +106,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpDelete("{id}/patients/{patientId}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -113,7 +120,11 @@ public class CaretakersController : ControllerBase
         return NotFound();
     }
 
+    // WP-17 (D-8): cross-resource read gated by the DATA's own domain claim (Payments.View),
+    // not the parent resource (Caretakers.View). Same granted set (AM/FD/MGR) either way; this
+    // tracks intent — you're reading payment data.
     [HttpGet("{id}/payments")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentRecord>))]
     public async Task<IActionResult> GetCaretakerPayments(int id)
     {
@@ -121,7 +132,10 @@ public class CaretakersController : ControllerBase
         return Ok(payments);
     }
 
+    // WP-17 (D-8): cross-resource read gated by the data's own domain claim (Payments.View) —
+    // unpaid-session balances are payment data. AM/FD/MGR.
     [HttpGet("{id}/unpaid-sessions")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UnpaidSessionSummary>))]
     public async Task<IActionResult> GetUnpaidSessions(int id)
     {

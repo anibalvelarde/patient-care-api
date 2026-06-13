@@ -23,6 +23,7 @@ public class SessionsController : ControllerBase
     }
 
     [HttpGet("{dateString}/all")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllEventsForADate(string dateString)
@@ -32,7 +33,10 @@ public class SessionsController : ControllerBase
         return Ok(sessions);
     }
 
+    // WP-17 (D-4): the past-due session feed is a delinquency view — Patients.Delinquent.View
+    // (AM/MGR; FD denied), consistent with the patient/therapist past-due endpoints.
     [HttpGet("pastdue")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsDelinquentView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionEvent>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllPastDueSessionEvents()
@@ -69,7 +73,11 @@ public class SessionsController : ControllerBase
         return NoContent();
     }
 
+    // WP-17 (D-5): completed discovery sessions are a read of appointment data — Appointments.View
+    // (AM/FD/MGR). Not FD-hidden; if discovery should be FD-restricted, switch to
+    // Patients.StartDiscovery (AM/MGR).
     [HttpGet("patient/{patientId}/discovery")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DiscoverySessionSummary>))]
     public async Task<IActionResult> GetCompletedDiscoverySessions(int patientId)
     {

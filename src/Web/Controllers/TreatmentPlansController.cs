@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -23,6 +25,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] TreatmentPlanRequest request)
@@ -31,7 +34,10 @@ public class TreatmentPlansController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
+    // WP-17 (D-7): treated as a plan read (TreatmentPlans.View, AM/FD/MGR) rather than tied to the
+    // dashboard alerts widget (Dashboard.PlanAlerts) — same granted set; this is the intent.
     [HttpGet("active-summary")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansView)]
     [ProducesResponseType(typeof(IReadOnlyList<ActivePlanSummary>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetActiveSummary()
     {
@@ -40,6 +46,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansView)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(int id)
@@ -49,6 +56,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpGet("patient/{patientId}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansView)]
     [ProducesResponseType(typeof(IReadOnlyList<TreatmentPlanProfile>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByPatient(int patientId)
     {
@@ -57,6 +65,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Update(int id, [FromBody] TreatmentPlanRequest request)
@@ -66,6 +75,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}/activate")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Activate(int id)
@@ -75,6 +85,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}/complete")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Complete(int id)
@@ -84,6 +95,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}/cancel")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Cancel(int id)
@@ -92,6 +104,8 @@ public class TreatmentPlansController : ControllerBase
         return Ok(result);
     }
 
+    // WP-17 (D-6): claim deliberately UNDECIDED — pending human discussion (TreatmentPlans.Edit vs
+    // Schedule.Book). Stays authenticated-only in conformance-baseline.txt until D-6 is resolved.
     [HttpPost("{id}/schedule")]
     [ProducesResponseType(typeof(BulkScheduleResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -103,6 +117,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpGet("{id}/sessions")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansView)]
     [ProducesResponseType(typeof(IReadOnlyList<PlanSessionInfo>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetSessions(int id)
@@ -120,6 +135,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpGet("{id}/progress")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansView)]
     [ProducesResponseType(typeof(PlanProgressSummary), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProgress(int id)
