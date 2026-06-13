@@ -74,6 +74,24 @@ public class AccessControlConformanceTests
             "docs/access-control-matrix.json and bump AccessControlManifest.SemanticHash");
     }
 
+    // ── 2b: generated Permissions constants mirror the manifest (codegen no-drift) ──
+
+    [Fact]
+    public void PermissionsConstants_ExactlyMatch_ManifestClaims()
+    {
+        var manifest = LoadManifest();
+        var constants = typeof(Permissions)
+            .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .ToHashSet();
+
+        constants.Should().BeEquivalentTo(manifest.Claims,
+            "the generated Permissions constants must equal the manifest's claim set exactly — " +
+            "regenerate via tools/generate-permissions.sh after any matrix change; a missing or " +
+            "extra constant means Permissions.g.cs drifted from the manifest");
+    }
+
     // ── 3: every claim policy resolves to a manifest claim ──────────────────────
 
     [Fact]

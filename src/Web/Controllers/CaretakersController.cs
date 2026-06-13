@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -128,6 +130,7 @@ public class CaretakersController : ControllerBase
     }
 
     [HttpGet("{id}/statement")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.StatementsCaretakerView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(AccountStatement))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]

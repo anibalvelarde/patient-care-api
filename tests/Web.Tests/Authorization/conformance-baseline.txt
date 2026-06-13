@@ -20,7 +20,6 @@ CaretakersController.GetAllCaretakers
 CaretakersController.GetCaretaker
 CaretakersController.GetCaretakerPatients
 CaretakersController.GetCaretakerPayments
-CaretakersController.GetStatement
 CaretakersController.GetUnpaidSessions
 CaretakersController.LinkPatient
 CaretakersController.UnlinkPatient
@@ -30,9 +29,7 @@ LookupsController.GetAll
 LookupsController.GetById
 LookupsController.Update
 PatientsController.CreatePatient
-PatientsController.GetAllPastDuePatients
 PatientsController.GetAllPatients
-PatientsController.GetPastDueSessions
 PatientsController.GetPatient
 PatientsController.GetPatientCaretakers
 PatientsController.GetPatientSessions
@@ -49,14 +46,8 @@ SessionsController.GetAllEventsForADate
 SessionsController.GetAllPastDueSessionEvents
 SessionsController.GetCompletedDiscoverySessions
 SessionsController.UpdateSession
-SitesController.CreateSite
-SitesController.GetAllSites
-SitesController.GetSite
-SitesController.UpdateSite
 TherapistsController.CreateTherapist
 TherapistsController.GetAllTherapists
-TherapistsController.GetPastDueSessions
-TherapistsController.GetStatement
 TherapistsController.GetTherapist
 TherapistsController.UpdateTherapist
 TreatmentPlansController.Activate

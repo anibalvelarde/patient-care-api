@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Sites;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -20,6 +22,7 @@ public class SitesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AdminSitesView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SiteProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllSites()
@@ -29,6 +32,7 @@ public class SitesController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AdminSitesView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SiteProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -40,6 +44,7 @@ public class SitesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AdminSitesManage)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(SiteProfile))]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -50,6 +55,7 @@ public class SitesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AdminSitesManage)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
