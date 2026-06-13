@@ -15,6 +15,11 @@ COPY ./tests/Web.Tests/Web.Tests.csproj ./tests/Web.Tests/
 COPY ./src ./src
 COPY ./tests ./tests
 
+# WP-17: Web.Tests vendors the access-control manifest from ../../docs via a Content item
+# (AccessControlConformanceTests reads it at runtime). The build context omits docs/ otherwise,
+# so copy just that file in or `dotnet build` fails with MSB3030 (file not found).
+COPY ./docs/access-control-matrix.json ./docs/access-control-matrix.json
+
 # Restore the dependencies for the Web project and Test project
 RUN dotnet restore "./src/Core/Core.csproj"
 RUN dotnet restore "./src/Infrastructure/Infrastructure.csproj"
