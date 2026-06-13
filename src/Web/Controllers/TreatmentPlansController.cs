@@ -24,8 +24,10 @@ public class TreatmentPlansController : ControllerBase
         _schedulingService = schedulingService;
     }
 
+    // WP-17 (D-6): setting up a plan (create) is TreatmentPlans.Book (MGR/AM/FD). Editing an
+    // existing plan's content is the narrower TreatmentPlans.Edit (MGR/AM) — see Update below.
     [HttpPost]
-    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansBook)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create([FromBody] TreatmentPlanRequest request)
@@ -64,6 +66,8 @@ public class TreatmentPlansController : ControllerBase
         return Ok(results);
     }
 
+    // WP-17 (D-6): editing an existing plan's content is TreatmentPlans.Edit — now MGR/AM only
+    // (FD can set up & schedule a plan via Book, but not change its content).
     [HttpPut("{id}")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
@@ -74,8 +78,10 @@ public class TreatmentPlansController : ControllerBase
         return Ok(result);
     }
 
+    // WP-17 (D-6): plan lifecycle transitions (activate/complete/cancel) are part of running a plan
+    // FD set up → TreatmentPlans.Book (MGR/AM/FD), not the MGR/AM-only content Edit.
     [HttpPut("{id}/activate")]
-    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansBook)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Activate(int id)
@@ -85,7 +91,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}/complete")]
-    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansBook)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Complete(int id)
@@ -95,7 +101,7 @@ public class TreatmentPlansController : ControllerBase
     }
 
     [HttpPut("{id}/cancel")]
-    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansEdit)]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansBook)]
     [ProducesResponseType(typeof(TreatmentPlanProfile), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Cancel(int id)
@@ -104,9 +110,10 @@ public class TreatmentPlansController : ControllerBase
         return Ok(result);
     }
 
-    // WP-17 (D-6): claim deliberately UNDECIDED — pending human discussion (TreatmentPlans.Edit vs
-    // Schedule.Book). Stays authenticated-only in conformance-baseline.txt until D-6 is resolved.
+    // WP-17 (D-6): bulk-scheduling a plan's sessions is part of setting it up → TreatmentPlans.Book
+    // (MGR/AM/FD). (Schedule.Rebook — changing an existing booking — is a separate, still-future claim.)
     [HttpPost("{id}/schedule")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.TreatmentPlansBook)]
     [ProducesResponseType(typeof(BulkScheduleResult), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
