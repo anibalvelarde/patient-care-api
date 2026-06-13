@@ -31,6 +31,11 @@ namespace Neurocorp.Api.Web.Tests.Authorization;
 /// and representative checks that the broad AM/FD/MGR decorations actually enforce:
 ///   Patients.View         [AM,FD,MGR]   GET  /api/patients (restricted role → 403; FD allowed)
 ///   Appointments.View     [AM,FD,MGR]   GET  /api/sessions/patient/{id}/discovery (D-5; FD allowed)
+///
+/// WP-17 D-6 — treatment-plan setup (Book) vs content edit (Edit):
+///   TreatmentPlans.Edit   [AM,MGR]      PUT  /api/treatment-plans/{id} (content edit; FD denied)
+///   TreatmentPlans.Book   [AM,FD,MGR]   POST /api/treatment-plans, POST …/{id}/schedule,
+///                                       PUT …/{id}/activate|complete|cancel (FD retains setup)
 /// </summary>
 public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFactory>
 {
@@ -66,6 +71,8 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/sessions/pastdue", "FD")]
     // Broad AM/FD/MGR decoration still locks out restricted roles entirely (no granular claims).
     [InlineData("GET", "/api/patients", "CARETAKER")]
+    // TreatmentPlans.Edit [AM,MGR] (D-6) — editing an existing plan's content is denied to FD.
+    [InlineData("PUT", "/api/treatment-plans/1", "FD")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -103,6 +110,14 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // Broad AM/FD/MGR decorations let FD through (Patients.View; Appointments.View for D-5 discovery).
     [InlineData("GET", "/api/patients", "FD")]
     [InlineData("GET", "/api/sessions/patient/1/discovery", "FD")]
+    // TreatmentPlans.Edit [AM,MGR] (D-6) — AM and MGR may edit plan content.
+    [InlineData("PUT", "/api/treatment-plans/1", "AM")]
+    [InlineData("PUT", "/api/treatment-plans/1", "MGR")]
+    // TreatmentPlans.Book [AM,FD,MGR] (D-6) — FD retains plan SETUP: create, schedule, lifecycle.
+    [InlineData("POST", "/api/treatment-plans", "FD")]
+    [InlineData("POST", "/api/treatment-plans/1/schedule", "FD")]
+    [InlineData("PUT", "/api/treatment-plans/1/activate", "FD")]
+    [InlineData("PUT", "/api/treatment-plans/1/cancel", "MGR")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));

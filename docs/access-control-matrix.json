@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-06-13T08:34:47-05:00",
+    "generatedAt": "2026-06-13T10:13:43-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "a6bb1eade5ec",
+    "semanticHash": "b88f98dc47d7",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -234,6 +234,14 @@
       ]
     },
     {
+      "claim": "Schedule.Rebook",
+      "grants": [
+        "AM",
+        "FD",
+        "MGR"
+      ]
+    },
+    {
       "claim": "Schedule.View",
       "grants": [
         "AM",
@@ -295,10 +303,17 @@
       ]
     },
     {
-      "claim": "TreatmentPlans.Edit",
+      "claim": "TreatmentPlans.Book",
       "grants": [
         "AM",
         "FD",
+        "MGR"
+      ]
+    },
+    {
+      "claim": "TreatmentPlans.Edit",
+      "grants": [
+        "AM",
         "MGR"
       ]
     },
