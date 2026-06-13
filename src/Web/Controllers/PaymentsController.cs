@@ -17,6 +17,9 @@ public class PaymentsController : ControllerBase
         _paymentService = paymentService;
     }
 
+    // WP-17 access-control (decision D-1): intentionally authenticated-only — payment-type
+    // reference data for dropdowns that every role needs; not matrix-gated. Stays in
+    // conformance-baseline.txt. See planning/active/wp-17b2-endpoint-claim-map.md.
     [HttpGet("types")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentTypeInfo>))]
     public async Task<IActionResult> GetPaymentTypes()

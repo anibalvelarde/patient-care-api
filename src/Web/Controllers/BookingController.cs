@@ -18,6 +18,9 @@ public class BookingController : ControllerBase
         _bookingService = bookingService;
     }
 
+    // WP-17 access-control (decision D-1): intentionally authenticated-only — appointment-status
+    // reference data for dropdowns that every role needs; not matrix-gated. Stays in
+    // conformance-baseline.txt. See planning/active/wp-17b2-endpoint-claim-map.md.
     [HttpGet("statuses")]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<LookupItem>))]
     public async Task<IActionResult> GetStatuses()
