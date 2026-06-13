@@ -25,3 +25,10 @@ jobs:
 
     - name: Run tests
       run: dotnet test ./patient-care-api.sln --no-build
+
+    # WP-17D: access-control drift tripwire. The conformance tests above already
+    # assert anchor==manifest and constants==manifest set; this adds byte-identity
+    # by regenerating Permissions.g.cs from the vendored manifest and failing on diff.
+    # Cross-repo reconciliation against the canonical super manifest runs in patient-care-super.
+    - name: Access-control codegen drift check
+      run: bash tools/generate-permissions.sh --check

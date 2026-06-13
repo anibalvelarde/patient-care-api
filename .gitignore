@@ -12,7 +12,13 @@
 *.user
 *.userosscache
 *.sln.docstates
-tools/
+# Keep tools/ ignored (local helpers + secrets: set_env.sh, *.http,
+# SaPasswordHasher/this.txt) EXCEPT the committed access-control generator (WP-17D).
+tools/*
+!tools/generate-permissions.sh
+!tools/SaPasswordHasher
+# but never the plaintext SA password the hasher consumes
+tools/SaPasswordHasher/this.txt
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
