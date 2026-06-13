@@ -31,6 +31,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PaymentRecord>))]
     public async Task<IActionResult> GetPayments([FromQuery] int? caretakerId)
     {
@@ -44,6 +45,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PaymentRecord))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPayment(int id)
@@ -53,7 +55,10 @@ public class PaymentsController : ControllerBase
         return Ok(payment);
     }
 
+    // WP-17 (D-3): recording (creating) a payment is Payments.Record (AM/FD/MGR). Adjusting an
+    // existing one is the stricter Payments.Adjust (AM/MGR) — see UpdatePayment below.
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsRecord)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(PaymentRecord))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreatePayment([FromBody] PaymentRecordRequest request)

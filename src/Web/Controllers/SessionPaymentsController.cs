@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
 
@@ -18,6 +20,7 @@ public class SessionPaymentsController : ControllerBase
     }
 
     [HttpGet("{id}/payments")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PaymentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<SessionPaymentDetail>))]
     public async Task<IActionResult> GetSessionPayments(int id)
     {

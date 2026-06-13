@@ -32,6 +32,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetAllPatients()
@@ -41,6 +42,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -77,6 +79,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet("{id:int}/caretakers")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientCaretakerSummary>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetPatientCaretakers(int id)
@@ -85,7 +88,10 @@ public class PatientsController : ControllerBase
         return Ok(caretakers);
     }
 
+    // WP-17 (D-8): cross-resource read gated by the data's own domain claim (Appointments.View) —
+    // these are the patient's session/appointment rows. AM/FD/MGR.
     [HttpGet("{patientId}/sessions")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(typeof(IEnumerable<SessionEvent>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPatientSessions(
         int patientId,
@@ -97,6 +103,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(PatientProfile))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
@@ -106,6 +113,7 @@ public class PatientsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)

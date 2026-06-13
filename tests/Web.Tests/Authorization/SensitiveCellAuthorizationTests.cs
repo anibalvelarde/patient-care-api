@@ -24,6 +24,13 @@ namespace Neurocorp.Api.Web.Tests.Authorization;
 ///   Patients.Delinquent.View  [AM,MGR] GET  /api/patients/pastdue, /api/patients/{id}/pastdue
 ///   Therapists.Delinquent.View [AM,MGR] GET /api/therapists/{id}/pastdue
 ///   Payments.Adjust       [AM,MGR]      PUT  /api/payments/{id}
+///
+/// WP-17B-2 bulk pass — additional cells whose granted set excludes a granular role:
+///   Therapists.Edit       [AM,MGR]      POST /api/therapists, PUT /api/therapists/{id} (FD denied)
+///   Patients.Delinquent.View [AM,MGR]   GET  /api/sessions/pastdue (D-4; FD denied)
+/// and representative checks that the broad AM/FD/MGR decorations actually enforce:
+///   Patients.View         [AM,FD,MGR]   GET  /api/patients (restricted role → 403; FD allowed)
+///   Appointments.View     [AM,FD,MGR]   GET  /api/sessions/patient/{id}/discovery (D-5; FD allowed)
 /// </summary>
 public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFactory>
 {
@@ -52,6 +59,13 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/therapists/1/pastdue", "FD")]
     // Payments.Adjust [AM,MGR] — FD can Record but not adjust an existing payment.
     [InlineData("PUT", "/api/payments/1", "FD")]
+    // Therapists.Edit [AM,MGR] — FD can view therapists but not create/edit them.
+    [InlineData("POST", "/api/therapists", "FD")]
+    [InlineData("PUT", "/api/therapists/1", "FD")]
+    // Patients.Delinquent.View [AM,MGR] (D-4) — past-due session feed hidden from FD.
+    [InlineData("GET", "/api/sessions/pastdue", "FD")]
+    // Broad AM/FD/MGR decoration still locks out restricted roles entirely (no granular claims).
+    [InlineData("GET", "/api/patients", "CARETAKER")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -80,6 +94,15 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // Payments.Adjust [AM,MGR].
     [InlineData("PUT", "/api/payments/1", "AM")]
     [InlineData("PUT", "/api/payments/1", "MGR")]
+    // Therapists.Edit [AM,MGR] — AM and MGR can create/edit.
+    [InlineData("POST", "/api/therapists", "AM")]
+    [InlineData("PUT", "/api/therapists/1", "MGR")]
+    // Patients.Delinquent.View [AM,MGR] (D-4) — past-due session feed visible to AM and MGR.
+    [InlineData("GET", "/api/sessions/pastdue", "AM")]
+    [InlineData("GET", "/api/sessions/pastdue", "MGR")]
+    // Broad AM/FD/MGR decorations let FD through (Patients.View; Appointments.View for D-5 discovery).
+    [InlineData("GET", "/api/patients", "FD")]
+    [InlineData("GET", "/api/sessions/patient/1/discovery", "FD")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -101,6 +124,74 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
             "the secure-by-default fallback policy requires an authenticated user");
+    }
+
+    // ── D-10: per-type lookup management (imperative authorization) ──────────────────
+    // LookupsController.Create/Update authorize against Admin.Lookups.<Type>.Manage chosen from the
+    // {tableName} segment. All four Manage claims are SYSADMIN-only today, so only the wildcard token
+    // (or a token explicitly carrying the matching per-type claim) gets through — and crucially, a
+    // token holding ONE type's Manage claim must NOT be able to manage a DIFFERENT type.
+
+    [Theory]
+    [InlineData("POST", "/api/lookups/payment-types")]
+    [InlineData("PUT", "/api/lookups/payment-types/1")]
+    public async Task Lookups_WithMatchingTypeClaim_IsNotBlocked(string method, string route)
+    {
+        var token = _factory.MintWithPermissions("Admin.Lookups.PaymentType.Manage");
+
+        var response = await SendAsync(method, route, token);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "a token carrying Admin.Lookups.PaymentType.Manage may manage payment-types");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "the token is valid");
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/lookups/role-types")]
+    [InlineData("PUT", "/api/lookups/role-types/1")]
+    [InlineData("POST", "/api/lookups/specialty-types")]
+    public async Task Lookups_WithWrongTypeClaim_Is403(string method, string route)
+    {
+        // Holds PaymentType.Manage only — must not leak into other lookup types.
+        var token = _factory.MintWithPermissions("Admin.Lookups.PaymentType.Manage");
+
+        var response = await SendAsync(method, route, token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "the per-type claim for one lookup type must not authorize managing another type");
+    }
+
+    [Theory]
+    // A normal granular role holds the *.View lookup claims but no *.Manage claim ⇒ denied.
+    [InlineData("POST", "/api/lookups/payment-types", "MGR")]
+    [InlineData("POST", "/api/lookups/role-types", "AM")]
+    public async Task Lookups_Manage_NormalRole_Is403(string method, string route, string role)
+    {
+        var response = await SendAsync(method, route, _factory.MintRoleToken(role));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            $"{role} has no Admin.Lookups.*.Manage claim (those are SYSADMIN-only today)");
+    }
+
+    [Theory]
+    [InlineData("POST", "/api/lookups/role-types")]
+    [InlineData("PUT", "/api/lookups/payment-types/1")]
+    public async Task Lookups_Manage_Sysadmin_IsNotBlocked(string method, string route)
+    {
+        var response = await SendAsync(method, route, _factory.MintWildcardToken());
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "SYSADMIN passes every Manage claim via the wildcard");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "the token is valid");
+    }
+
+    [Fact]
+    public async Task Lookups_Manage_NoToken_Is401()
+    {
+        var response = await SendAsync("POST", "/api/lookups/payment-types", token: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+            "the secure-by-default fallback policy still requires authentication before the action runs");
     }
 
     private string TokenFor(string role) =>

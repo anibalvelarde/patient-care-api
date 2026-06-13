@@ -3,52 +3,20 @@
 # decorating an action (17B-2+) requires removing its line; adding a NEW undecorated
 # action fails AccessControlConformanceTests until it is decorated or deliberately
 # listed here. Format: ControllerName.ActionName
+#
+# As of the WP-17B-2 bulk decoration pass, the remaining entries are deliberate, not debt:
+#   AuthController.ChangePassword/Me      — self-service (the caller acts on their own account)
+#   BookingController.GetStatuses         — D-1 reference data (appointment statuses for dropdowns)
+#   LookupsController.GetAll/GetById      — D-1 reference data (runtime dropdown reads)
+#   PaymentsController.GetPaymentTypes    — D-1 reference data (payment types for dropdowns)
+#   TreatmentPlansController.Schedule     — D-6 OPEN (TreatmentPlans.Edit vs Schedule.Book)
+#
+# NOT here (authorized imperatively, see AccessControlConformanceTests.ImperativelyAuthorized):
+#   LookupsController.Create/Update       — D-10 per-type Admin.Lookups.<Type>.Manage at runtime
 AuthController.ChangePassword
 AuthController.Me
-BookingController.GetConfirmations
 BookingController.GetStatuses
-BookingController.GetUnconfirmed
-BookingController.GetUpcoming
-CaretakersController.CreateCaretaker
-CaretakersController.GetAllCaretakers
-CaretakersController.GetCaretaker
-CaretakersController.GetCaretakerPatients
-CaretakersController.GetCaretakerPayments
-CaretakersController.GetUnpaidSessions
-CaretakersController.LinkPatient
-CaretakersController.UnlinkPatient
-CaretakersController.UpdateCaretaker
-LookupsController.Create
 LookupsController.GetAll
 LookupsController.GetById
-LookupsController.Update
-PatientsController.CreatePatient
-PatientsController.GetAllPatients
-PatientsController.GetPatient
-PatientsController.GetPatientCaretakers
-PatientsController.GetPatientSessions
-PatientsController.UpdatePatient
-PaymentsController.CreatePayment
-PaymentsController.GetPayment
 PaymentsController.GetPaymentTypes
-PaymentsController.GetPayments
-ScheduleController.GetScheduleMatrix
-SessionPaymentsController.GetSessionPayments
-SessionsController.GetAllEventsForADate
-SessionsController.GetAllPastDueSessionEvents
-SessionsController.GetCompletedDiscoverySessions
-TherapistsController.CreateTherapist
-TherapistsController.GetAllTherapists
-TherapistsController.GetTherapist
-TherapistsController.UpdateTherapist
-TreatmentPlansController.Activate
-TreatmentPlansController.Cancel
-TreatmentPlansController.Complete
-TreatmentPlansController.Create
-TreatmentPlansController.GetActiveSummary
-TreatmentPlansController.GetById
-TreatmentPlansController.GetByPatient
-TreatmentPlansController.GetProgress
-TreatmentPlansController.GetSessions
 TreatmentPlansController.Schedule
-TreatmentPlansController.Update

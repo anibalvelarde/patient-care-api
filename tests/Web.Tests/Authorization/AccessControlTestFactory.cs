@@ -72,6 +72,19 @@ public class AccessControlTestFactory : WebApplicationFactory<Program>
         return MintToken(roleAbbreviation, claims, roleAbbreviation);
     }
 
+    /// <summary>
+    /// Token carrying exactly the given Permission claims (and nothing else) — for testing
+    /// fine-grained cells like the per-type Admin.Lookups.&lt;Type&gt;.Manage claims (D-10), which no
+    /// seeded role holds, so they can't be exercised via <see cref="MintRoleToken"/>.
+    /// </summary>
+    public string MintWithPermissions(params string[] permissionClaims)
+    {
+        var claims = permissionClaims
+            .Select(c => new ClaimDto(SystemClaims.PermissionClaimType, c))
+            .ToList();
+        return MintToken("CUSTOM", claims, "CUSTOM");
+    }
+
     /// <summary>Token carrying the SYSADMIN god-mode wildcard ('System','FullAccess').</summary>
     public string MintWildcardToken()
     {
