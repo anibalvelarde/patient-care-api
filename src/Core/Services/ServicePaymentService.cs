@@ -170,6 +170,34 @@ public class ServicePaymentService : IServicePaymentService
         return rows.OrderBy(r => r.TherapistName, StringComparer.OrdinalIgnoreCase);
     }
 
+    public async Task<PendingPayrollSummary> GetPendingPayrollSummaryAsync(DateOnly? from, DateOnly? to)
+    {
+        // All-time by default: this is an outstanding-liability figure, so (unlike the per-therapist
+        // views, which default to a 90-day window) we must not hide older unpaid sessions. The
+        // sentinel lower bound stays above MySQL's DATE floor (1000-01-01).
+        var periodStart = from ?? new DateOnly(1900, 1, 1);
+        var periodEnd = to ?? new DateOnly(9999, 12, 31);
+        if (periodEnd < periodStart)
+            throw new ArgumentException("Query parameter 'to' must be on or after 'from'.");
+
+        _logger.LogInformation("Building pending payroll summary for {From}..{To}", periodStart, periodEnd);
+
+        var therapists = await _therapistProfileService.GetAllAsync();
+
+        var summary = new PendingPayrollSummary();
+        foreach (var t in therapists.Where(t => t.IsActive))
+        {
+            var unpaid = (await GetUnpaidProviderSessionsAsync(t.TherapistId, periodStart, periodEnd)).ToList();
+            if (unpaid.Count == 0) continue;
+
+            summary.TherapistCount++;
+            summary.SessionCount += unpaid.Count;
+            summary.TotalPending += unpaid.Sum(s => s.RemainingProviderAmount);
+        }
+
+        return summary;
+    }
+
     public async Task<BatchPayrollResult> RunBatchPayrollAsync(BatchPayrollRequest request)
     {
         if (request.TherapistIds == null || request.TherapistIds.Count == 0)

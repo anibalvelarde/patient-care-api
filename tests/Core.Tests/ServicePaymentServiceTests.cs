@@ -256,6 +256,60 @@ public class ServicePaymentServiceTests
     }
 
     [Fact]
+    public async Task GetPendingPayrollSummaryAsync_AggregatesAcrossTherapists_SkippingFullyPaidAndInactive()
+    {
+        // 42 Smith: two sessions, one fully paid -> 60 remaining on the other (1 session).
+        // 43 Jones: one session, unpaid -> 100 (1 session).
+        // 44 Lee: active but no sessions -> contributes nothing. 45 Ng: has a session but inactive -> excluded.
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 60m, therapistId: 42), Session(2, 60m, therapistId: 42),
+            Session(3, 100m, therapistId: 43),
+            Session(4, 80m, therapistId: 45),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            new() { Id = 1, ServicePaymentId = 99, TherapySessionId = 1, AmountApplied = 60m },
+        };
+        var therapists = new List<TherapistProfile>
+        {
+            Therapist(42, "Smith, Jane"), Therapist(43, "Jones, Bob"),
+            Therapist(44, "Lee, Sue"), Therapist(45, "Ng, Al", active: false),
+        };
+        var (service, _, _, _) = BuildService(sessions, existing, therapists);
+
+        // No range -> all-time outstanding.
+        var summary = await service.GetPendingPayrollSummaryAsync(null, null);
+
+        summary.TherapistCount.Should().Be(2);
+        summary.SessionCount.Should().Be(2);
+        summary.TotalPending.Should().Be(160m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayrollSummaryAsync_ReturnsZeroes_WhenNothingOwed()
+    {
+        var (service, _, _, _) = BuildService(
+            therapists: new List<TherapistProfile> { Therapist(42, "Smith, Jane") });
+
+        var summary = await service.GetPendingPayrollSummaryAsync(null, null);
+
+        summary.TherapistCount.Should().Be(0);
+        summary.SessionCount.Should().Be(0);
+        summary.TotalPending.Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayrollSummaryAsync_Throws_WhenToBeforeFrom()
+    {
+        var (service, _, _, _) = BuildService();
+
+        var act = async () => await service.GetPendingPayrollSummaryAsync(new DateOnly(2026, 4, 30), new DateOnly(2026, 4, 1));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
     public async Task RunBatchPayrollAsync_CreatesOnePaymentPerOwedTherapist()
     {
         var sessions = new List<TherapySession>
