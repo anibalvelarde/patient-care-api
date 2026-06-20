@@ -15,6 +15,12 @@ namespace Neurocorp.Api.Web.Middleware;
 /// earlier by the auth layer (AuthProblemDetails / PasswordChangeRequiredMiddleware) and never
 /// reach here. The shared ProblemDetails shape (type/instance/traceId) is applied centrally by
 /// CustomizeProblemDetails in Startup.
+///
+/// This handler is the single source of truth for exception logging: it logs handled 4xx at
+/// Information and only genuine 5xx at Error (below). The built-in <c>ExceptionHandlerMiddleware</c>
+/// also logs every caught exception at Error ("An unhandled exception has occurred…") — redundant
+/// and misleading for the 4xx we translate cleanly — so that one framework category is set to
+/// "None" in appsettings. Real failures still surface via the LogError call here.
 /// </summary>
 public sealed class GlobalExceptionHandler : IExceptionHandler
 {
