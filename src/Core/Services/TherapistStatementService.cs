@@ -15,18 +15,24 @@ public class TherapistStatementService : ITherapistStatementService
     private readonly ITherapistProfileService _therapistProfileService;
     private readonly ITherapySessionRepository _sessionRepo;
     private readonly IRepository<AppointmentStatus> _appointmentStatusRepo;
+    private readonly ISessionServicePaymentRepository _sessionServicePaymentRepo;
+    private readonly IServicePaymentRepository _servicePaymentRepo;
     private readonly ILogger<TherapistStatementService> _logger;
 
     public TherapistStatementService(
         ILogger<TherapistStatementService> logger,
         ITherapistProfileService therapistProfileService,
         ITherapySessionRepository sessionRepo,
-        IRepository<AppointmentStatus> appointmentStatusRepo)
+        IRepository<AppointmentStatus> appointmentStatusRepo,
+        ISessionServicePaymentRepository sessionServicePaymentRepo,
+        IServicePaymentRepository servicePaymentRepo)
     {
         _logger = logger;
         _therapistProfileService = therapistProfileService;
         _sessionRepo = sessionRepo;
         _appointmentStatusRepo = appointmentStatusRepo;
+        _sessionServicePaymentRepo = sessionServicePaymentRepo;
+        _servicePaymentRepo = servicePaymentRepo;
     }
 
     public async Task<TherapistStatement?> GetStatementAsync(int therapistId, DateOnly? from, DateOnly? to)
@@ -113,13 +119,29 @@ public class TherapistStatementService : ITherapistStatementService
             .OrderBy(b => b.PatientName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // 6. Compute summary
+        // 6. Service payments (WP-14): join the payroll allocations recorded against any session
+        //    in this statement's range. The statement is authoritative (not pro-forma) once any
+        //    payment touches the period; until then it remains an estimate.
+        var inRangeSessionIds = sessions.Select(s => s.Id).ToList();
+        var inRangeSessionIdSet = new HashSet<int>(inRangeSessionIds);
+        var allocations = await _sessionServicePaymentRepo.GetBySessionIdsAsync(inRangeSessionIds);
+        var totalServicePaymentsApplied = allocations.Sum(a => a.AmountApplied);
+
+        var servicePaymentIds = allocations.Select(a => a.ServicePaymentId).Distinct().ToList();
+        var servicePayments = await _servicePaymentRepo.GetByIdsWithDetailsAsync(servicePaymentIds);
+        var servicePaymentItems = servicePayments
+            .OrderByDescending(p => p.PaymentDate)
+            .Select(p => MapServicePaymentItem(p, inRangeSessionIdSet))
+            .ToList();
+
+        var isProForma = allocations.Count == 0;
+
+        // 7. Compute summary
         var totalCompleted = patientBlocks.Sum(p => p.CompletedCount);
         var totalNonBillable = patientBlocks.Sum(p => p.NonBillableCount);
         var totalFee = patientBlocks.Sum(p => p.SubtotalFee);
         var totalDiscount = patientBlocks.Sum(p => p.SubtotalDiscount);
         var totalProvider = patientBlocks.Sum(p => p.SubtotalProviderAmount);
-        var totalServicePaymentsApplied = 0m; // pro-forma: ServicePayments not tracked yet
         var estimatedAmountDue = totalProvider - totalServicePaymentsApplied;
 
         var summary = new TherapistStatementSummary
@@ -140,9 +162,9 @@ public class TherapistStatementService : ITherapistStatementService
             StatementDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
             PeriodStart = periodStart.ToString("yyyy-MM-dd"),
             PeriodEnd = periodEnd.ToString("yyyy-MM-dd"),
-            IsProForma = true,
+            IsProForma = isProForma,
             Patients = patientBlocks,
-            ServicePayments = new List<ServicePaymentItem>(),
+            ServicePayments = servicePaymentItems,
             Summary = summary,
         };
     }
@@ -190,5 +212,41 @@ public class TherapistStatementService : ITherapistStatementService
         if (patient?.User == null) return string.Empty;
         var middle = string.IsNullOrWhiteSpace(patient.User.MiddleName) ? string.Empty : $" {patient.User.MiddleName}";
         return $"{patient.User.LastName}, {patient.User.FirstName}{middle}".Trim();
+    }
+
+    /// <summary>
+    /// Maps a ServicePayment to a statement line. ALL of the payment's allocations are listed
+    /// (per WP-14 open-Q 9) even when some fall outside this statement's period; a note is added
+    /// when that happens so the reader understands only a subset of allocations is in-range.
+    /// </summary>
+    private static ServicePaymentItem MapServicePaymentItem(ServicePayment p, HashSet<int> inRangeSessionIds)
+    {
+        var allocations = p.SessionServicePayments?
+            .Select(ssp => new ServicePaymentAllocation
+            {
+                SessionId = ssp.TherapySessionId,
+                AmountApplied = ssp.AmountApplied,
+            })
+            .ToList() ?? new List<ServicePaymentAllocation>();
+
+        var coversOutOfRange = allocations.Any(a => !inRangeSessionIds.Contains(a.SessionId));
+        var notes = p.Notes ?? string.Empty;
+        if (coversOutOfRange)
+        {
+            notes = string.IsNullOrWhiteSpace(notes)
+                ? "Covers sessions outside this period."
+                : $"{notes} (Covers sessions outside this period.)";
+        }
+
+        return new ServicePaymentItem
+        {
+            ServicePaymentId = p.Id,
+            PaymentDate = p.PaymentDate.ToString("yyyy-MM-dd"),
+            Amount = p.Amount,
+            PaymentTypeName = p.PaymentType?.Name ?? string.Empty,
+            ReferenceNumber = p.ReferenceNumber ?? string.Empty,
+            Notes = notes,
+            Allocations = allocations,
+        };
     }
 }

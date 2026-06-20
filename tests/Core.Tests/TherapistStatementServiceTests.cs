@@ -21,7 +21,10 @@ public class TherapistStatementServiceTests
     private static (
         TherapistStatementService Service,
         Mock<ITherapySessionRepository> SessionRepoMock
-    ) BuildService(IReadOnlyList<TherapySession> sessions)
+    ) BuildService(
+        IReadOnlyList<TherapySession> sessions,
+        IReadOnlyList<SessionServicePayment>? allocations = null,
+        IReadOnlyList<ServicePayment>? servicePayments = null)
     {
         var fakeLogger = Mock.Of<ILogger<TherapistStatementService>>();
 
@@ -47,11 +50,33 @@ public class TherapistStatementServiceTests
                     .ToList();
             });
 
+        var allAllocations = allocations ?? new List<SessionServicePayment>();
+        var sspRepo = new Mock<ISessionServicePaymentRepository>();
+        sspRepo
+            .Setup(r => r.GetBySessionIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync((IEnumerable<int> sessionIds) =>
+            {
+                var set = sessionIds.ToHashSet();
+                return allAllocations.Where(a => set.Contains(a.TherapySessionId)).ToList();
+            });
+
+        var allPayments = servicePayments ?? new List<ServicePayment>();
+        var spRepo = new Mock<IServicePaymentRepository>();
+        spRepo
+            .Setup(r => r.GetByIdsWithDetailsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync((IEnumerable<int> ids) =>
+            {
+                var set = ids.ToHashSet();
+                return allPayments.Where(p => set.Contains(p.Id)).ToList();
+            });
+
         var service = new TherapistStatementService(
             fakeLogger,
             profileService.Object,
             sessionRepo.Object,
-            statusRepo.Object);
+            statusRepo.Object,
+            sspRepo.Object,
+            spRepo.Object);
 
         return (service, sessionRepo);
     }
@@ -99,13 +124,8 @@ public class TherapistStatementServiceTests
     [Fact]
     public async Task GetStatementAsync_ReturnsNull_WhenTherapistNotFound()
     {
-        // Arrange
-        var fakeLogger = Mock.Of<ILogger<TherapistStatementService>>();
-        var profileService = new Mock<ITherapistProfileService>();
-        profileService.Setup(s => s.GetByIdAsync(It.IsAny<int>())).ReturnsAsync((TherapistProfile?)null);
-        var statusRepo = new Mock<IRepository<AppointmentStatus>>();
-        var sessionRepo = new Mock<ITherapySessionRepository>();
-        var service = new TherapistStatementService(fakeLogger, profileService.Object, sessionRepo.Object, statusRepo.Object);
+        // Arrange — BuildService sets up the profile for TherapistId only; any other id is unknown
+        var (service, _) = BuildService(new List<TherapySession>());
 
         // Act
         var result = await service.GetStatementAsync(999, null, null);
@@ -188,10 +208,69 @@ public class TherapistStatementServiceTests
         block.SubtotalFee.Should().Be(500m);       // 100+100+100+200
         block.SubtotalDiscount.Should().Be(30m);   // 10+0+0+20
 
-        // Pro-forma flag + empty ServicePayments
+        // No service payments recorded → still pro-forma, empty ServicePayments
         result.IsProForma.Should().BeTrue();
         result.ServicePayments.Should().BeEmpty();
         result.Summary.TotalServicePaymentsApplied.Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetStatementAsync_WithServicePayments_IsAuthoritativeAndSubtractsApplied()
+    {
+        // Arrange — two completed sessions (provider 60 + 120 = 180)
+        var patient = MakePatient(1, "Alice", "Anderson");
+        var sessions = new List<TherapySession>
+        {
+            MakeSession(101, patient, new DateOnly(2026, 4, 1), new TimeOnly(9, 0), CompletedStatus, providerAmount: 60m),
+            MakeSession(104, patient, new DateOnly(2026, 4, 4), new TimeOnly(12, 0), CompletedStatus, providerAmount: 120m),
+        };
+
+        // ServicePayment #500 covers in-range session 101 ($60) AND an out-of-range session 888 ($40).
+        var payment = new ServicePayment
+        {
+            Id = 500,
+            TherapistId = TherapistId,
+            PaymentDate = new DateTime(2026, 4, 20),
+            Amount = 100m,
+            PaymentType = new PaymentType { Id = 1, Name = "Bank Transfer", Abbreviation = "ACH" },
+            ReferenceNumber = "TX-77",
+            Notes = "April quincena",
+            SessionServicePayments = new List<SessionServicePayment>
+            {
+                new() { Id = 9001, ServicePaymentId = 500, TherapySessionId = 101, AmountApplied = 60m },
+                new() { Id = 9002, ServicePaymentId = 500, TherapySessionId = 888, AmountApplied = 40m },
+            },
+        };
+        // Allocation rows visible to the statement (the repo filters to in-range sessions).
+        var allocations = new List<SessionServicePayment>
+        {
+            new() { Id = 9001, ServicePaymentId = 500, TherapySessionId = 101, AmountApplied = 60m },
+            new() { Id = 9002, ServicePaymentId = 500, TherapySessionId = 888, AmountApplied = 40m },
+        };
+
+        var (service, _) = BuildService(sessions, allocations, new List<ServicePayment> { payment });
+
+        // Act
+        var result = await service.GetStatementAsync(
+            TherapistId,
+            new DateOnly(2026, 4, 1),
+            new DateOnly(2026, 4, 30));
+
+        // Assert — authoritative, with applied subtracted (only the in-range $60 counts)
+        result.Should().NotBeNull();
+        result!.IsProForma.Should().BeFalse();
+        result.Summary.TotalProviderAmount.Should().Be(180m);
+        result.Summary.TotalServicePaymentsApplied.Should().Be(60m);
+        result.Summary.EstimatedAmountDue.Should().Be(120m);
+
+        // ServicePayments[] populated; cross-period payment lists ALL allocations + a note
+        result.ServicePayments.Should().HaveCount(1);
+        var item = result.ServicePayments[0];
+        item.ServicePaymentId.Should().Be(500);
+        item.Amount.Should().Be(100m);
+        item.PaymentTypeName.Should().Be("Bank Transfer");
+        item.Allocations.Should().HaveCount(2);
+        item.Notes.Should().Contain("outside this period");
     }
 
     [Fact]
@@ -265,7 +344,7 @@ public class TherapistStatementServiceTests
     }
 
     [Fact]
-    public async Task GetStatementAsync_AlwaysSetsIsProFormaTrue_AndReturnsEmptyServicePayments()
+    public async Task GetStatementAsync_NoServicePayments_StaysProForma_AndReturnsEmptyServicePayments()
     {
         // Arrange — empty session set
         var (service, _) = BuildService(new List<TherapySession>());

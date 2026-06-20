@@ -30,6 +30,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TherapySession> TherapySessions { get; set; }
     public DbSet<Payment> Payments { get; set; }
     public DbSet<SessionPayment> SessionPayments { get; set; }
+    public DbSet<ServicePayment> ServicePayments { get; set; }
+    public DbSet<SessionServicePayment> SessionServicePayments { get; set; }
     public DbSet<PaymentType> PaymentTypes { get; set; }
     public DbSet<AppointmentStatus> AppointmentStatuses { get; set; }
     public DbSet<AppointmentConfirmation> AppointmentConfirmations { get; set; }
