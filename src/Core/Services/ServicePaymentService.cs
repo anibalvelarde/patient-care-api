@@ -15,6 +15,7 @@ public class ServicePaymentService : IServicePaymentService
     private readonly ISessionServicePaymentRepository _sessionServicePaymentRepo;
     private readonly ITherapySessionRepository _sessionRepo;
     private readonly IRepository<AppointmentStatus> _appointmentStatusRepo;
+    private readonly ITherapistProfileService _therapistProfileService;
     private readonly ILogger<ServicePaymentService> _logger;
 
     public ServicePaymentService(
@@ -22,13 +23,15 @@ public class ServicePaymentService : IServicePaymentService
         IServicePaymentRepository servicePaymentRepo,
         ISessionServicePaymentRepository sessionServicePaymentRepo,
         ITherapySessionRepository sessionRepo,
-        IRepository<AppointmentStatus> appointmentStatusRepo)
+        IRepository<AppointmentStatus> appointmentStatusRepo,
+        ITherapistProfileService therapistProfileService)
     {
         _logger = logger;
         _servicePaymentRepo = servicePaymentRepo;
         _sessionServicePaymentRepo = sessionServicePaymentRepo;
         _sessionRepo = sessionRepo;
         _appointmentStatusRepo = appointmentStatusRepo;
+        _therapistProfileService = therapistProfileService;
     }
 
     public async Task<ServicePaymentRecord> CreateAsync(ServicePaymentRequest request)
@@ -139,6 +142,70 @@ public class ServicePaymentService : IServicePaymentService
         }
 
         return results;
+    }
+
+    public async Task<IEnumerable<PayrollPreviewTherapist>> GetPayrollPreviewAsync(DateOnly? from, DateOnly? to)
+    {
+        var (periodStart, periodEnd) = ResolveRange(from, to);
+        _logger.LogInformation("Building payroll preview for {From}..{To}", periodStart, periodEnd);
+
+        var therapists = await _therapistProfileService.GetAllAsync();
+
+        var rows = new List<PayrollPreviewTherapist>();
+        foreach (var t in therapists.Where(t => t.IsActive))
+        {
+            var unpaid = (await GetUnpaidProviderSessionsAsync(t.TherapistId, periodStart, periodEnd)).ToList();
+            if (unpaid.Count == 0) continue;
+
+            rows.Add(new PayrollPreviewTherapist
+            {
+                TherapistId = t.TherapistId,
+                TherapistName = t.TherapistName,
+                SessionCount = unpaid.Count,
+                TotalRemaining = unpaid.Sum(s => s.RemainingProviderAmount),
+                Sessions = unpaid,
+            });
+        }
+
+        return rows.OrderBy(r => r.TherapistName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public async Task<BatchPayrollResult> RunBatchPayrollAsync(BatchPayrollRequest request)
+    {
+        if (request.TherapistIds == null || request.TherapistIds.Count == 0)
+            throw new ArgumentException("At least one therapist must be selected for the payroll run.");
+
+        var (periodStart, periodEnd) = ResolveRange(request.From, request.To);
+        _logger.LogInformation("Running batch payroll for {Count} therapist(s) {From}..{To}",
+            request.TherapistIds.Count, periodStart, periodEnd);
+
+        var created = new List<ServicePaymentRecord>();
+        foreach (var therapistId in request.TherapistIds.Distinct())
+        {
+            var unpaid = (await GetUnpaidProviderSessionsAsync(therapistId, periodStart, periodEnd)).ToList();
+            if (unpaid.Count == 0) continue; // nothing owed at run time — skip silently
+
+            var record = await CreateAsync(new ServicePaymentRequest
+            {
+                TherapistId = therapistId,
+                PaymentDate = request.PaymentDate,
+                Amount = unpaid.Sum(s => s.RemainingProviderAmount),
+                PaymentTypeId = request.PaymentTypeId,
+                ReferenceNumber = request.ReferenceNumber,
+                Notes = request.Notes,
+                SessionAllocations = unpaid
+                    .Select(s => new SessionServiceAllocationItem { SessionId = s.SessionId, AmountApplied = s.RemainingProviderAmount })
+                    .ToList(),
+            });
+            created.Add(record);
+        }
+
+        return new BatchPayrollResult
+        {
+            Payments = created,
+            TherapistCount = created.Count,
+            TotalPaid = created.Sum(r => r.Amount),
+        };
     }
 
     public QuincenaWindow GetQuincenaWindow(DateOnly date)
