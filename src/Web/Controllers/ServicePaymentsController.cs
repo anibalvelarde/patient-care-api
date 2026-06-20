@@ -52,6 +52,29 @@ public class ServicePaymentsController : ControllerBase
         return Ok(sessions);
     }
 
+    // "Run Payroll" preview: every therapist owed money in the window (count + total + sessions).
+    [HttpGet("payroll-preview")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PayrollPreviewTherapist>))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetPayrollPreview([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        var preview = await _servicePaymentService.GetPayrollPreviewAsync(from, to);
+        return Ok(preview);
+    }
+
+    // "Run Payroll" batch: one full-allocation ServicePayment per selected therapist. MGR-only,
+    // same as the single-therapist POST (issuing is ServicePayments.Record).
+    [HttpPost("batch")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsRecord)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(BatchPayrollResult))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RunBatchPayroll([FromBody] BatchPayrollRequest request)
+    {
+        var result = await _servicePaymentService.RunBatchPayrollAsync(request);
+        return Ok(result);
+    }
+
     // Pure date helper for the date-range picker default. Gated with View for consistency
     // (the whole feature is MGR/AM-only); the window is a UX hint, not a constraint.
     [HttpGet("quincena")]
