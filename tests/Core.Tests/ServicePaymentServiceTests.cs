@@ -70,16 +70,17 @@ public class ServicePaymentServiceTests
         return (service, spRepo, sspRepo, sessionRepo);
     }
 
-    private static TherapySession Session(int id, decimal providerAmount, DateOnly? date = null, int therapistId = TherapistId) => new()
+    private static TherapySession Session(int id, decimal providerAmount, DateOnly? date = null, int therapistId = TherapistId, decimal amount = 0m, int patientId = 1) => new()
     {
         Id = id,
-        PatientId = 1,
+        PatientId = patientId,
         TherapistId = therapistId,
         SessionDate = date ?? new DateOnly(2026, 4, 5),
         SessionTime = new TimeOnly(9, 0),
         AppointmentStatusId = CompletedStatus.Id,
+        Amount = amount,
         ProviderAmount = providerAmount,
-        Patient = new Patient { Id = 1, User = new User { Id = 100, FirstName = "Dan", LastName = "Green" } },
+        Patient = new Patient { Id = patientId, User = new User { Id = 100 + patientId, FirstName = "Dan", LastName = "Green" } },
     };
 
     private static TherapistProfile Therapist(int id, string name, bool active = true) =>
@@ -253,6 +254,115 @@ public class ServicePaymentServiceTests
         preview[1].TherapistName.Should().Be("Smith, Jane");
         preview[1].SessionCount.Should().Be(1);
         preview[1].TotalRemaining.Should().Be(60m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayrollSummaryAsync_AggregatesAcrossTherapists_SkippingFullyPaidAndInactive()
+    {
+        // 42 Smith: two sessions, one fully paid -> 60 remaining on the other (1 session).
+        // 43 Jones: one session, unpaid -> 100 (1 session).
+        // 44 Lee: active but no sessions -> contributes nothing. 45 Ng: has a session but inactive -> excluded.
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 60m, therapistId: 42), Session(2, 60m, therapistId: 42),
+            Session(3, 100m, therapistId: 43),
+            Session(4, 80m, therapistId: 45),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            new() { Id = 1, ServicePaymentId = 99, TherapySessionId = 1, AmountApplied = 60m },
+        };
+        var therapists = new List<TherapistProfile>
+        {
+            Therapist(42, "Smith, Jane"), Therapist(43, "Jones, Bob"),
+            Therapist(44, "Lee, Sue"), Therapist(45, "Ng, Al", active: false),
+        };
+        var (service, _, _, _) = BuildService(sessions, existing, therapists);
+
+        // No range -> all-time outstanding.
+        var summary = await service.GetPendingPayrollSummaryAsync(null, null);
+
+        summary.TherapistCount.Should().Be(2);
+        summary.SessionCount.Should().Be(2);
+        summary.TotalPending.Should().Be(160m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayrollSummaryAsync_ReturnsZeroes_WhenNothingOwed()
+    {
+        var (service, _, _, _) = BuildService(
+            therapists: new List<TherapistProfile> { Therapist(42, "Smith, Jane") });
+
+        var summary = await service.GetPendingPayrollSummaryAsync(null, null);
+
+        summary.TherapistCount.Should().Be(0);
+        summary.SessionCount.Should().Be(0);
+        summary.TotalPending.Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayrollSummaryAsync_Throws_WhenToBeforeFrom()
+    {
+        var (service, _, _, _) = BuildService();
+
+        var act = async () => await service.GetPendingPayrollSummaryAsync(new DateOnly(2026, 4, 30), new DateOnly(2026, 4, 1));
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task GetPendingPayReportAsync_BuildsPerTherapistRows_WithDatesPatientsGrossAndPct()
+    {
+        // Therapist 42: s1 fully paid -> excluded; s2 partly paid (40 owed, patient 2, gross 120, 04-10);
+        // s3 unpaid (80 owed, patient 1, gross 200, 04-02). Owing set = {s2, s3}.
+        // Therapist 45 inactive -> skipped entirely.
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 60m, date: new DateOnly(2026, 4, 5),  therapistId: 42, amount: 100m, patientId: 1),
+            Session(2, 60m, date: new DateOnly(2026, 4, 10), therapistId: 42, amount: 120m, patientId: 2),
+            Session(3, 80m, date: new DateOnly(2026, 4, 2),  therapistId: 42, amount: 200m, patientId: 1),
+            Session(4, 80m, date: new DateOnly(2026, 4, 4),  therapistId: 45, amount: 150m, patientId: 3),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            new() { Id = 1, ServicePaymentId = 99, TherapySessionId = 1, AmountApplied = 60m }, // s1 fully paid
+            new() { Id = 2, ServicePaymentId = 99, TherapySessionId = 2, AmountApplied = 20m }, // s2 -> 40 remains
+        };
+        var therapists = new List<TherapistProfile>
+        {
+            Therapist(42, "Smith, Jane"), Therapist(45, "Ng, Al", active: false),
+        };
+        var (service, _, _, _) = BuildService(sessions, existing, therapists);
+
+        var report = await service.GetPendingPayReportAsync(null, null);
+
+        report.Rows.Should().HaveCount(1);
+        var row = report.Rows[0];
+        row.TherapistName.Should().Be("Smith, Jane");
+        row.SessionCount.Should().Be(2);
+        row.FirstSessionDate.Should().Be("2026-04-02");
+        row.LastSessionDate.Should().Be("2026-04-10");
+        row.DistinctPatientCount.Should().Be(2);
+        row.GrossBilled.Should().Be(320m);              // 120 + 200
+        row.AmountOwed.Should().Be(120m);               // 40 + 80
+        row.OwedPctOfGross.Should().Be(37.5m);          // 120 / 320 * 100
+
+        // Grand totals
+        report.TherapistCount.Should().Be(1);
+        report.SessionCount.Should().Be(2);
+        report.TotalGrossBilled.Should().Be(320m);
+        report.TotalOwed.Should().Be(120m);
+        report.OwedPctOfGross.Should().Be(37.5m);
+    }
+
+    [Fact]
+    public async Task GetPendingPayReportAsync_Throws_WhenToBeforeFrom()
+    {
+        var (service, _, _, _) = BuildService();
+
+        var act = async () => await service.GetPendingPayReportAsync(new DateOnly(2026, 4, 30), new DateOnly(2026, 4, 1));
+
+        await act.Should().ThrowAsync<ArgumentException>();
     }
 
     [Fact]

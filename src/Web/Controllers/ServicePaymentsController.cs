@@ -63,6 +63,30 @@ public class ServicePaymentsController : ControllerBase
         return Ok(preview);
     }
 
+    // "Pending therapist payments" dashboard tile: clinic-wide gross still owed to therapists.
+    // Defaults to all-time (outstanding liability); optional from/to narrow it. Same View gate.
+    [HttpGet("pending-summary")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PendingPayrollSummary))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetPendingSummary([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        var summary = await _servicePaymentService.GetPendingPayrollSummaryAsync(from, to);
+        return Ok(summary);
+    }
+
+    // Read-only "Pending Pay" report: per-therapist decomposition behind the dashboard tile
+    // (date span, distinct patients, gross billed, owed, % owed). Same View gate; all-time default.
+    [HttpGet("pending-pay-report")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PendingPayReport))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetPendingPayReport([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
+    {
+        var report = await _servicePaymentService.GetPendingPayReportAsync(from, to);
+        return Ok(report);
+    }
+
     // "Run Payroll" batch: one full-allocation ServicePayment per selected therapist. MGR-only,
     // same as the single-therapist POST (issuing is ServicePayments.Record).
     [HttpPost("batch")]

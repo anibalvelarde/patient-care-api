@@ -12,6 +12,21 @@ public interface IServicePaymentService
     /// <summary>Per-therapist rollup of who is owed what in the window (drives the "Run Payroll" preview).</summary>
     Task<IEnumerable<PayrollPreviewTherapist>> GetPayrollPreviewAsync(DateOnly? from, DateOnly? to);
 
+    /// <summary>
+    /// Clinic-wide aggregate of what is still owed to therapists (drives the "Pending therapist
+    /// payments" dashboard tile). Unlike the per-therapist views, this defaults to <b>all-time</b>
+    /// when no range is given — it is an outstanding-liability figure, so older unpaid sessions must
+    /// not be silently dropped.
+    /// </summary>
+    Task<PendingPayrollSummary> GetPendingPayrollSummaryAsync(DateOnly? from, DateOnly? to);
+
+    /// <summary>
+    /// Read-only per-therapist "Pending Pay" report — the decomposition behind the dashboard tile.
+    /// Same population and all-time default as <see cref="GetPendingPayrollSummaryAsync"/>; adds
+    /// date span, distinct-patient count, and gross-billed (pre-discount) per therapist.
+    /// </summary>
+    Task<PendingPayReport> GetPendingPayReportAsync(DateOnly? from, DateOnly? to);
+
     /// <summary>Issue one full-allocation ServicePayment per requested therapist that still has anything owed.</summary>
     Task<BatchPayrollResult> RunBatchPayrollAsync(BatchPayrollRequest request);
 
