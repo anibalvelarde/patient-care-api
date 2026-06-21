@@ -198,6 +198,73 @@ public class ServicePaymentService : IServicePaymentService
         return summary;
     }
 
+    public async Task<PendingPayReport> GetPendingPayReportAsync(DateOnly? from, DateOnly? to)
+    {
+        // Mirrors GetPendingPayrollSummaryAsync (all-time default; sentinel above MySQL's DATE floor),
+        // but builds a per-therapist breakdown straight off the session rows so we can surface gross
+        // billed, the date span, and the distinct-patient count alongside the owed amount.
+        var periodStart = from ?? new DateOnly(1900, 1, 1);
+        var periodEnd = to ?? new DateOnly(9999, 12, 31);
+        if (periodEnd < periodStart)
+            throw new ArgumentException("Query parameter 'to' must be on or after 'from'.");
+
+        _logger.LogInformation("Building pending-pay report for {From}..{To}", periodStart, periodEnd);
+
+        var report = new PendingPayReport();
+        var completedId = await ResolveCompletedStatusIdAsync();
+        if (completedId == null) return report;
+
+        var therapists = await _therapistProfileService.GetAllAsync();
+        foreach (var t in therapists.Where(t => t.IsActive))
+        {
+            var sessions = await _sessionRepo.GetByTherapistIdAndDateRangeAsync(
+                t.TherapistId, periodStart, periodEnd, new[] { completedId.Value });
+            if (sessions.Count == 0) continue;
+
+            var allocations = await _sessionServicePaymentRepo.GetBySessionIdsAsync(sessions.Select(s => s.Id).ToList());
+            var appliedBySession = allocations
+                .GroupBy(a => a.TherapySessionId)
+                .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountApplied));
+
+            // Keep only the sessions that still owe the therapist — the same population as the tile.
+            var owing = sessions
+                .Select(s => new
+                {
+                    Session = s,
+                    Remaining = s.ProviderAmount - (appliedBySession.TryGetValue(s.Id, out var sum) ? sum : 0m),
+                })
+                .Where(x => x.Remaining > 0)
+                .ToList();
+            if (owing.Count == 0) continue;
+
+            var grossBilled = owing.Sum(x => x.Session.Amount);
+            var amountOwed = owing.Sum(x => x.Remaining);
+
+            report.Rows.Add(new PendingPayReportRow
+            {
+                TherapistId = t.TherapistId,
+                TherapistName = t.TherapistName,
+                SessionCount = owing.Count,
+                FirstSessionDate = owing.Min(x => x.Session.SessionDate).ToString("yyyy-MM-dd"),
+                LastSessionDate = owing.Max(x => x.Session.SessionDate).ToString("yyyy-MM-dd"),
+                DistinctPatientCount = owing.Select(x => x.Session.PatientId).Distinct().Count(),
+                GrossBilled = grossBilled,
+                AmountOwed = amountOwed,
+                OwedPctOfGross = grossBilled > 0 ? Math.Round(amountOwed / grossBilled * 100m, 1) : 0m,
+            });
+        }
+
+        report.Rows = report.Rows.OrderBy(r => r.TherapistName, StringComparer.OrdinalIgnoreCase).ToList();
+        report.TherapistCount = report.Rows.Count;
+        report.SessionCount = report.Rows.Sum(r => r.SessionCount);
+        report.TotalGrossBilled = report.Rows.Sum(r => r.GrossBilled);
+        report.TotalOwed = report.Rows.Sum(r => r.AmountOwed);
+        report.OwedPctOfGross = report.TotalGrossBilled > 0
+            ? Math.Round(report.TotalOwed / report.TotalGrossBilled * 100m, 1)
+            : 0m;
+        return report;
+    }
+
     public async Task<BatchPayrollResult> RunBatchPayrollAsync(BatchPayrollRequest request)
     {
         if (request.TherapistIds == null || request.TherapistIds.Count == 0)
