@@ -464,6 +464,27 @@ public class ServicePaymentServiceTests
     }
 
     [Fact]
+    public async Task ReverseAsync_StampsTheProvidedPaymentDate_NotUtcNow()
+    {
+        // Regression (WP-14.5): the reversal must record the client-supplied local business date so it
+        // lines up with the other date-only payments — not DateTime.UtcNow, which can roll to the next
+        // calendar day for users west of UTC.
+        var (service, spRepo, _, _) = BuildService();
+        var original = OriginalPayment();
+
+        ServicePayment? captured = null;
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(500)).ReturnsAsync(original);
+        spRepo.Setup(r => r.AddAsync(It.IsAny<ServicePayment>()))
+            .ReturnsAsync((ServicePayment sp) => { sp.Id = 999; captured = sp; return sp; });
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(999)).ReturnsAsync(() => captured);
+
+        var localToday = new DateTime(2026, 6, 29);
+        await service.ReverseAsync(500, new ReverseServicePaymentRequest { Reason = "wrong therapist", PaymentDate = localToday });
+
+        captured!.PaymentDate.Should().Be(localToday);
+    }
+
+    [Fact]
     public async Task ReverseAsync_Throws_WhenOriginalNotFound()
     {
         var (service, spRepo, _, _) = BuildService();

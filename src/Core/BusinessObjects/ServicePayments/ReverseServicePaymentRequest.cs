@@ -9,4 +9,12 @@ namespace Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 public class ReverseServicePaymentRequest
 {
     public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The business date to stamp on the reversal entry, as the user's local calendar day. The UI
+    /// sends "today" in the browser's timezone so the reversal lines up with the other (date-only)
+    /// payments in the history. When omitted, the server falls back to today's UTC date. The precise
+    /// reversal instant is always preserved separately in the audit <c>CreatedTimestamp</c>.
+    /// </summary>
+    public DateTime? PaymentDate { get; set; }
 }

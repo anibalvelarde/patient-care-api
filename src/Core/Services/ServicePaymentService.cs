@@ -106,7 +106,10 @@ public class ServicePaymentService : IServicePaymentService
         {
             TherapistId = original.TherapistId,
             Amount = -original.Amount,
-            PaymentDate = DateTime.UtcNow,
+            // Use the client's local business date (date-only, like every other payment) so the reversal
+            // lines up in the history; fall back to today's UTC date only when the client omits it. The
+            // exact reversal instant is preserved separately in the audit CreatedTimestamp.
+            PaymentDate = request.PaymentDate ?? DateTime.UtcNow.Date,
             PaymentTypeId = original.PaymentTypeId,
             ReferenceNumber = original.ReferenceNumber,
             Notes = $"Reversal of payment #{original.Id}: {request.Reason.Trim()}",
