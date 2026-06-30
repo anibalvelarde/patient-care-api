@@ -5,6 +5,17 @@ namespace Neurocorp.Api.Core.Interfaces.Services;
 public interface IServicePaymentService
 {
     Task<ServicePaymentRecord> CreateAsync(ServicePaymentRequest request);
+
+    /// <summary>
+    /// Reverse a service payment (WP-14.5, append-only). Writes one offsetting negative
+    /// <see cref="Entities.ServicePayment"/> (negative <c>Amount</c> + negative allocations for every
+    /// session the original covered) linked via <c>ReversesServicePaymentID</c>; the original is left
+    /// untouched. The negative allocations re-open those sessions as unpaid. Throws
+    /// <see cref="Exceptions.NotFoundException"/> if the original is missing, or
+    /// <see cref="ArgumentException"/> if it is itself a reversal or has already been reversed.
+    /// </summary>
+    Task<ServicePaymentRecord> ReverseAsync(int servicePaymentId, ReverseServicePaymentRequest request);
+
     Task<IEnumerable<ServicePaymentRecord>> GetByTherapistAsync(int therapistId, DateOnly? from, DateOnly? to);
     Task<ServicePaymentRecord?> GetByIdAsync(int servicePaymentId);
     Task<IEnumerable<UnpaidProviderSessionSummary>> GetUnpaidProviderSessionsAsync(int therapistId, DateOnly? from, DateOnly? to);

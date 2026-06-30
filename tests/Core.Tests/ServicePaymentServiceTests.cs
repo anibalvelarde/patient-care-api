@@ -4,6 +4,7 @@ using Moq;
 using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Exceptions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Services;
@@ -65,6 +66,11 @@ public class ServicePaymentServiceTests
             .ReturnsAsync((ServicePayment sp) => { sp.Id = nextId++; createdById[sp.Id] = sp; return sp; });
         spRepo.Setup(r => r.GetByIdWithDetailsAsync(It.IsAny<int>()))
             .ReturnsAsync((int id) => createdById.TryGetValue(id, out var sp) ? sp : null);
+
+        // Reversal helpers default to "nothing reversed"; individual tests override.
+        spRepo.Setup(r => r.IsReversedAsync(It.IsAny<int>())).ReturnsAsync(false);
+        spRepo.Setup(r => r.GetReversedOriginalIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(Array.Empty<int>());
 
         var service = new ServicePaymentService(logger, spRepo.Object, sspRepo.Object, sessionRepo.Object, statusRepo.Object, therapistSvc.Object);
         return (service, spRepo, sspRepo, sessionRepo);
@@ -402,5 +408,128 @@ public class ServicePaymentServiceTests
         });
 
         await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    // ---- WP-14.5: reversal -------------------------------------------------
+
+    private static ServicePayment OriginalPayment(int id = 500, decimal amount = 120m) => new()
+    {
+        Id = id,
+        TherapistId = TherapistId,
+        Amount = amount,
+        PaymentDate = new DateTime(2026, 4, 20),
+        PaymentTypeId = 1,
+        ReferenceNumber = "CHK-1",
+        ReversesServicePaymentId = null,
+        PaymentType = new PaymentType { Id = 1, Name = "Check", Abbreviation = "CHK" },
+        Therapist = new Therapist { Id = TherapistId, User = new User { Id = 9, FirstName = "Jane", LastName = "Smith" } },
+        SessionServicePayments = new List<SessionServicePayment>
+        {
+            new() { Id = 1, ServicePaymentId = id, TherapySessionId = 1, AmountApplied = 60m, TherapySession = Session(1, 60m) },
+            new() { Id = 2, ServicePaymentId = id, TherapySessionId = 2, AmountApplied = 60m, TherapySession = Session(2, 60m) },
+        },
+    };
+
+    [Fact]
+    public async Task ReverseAsync_WritesOffsettingEntry_WithNegativeAmountAndAllocations()
+    {
+        var (service, spRepo, sspRepo, _) = BuildService();
+        var original = OriginalPayment();
+
+        ServicePayment? captured = null;
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(500)).ReturnsAsync(original);
+        spRepo.Setup(r => r.AddAsync(It.IsAny<ServicePayment>()))
+            .ReturnsAsync((ServicePayment sp) => { sp.Id = 999; captured = sp; return sp; });
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(999)).ReturnsAsync(() => captured);
+
+        var capturedAllocations = new List<SessionServicePayment>();
+        sspRepo.Setup(r => r.AddAsync(It.IsAny<SessionServicePayment>()))
+            .ReturnsAsync((SessionServicePayment ssp) => { capturedAllocations.Add(ssp); return ssp; });
+
+        var result = await service.ReverseAsync(500, new ReverseServicePaymentRequest { Reason = "duplicate payment" });
+
+        captured.Should().NotBeNull();
+        captured!.Amount.Should().Be(-120m);
+        captured.ReversesServicePaymentId.Should().Be(500);
+        captured.TherapistId.Should().Be(TherapistId);
+        captured.PaymentTypeId.Should().Be(1);
+        captured.Notes.Should().Be("Reversal of payment #500: duplicate payment");
+
+        capturedAllocations.Should().HaveCount(2);
+        capturedAllocations.Should().OnlyContain(a => a.ServicePaymentId == 999);
+        capturedAllocations.Select(a => a.AmountApplied).Should().BeEquivalentTo(new[] { -60m, -60m });
+
+        result.Amount.Should().Be(-120m);
+        result.ReversesServicePaymentId.Should().Be(500);
+    }
+
+    [Fact]
+    public async Task ReverseAsync_Throws_WhenOriginalNotFound()
+    {
+        var (service, spRepo, _, _) = BuildService();
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(404)).ReturnsAsync((ServicePayment?)null);
+
+        var act = async () => await service.ReverseAsync(404, new ReverseServicePaymentRequest { Reason = "x" });
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task ReverseAsync_Throws_WhenReasonMissing()
+    {
+        var (service, _, _, _) = BuildService();
+
+        var act = async () => await service.ReverseAsync(500, new ReverseServicePaymentRequest { Reason = "  " });
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ReverseAsync_Throws_WhenAlreadyReversed()
+    {
+        var (service, spRepo, _, _) = BuildService();
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(500)).ReturnsAsync(OriginalPayment());
+        spRepo.Setup(r => r.IsReversedAsync(500)).ReturnsAsync(true);
+
+        var act = async () => await service.ReverseAsync(500, new ReverseServicePaymentRequest { Reason = "x" });
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task ReverseAsync_Throws_WhenReversingAReversal()
+    {
+        var (service, spRepo, _, _) = BuildService();
+        var reversal = OriginalPayment(id: 600, amount: -120m);
+        reversal.ReversesServicePaymentId = 500; // this row is itself a reversal
+        spRepo.Setup(r => r.GetByIdWithDetailsAsync(600)).ReturnsAsync(reversal);
+
+        var act = async () => await service.ReverseAsync(600, new ReverseServicePaymentRequest { Reason = "x" });
+
+        await act.Should().ThrowAsync<ArgumentException>();
+    }
+
+    [Fact]
+    public async Task GetByTherapistAsync_FlagsReversedOriginalsAndReversalRows()
+    {
+        var (service, spRepo, _, _) = BuildService();
+        var original = OriginalPayment(id: 500);
+        var reversal = OriginalPayment(id: 600, amount: -120m);
+        reversal.ReversesServicePaymentId = 500;
+
+        spRepo.Setup(r => r.GetByTherapistIdAndDateRangeAsync(TherapistId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync(new List<ServicePayment> { original, reversal });
+        spRepo.Setup(r => r.GetReversedOriginalIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new[] { 500 });
+
+        var records = (await service.GetByTherapistAsync(TherapistId, null, null)).ToList();
+
+        var originalRecord = records.Single(r => r.ServicePaymentId == 500);
+        originalRecord.IsReversed.Should().BeTrue();
+        originalRecord.ReversesServicePaymentId.Should().BeNull();
+
+        var reversalRecord = records.Single(r => r.ServicePaymentId == 600);
+        reversalRecord.IsReversed.Should().BeFalse();
+        reversalRecord.ReversesServicePaymentId.Should().Be(500);
     }
 }

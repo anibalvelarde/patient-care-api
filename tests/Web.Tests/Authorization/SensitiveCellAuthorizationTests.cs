@@ -73,6 +73,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/patients", "CARETAKER")]
     // TreatmentPlans.Edit [AM,MGR] (D-6) — editing an existing plan's content is denied to FD.
     [InlineData("PUT", "/api/treatment-plans/1", "FD")]
+    // ServicePayments.Adjust [MGR] (WP-14.5) — reversing a disbursement is MGR-only; AM (view-only) and FD denied.
+    [InlineData("POST", "/api/service-payments/1/reverse", "AM")]
+    [InlineData("POST", "/api/service-payments/1/reverse", "FD")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -118,6 +121,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("POST", "/api/treatment-plans/1/schedule", "FD")]
     [InlineData("PUT", "/api/treatment-plans/1/activate", "FD")]
     [InlineData("PUT", "/api/treatment-plans/1/cancel", "MGR")]
+    // ServicePayments.Adjust [MGR] (WP-14.5) — MGR may reverse; SYSADMIN via wildcard.
+    [InlineData("POST", "/api/service-payments/1/reverse", "MGR")]
+    [InlineData("POST", "/api/service-payments/1/reverse", "SYSADMIN")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
