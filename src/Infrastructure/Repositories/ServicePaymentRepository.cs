@@ -18,7 +18,10 @@ public class ServicePaymentRepository(ApplicationDbContext dbContext) :
     {
         return await WithDetails()
             .Where(sp => sp.TherapistId == therapistId && sp.PaymentDate >= from && sp.PaymentDate <= to)
+            // PaymentDate is a date-only business date, so ties (e.g. a reversal + its re-issuance on the
+            // same day) are broken by issuance order (auto-increment Id) — newest action first.
             .OrderByDescending(sp => sp.PaymentDate)
+            .ThenByDescending(sp => sp.Id)
             .ToListAsync();
     }
 
@@ -36,6 +39,7 @@ public class ServicePaymentRepository(ApplicationDbContext dbContext) :
         return await WithDetails()
             .Where(sp => ids.Contains(sp.Id))
             .OrderByDescending(sp => sp.PaymentDate)
+            .ThenByDescending(sp => sp.Id)
             .ToListAsync();
     }
 
