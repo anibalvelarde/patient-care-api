@@ -179,6 +179,43 @@ public class PatientProfileServiceTests
         mockPatientRepo.Verify(r => r.UpdateAsync(It.IsAny<Patient>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("001-1234567-8", "001-1234567-8")] // provided value flows to the new entity
+    [InlineData("", null)]                          // blank normalized to null (avoids unique-constraint clash)
+    [InlineData("   ", null)]                        // whitespace normalized to null
+    public async Task CreateAsync_MapsCedula_NormalizingBlankToNull(string requestCedula, string? expectedCedula)
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
+        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
+        var mockPatientRepo = new Mock<IPatientRepository>();
+        var mockUserRepo = new Mock<IUserRepository>();
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+
+        var savedUser = new User { Id = 10, FirstName = "Jane", LastName = "Doe", MiddleName = "", Email = "j@d.com", PhoneNumber = "555", ActiveStatus = true };
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync(savedUser);
+
+        // Capture the Patient the service builds so we can assert on the mapped Cedula.
+        Patient? captured = null;
+        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .Callback<Patient>(p => captured = p)
+            .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, fakePatientCaretakerRepo, FakeTherapySessionRepo());
+        var request = new PatientProfileRequest { FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555", Gender = "F", DateOfBirth = DateTime.Today, MedicalRecordNumber = "MRN-002", Cedula = requestCedula };
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(expectedCedula, captured!.Cedula);
+        Assert.Equal(expectedCedula, result.Cedula);
+    }
+
     [Fact]
     public async Task UpdateAsync_ActivateWithTempMrn_ThrowsInvalidOperation()
     {

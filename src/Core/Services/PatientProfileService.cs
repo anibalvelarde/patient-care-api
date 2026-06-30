@@ -87,6 +87,7 @@ public class PatientProfileService : IPatientProfileService
             UserId = newUser.Id,
             PatientName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
             MedicalRecordNumber = newPatient.MedicalRecordNumber,
+            Cedula = newPatient.Cedula,
             DateOfBirth = newPatient.DateOfBirth ?? DateTime.MinValue,
             Email = newUser.Email,
             PhoneNumber = newUser.PhoneNumber,
@@ -158,7 +159,8 @@ public class PatientProfileService : IPatientProfileService
             User = user,
             DateOfBirth = patientRequest.DateOfBirth,
             Gender = patientRequest.Gender,
-            MedicalRecordNumber = patientRequest.MedicalRecordNumber
+            MedicalRecordNumber = patientRequest.MedicalRecordNumber,
+            Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula) ? null : patientRequest.Cedula
         };
     }
 

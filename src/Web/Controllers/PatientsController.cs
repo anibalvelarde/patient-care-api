@@ -106,6 +106,7 @@ public class PatientsController : ControllerBase
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(PatientProfile))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> CreatePatient([FromBody] PatientProfileRequest patientRequest)
     {
         var createdPatient = await _patientProfileService.CreateAsync(patientRequest);
@@ -116,6 +117,7 @@ public class PatientsController : ControllerBase
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
         if (!await _patientProfileService.VerifyRequestAsync(id))

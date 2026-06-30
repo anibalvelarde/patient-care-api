@@ -69,4 +69,49 @@ public class PatientProfileRepositoryTests
             Assert.Equal(requestedStatus, user.ActiveStatus);
         }
     }
+
+    [Fact]
+    public async Task UpdateAsync_Cedula_IsMappedPersistedAndProjected()
+    {
+        // Arrange
+        var options = CreateInMemoryOptions("PatientCedula_RoundTrip");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Patients.Add(new Patient
+            {
+                Id = 1,
+                Gender = "M",
+                MedicalRecordNumber = "MRN-001",
+                User = new User { Id = 1, FirstName = "John", LastName = "Doe", ActiveStatus = true }
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new PatientProfileRepository(context);
+            var updateRequest = new PatientProfileUpdateRequest
+            {
+                FirstName = "John",
+                LastName = "Doe",
+                ActiveStatus = true,
+                Cedula = "001-1234567-8"
+            };
+
+            // Act — the returned profile is built by ExtractPatientProfile
+            var result = await repository.UpdateAsync(1, 1, updateRequest);
+
+            // Assert — read projection surfaces the new value
+            Assert.Equal("001-1234567-8", result.Cedula);
+        }
+
+        // Assert — value was persisted to the Patient entity (MapToUpdatedPatient)
+        using (var context = new ApplicationDbContext(options))
+        {
+            var patient = await context.Patients.FindAsync(1);
+            Assert.NotNull(patient);
+            Assert.Equal("001-1234567-8", patient.Cedula);
+        }
+    }
 }

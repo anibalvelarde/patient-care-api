@@ -11,6 +11,7 @@ public class Patient : PersonBase
     public DateTime? DateOfBirth { get; set; }
     public string? Gender { get; set; }
     public string? MedicalRecordNumber { get; set; }
+    public string? Cedula { get; set; }
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public bool HasTemporaryMrn()
@@ -26,7 +27,8 @@ public class Patient : PersonBase
         .Append("Uid: ").Append(this.User!.Id).Append("  ")
         .Append("DoB: ").Append((this.DateOfBirth ?? DateTime.MinValue).ToShortDateString()).Append("  ")
         .Append("G: ").Append(this.Gender).Append("  ")
-        .Append("Mrn: ").Append(this.MedicalRecordNumber);
+        .Append("Mrn: ").Append(this.MedicalRecordNumber).Append("  ")
+        .Append("Ced: ").Append(this.Cedula);
         return sb.ToString();
     }
     
