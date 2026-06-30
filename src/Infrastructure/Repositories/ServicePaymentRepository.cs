@@ -38,4 +38,22 @@ public class ServicePaymentRepository(ApplicationDbContext dbContext) :
             .OrderByDescending(sp => sp.PaymentDate)
             .ToListAsync();
     }
+
+    public async Task<bool> IsReversedAsync(int servicePaymentId)
+    {
+        return await _dbContext.ServicePayments
+            .AnyAsync(sp => sp.ReversesServicePaymentId == servicePaymentId);
+    }
+
+    public async Task<IReadOnlyCollection<int>> GetReversedOriginalIdsAsync(IEnumerable<int> originalIds)
+    {
+        var ids = originalIds.Distinct().ToList();
+        if (ids.Count == 0) return Array.Empty<int>();
+
+        return await _dbContext.ServicePayments
+            .Where(sp => sp.ReversesServicePaymentId != null && ids.Contains(sp.ReversesServicePaymentId.Value))
+            .Select(sp => sp.ReversesServicePaymentId!.Value)
+            .Distinct()
+            .ToListAsync();
+    }
 }

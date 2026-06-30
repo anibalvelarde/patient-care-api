@@ -18,5 +18,5 @@ namespace Neurocorp.Api.Web.Authorization;
 public static class AccessControlManifest
 {
     /// <summary>First 12 hex chars of SHA-256 over the manifest's canonical grant tuples.</summary>
-    public const string SemanticHash = "b10682734edf";
+    public const string SemanticHash = "16599d6c39fc";
 }

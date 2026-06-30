@@ -110,8 +110,7 @@ public class ServicePaymentsController : ControllerBase
         return Ok(window);
     }
 
-    // WP-14: issuing a disbursement is MGR-only (owner-level). The append-only reversal/adjust
-    // capability arrives with WP-14.5 (separate claim).
+    // WP-14: issuing a disbursement is MGR-only (owner-level).
     [HttpPost]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsRecord)]
     [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(ServicePaymentRecord))]
@@ -120,5 +119,18 @@ public class ServicePaymentsController : ControllerBase
     {
         var created = await _servicePaymentService.CreateAsync(request);
         return CreatedAtAction(nameof(GetServicePayment), new { id = created.ServicePaymentId }, created);
+    }
+
+    // WP-14.5: reverse a disbursement via an append-only offsetting entry. MGR-only (ServicePayments.Adjust);
+    // the original is never mutated. Returns the new reversal record (negative amount + allocations).
+    [HttpPost("{id}/reverse")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsAdjust)]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(ServicePaymentRecord))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReverseServicePayment(int id, [FromBody] ReverseServicePaymentRequest request)
+    {
+        var reversal = await _servicePaymentService.ReverseAsync(id, request);
+        return CreatedAtAction(nameof(GetServicePayment), new { id = reversal.ServicePaymentId }, reversal);
     }
 }

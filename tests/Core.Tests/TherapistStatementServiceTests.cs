@@ -344,6 +344,62 @@ public class TherapistStatementServiceTests
     }
 
     [Fact]
+    public async Task GetStatementAsync_FullyReversedPayment_NetsAmountDueBackUp_AndStaysAuthoritative()
+    {
+        // WP-14.5: a payment ($60 on session 101) fully reversed by an offsetting -$60 entry.
+        // Net applied = 0, so EstimatedAmountDue returns to the full provider amount. The statement
+        // stays authoritative (IsProForma=false) because payments WERE recorded — even though they
+        // net to zero (allocations.Count > 0).
+        var patient = MakePatient(1, "Alice", "Anderson");
+        var sessions = new List<TherapySession>
+        {
+            MakeSession(101, patient, new DateOnly(2026, 4, 1), new TimeOnly(9, 0), CompletedStatus, providerAmount: 60m),
+        };
+
+        var original = new ServicePayment
+        {
+            Id = 500,
+            TherapistId = TherapistId,
+            PaymentDate = new DateTime(2026, 4, 20),
+            Amount = 60m,
+            PaymentType = new PaymentType { Id = 1, Name = "Check", Abbreviation = "CHK" },
+            SessionServicePayments = new List<SessionServicePayment>
+            {
+                new() { Id = 9001, ServicePaymentId = 500, TherapySessionId = 101, AmountApplied = 60m },
+            },
+        };
+        var reversal = new ServicePayment
+        {
+            Id = 600,
+            TherapistId = TherapistId,
+            PaymentDate = new DateTime(2026, 4, 25),
+            Amount = -60m,
+            ReversesServicePaymentId = 500,
+            PaymentType = new PaymentType { Id = 1, Name = "Check", Abbreviation = "CHK" },
+            SessionServicePayments = new List<SessionServicePayment>
+            {
+                new() { Id = 9002, ServicePaymentId = 600, TherapySessionId = 101, AmountApplied = -60m },
+            },
+        };
+        var allocations = new List<SessionServicePayment>
+        {
+            new() { Id = 9001, ServicePaymentId = 500, TherapySessionId = 101, AmountApplied = 60m },
+            new() { Id = 9002, ServicePaymentId = 600, TherapySessionId = 101, AmountApplied = -60m },
+        };
+
+        var (service, _) = BuildService(sessions, allocations, new List<ServicePayment> { original, reversal });
+
+        var result = await service.GetStatementAsync(TherapistId, new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30));
+
+        result.Should().NotBeNull();
+        result!.Summary.TotalProviderAmount.Should().Be(60m);
+        result.Summary.TotalServicePaymentsApplied.Should().Be(0m);   // +60 and -60 net out
+        result.Summary.EstimatedAmountDue.Should().Be(60m);           // owed again
+        result.IsProForma.Should().BeFalse();                         // payments were recorded
+        result.ServicePayments.Should().HaveCount(2);
+    }
+
+    [Fact]
     public async Task GetStatementAsync_NoServicePayments_StaysProForma_AndReturnsEmptyServicePayments()
     {
         // Arrange — empty session set

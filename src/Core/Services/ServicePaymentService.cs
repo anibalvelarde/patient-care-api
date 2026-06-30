@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Exceptions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
 
@@ -84,6 +85,50 @@ public class ServicePaymentService : IServicePaymentService
         return MapToRecord(result!);
     }
 
+    public async Task<ServicePaymentRecord> ReverseAsync(int servicePaymentId, ReverseServicePaymentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            throw new ArgumentException("A reason is required to reverse a service payment.");
+
+        _logger.LogInformation("Reversing service payment {ServicePaymentId}", servicePaymentId);
+
+        var original = await _servicePaymentRepo.GetByIdWithDetailsAsync(servicePaymentId)
+            ?? throw new NotFoundException("ServicePayment", servicePaymentId);
+
+        // Append-only: only an original disbursement can be reversed — never a reversal entry itself.
+        if (original.ReversesServicePaymentId != null || original.Amount < 0)
+            throw new ArgumentException("This payment is itself a reversal and cannot be reversed.");
+
+        if (await _servicePaymentRepo.IsReversedAsync(servicePaymentId))
+            throw new ArgumentException("This payment has already been reversed.");
+
+        var reversal = new ServicePayment
+        {
+            TherapistId = original.TherapistId,
+            Amount = -original.Amount,
+            PaymentDate = DateTime.UtcNow,
+            PaymentTypeId = original.PaymentTypeId,
+            ReferenceNumber = original.ReferenceNumber,
+            Notes = $"Reversal of payment #{original.Id}: {request.Reason.Trim()}",
+            ReversesServicePaymentId = original.Id,
+        };
+
+        var created = await _servicePaymentRepo.AddAsync(reversal);
+
+        foreach (var alloc in original.SessionServicePayments)
+        {
+            await _sessionServicePaymentRepo.AddAsync(new SessionServicePayment
+            {
+                ServicePaymentId = created.Id,
+                TherapySessionId = alloc.TherapySessionId,
+                AmountApplied = -alloc.AmountApplied,
+            });
+        }
+
+        var result = await _servicePaymentRepo.GetByIdWithDetailsAsync(created.Id);
+        return MapToRecord(result!);
+    }
+
     public async Task<IEnumerable<ServicePaymentRecord>> GetByTherapistAsync(int therapistId, DateOnly? from, DateOnly? to)
     {
         var (periodStart, periodEnd) = ResolveRange(from, to);
@@ -94,13 +139,15 @@ public class ServicePaymentService : IServicePaymentService
             periodStart.ToDateTime(TimeOnly.MinValue),
             periodEnd.ToDateTime(TimeOnly.MaxValue));
 
-        return payments.Select(MapToRecord);
+        var reversedIds = await _servicePaymentRepo.GetReversedOriginalIdsAsync(payments.Select(p => p.Id));
+        return payments.Select(p => MapToRecord(p, reversedIds.Contains(p.Id)));
     }
 
     public async Task<ServicePaymentRecord?> GetByIdAsync(int servicePaymentId)
     {
         var payment = await _servicePaymentRepo.GetByIdWithDetailsAsync(servicePaymentId);
-        return payment == null ? null : MapToRecord(payment);
+        if (payment == null) return null;
+        return MapToRecord(payment, await _servicePaymentRepo.IsReversedAsync(servicePaymentId));
     }
 
     public async Task<IEnumerable<UnpaidProviderSessionSummary>> GetUnpaidProviderSessionsAsync(int therapistId, DateOnly? from, DateOnly? to)
@@ -353,7 +400,7 @@ public class ServicePaymentService : IServicePaymentService
             throw new ArgumentException($"Total allocations ({totalApplied:C}) exceed payment amount ({amount:C}).");
     }
 
-    private static ServicePaymentRecord MapToRecord(ServicePayment sp)
+    private static ServicePaymentRecord MapToRecord(ServicePayment sp, bool isReversed = false)
     {
         var allocations = sp.SessionServicePayments?.Select(ssp => new ServiceAllocationDetail
         {
@@ -386,6 +433,8 @@ public class ServicePaymentService : IServicePaymentService
             Allocations = allocations,
             TotalApplied = totalApplied,
             UnallocatedAmount = sp.Amount - totalApplied,
+            ReversesServicePaymentId = sp.ReversesServicePaymentId,
+            IsReversed = isReversed,
         };
     }
 
