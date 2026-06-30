@@ -10,6 +10,7 @@ public class PatientProfileRequest
         this.LastName = string.Empty;
         this.MiddleName = string.Empty;
         this.MedicalRecordNumber = string.Empty;
+        this.Cedula = string.Empty;
         this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Gender = string.Empty;
@@ -21,6 +22,7 @@ public class PatientProfileRequest
     [Required]
     public string LastName { get; set; }
     public string MedicalRecordNumber { get; set; }
+    public string Cedula { get; set; }
     [Required]
     public DateTime DateOfBirth { get; set; }
     [Required]

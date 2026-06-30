@@ -13,6 +13,7 @@ public class PatientProfile : IProfile
     public int UserId { get; set; }
     public string PatientName { get; set; }
     public string? MedicalRecordNumber { get; set; }
+    public string? Cedula { get; set; }
     public DateTime DateOfBirth { get; set; }
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }

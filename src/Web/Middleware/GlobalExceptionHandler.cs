@@ -84,6 +84,10 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         {
             return "A user with this email address already exists.";
         }
+        if (message.Contains("uq_patient_cedula", StringComparison.OrdinalIgnoreCase))
+        {
+            return "A patient with this Cedula already exists.";
+        }
         return "A record with this value already exists.";
     }
 }

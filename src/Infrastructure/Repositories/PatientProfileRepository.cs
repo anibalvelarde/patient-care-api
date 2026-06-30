@@ -75,6 +75,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
         if (!string.IsNullOrEmpty(patientRequest.MedicalRecordNumber))
         { patientOnFile.MedicalRecordNumber = patientRequest.MedicalRecordNumber; }
+        if (!string.IsNullOrEmpty(patientRequest.Cedula))
+        { patientOnFile.Cedula = patientRequest.Cedula; }
 
         return patientOnFile;
     }
@@ -105,6 +107,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             IsActive = p.User.ActiveStatus,
             PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
             MedicalRecordNumber = p.MedicalRecordNumber,
+            Cedula = p.Cedula,
             Gender = p.Gender,
             DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
             Email = p.User.Email,
