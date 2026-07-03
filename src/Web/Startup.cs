@@ -21,6 +21,7 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Authentication;
 using Neurocorp.Api.Web.Authorization;
 using Neurocorp.Api.Web.Middleware;
+using Neurocorp.Api.Web.Swagger;
 
 namespace Neurocorp.Api.Web;
 
@@ -83,7 +84,27 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
         // Register the Swagger generator, defining one or more Swagger documents
         services.AddSwaggerGen(c =>
         {
-            c.SwaggerDoc("v1", new OpenApiInfo { Title = "Neurocorp Web API", Version = "v1" });
+            c.SwaggerDoc("v1", new OpenApiInfo
+            {
+                Title = "Neurocorp Web API",
+                Version = "v1",
+                Description = "JWT Bearer auth: obtain a token via POST /api/auth/login, click " +
+                    "Authorize, and paste it. Note: while an account is in the must-change-password " +
+                    "state, a valid token is still restricted to the password-change flow " +
+                    "(PasswordChangeRequiredMiddleware)."
+            });
+            // Bearer scheme + per-operation requirement so secured endpoints (everything without
+            // [AllowAnonymous], per the fallback policy below) carry the lock icon and send the token.
+            c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Name = "Authorization",
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT",
+                In = ParameterLocation.Header,
+                Description = "Paste the raw access token from POST /api/auth/login (no 'Bearer ' prefix)."
+            });
+            c.OperationFilter<BearerSecurityOperationFilter>();
         });
 
         // Register the hosted service
