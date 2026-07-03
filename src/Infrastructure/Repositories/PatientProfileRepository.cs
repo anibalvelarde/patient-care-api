@@ -75,8 +75,14 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
         if (!string.IsNullOrEmpty(patientRequest.MedicalRecordNumber))
         { patientOnFile.MedicalRecordNumber = patientRequest.MedicalRecordNumber; }
-        if (!string.IsNullOrEmpty(patientRequest.Cedula))
-        { patientOnFile.Cedula = patientRequest.Cedula; }
+        // Cedula supports an explicit erase (intake 2026-06-29-001 item 3): omitted/null = leave
+        // as-is; present but blank = clear to NULL (unique index allows multiple NULLs); else set.
+        if (patientRequest.Cedula != null)
+        {
+            patientOnFile.Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula)
+                ? null
+                : patientRequest.Cedula;
+        }
 
         return patientOnFile;
     }
