@@ -16,6 +16,7 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasColumnName("PatientID");
         builder.Property(e => e.Cedula).HasMaxLength(50);
+        builder.Property(e => e.Notes).IsRequired(false);
     }
 }
 
