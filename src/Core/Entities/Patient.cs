@@ -12,6 +12,10 @@ public class Patient : PersonBase
     public string? Gender { get; set; }
     public string? MedicalRecordNumber { get; set; }
     public string? Cedula { get; set; }
+    // WP-19A: free-text remarks written by the legacy import ([LEGACY-IMPORT: ...] provenance
+    // markers). Deliberately NOT surfaced in any DTO/endpoint/UI — the property exists so the
+    // entity stays conformant with the DB schema (V021) for /audit-db-api.
+    public string? Notes { get; set; }
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public bool HasTemporaryMrn()
