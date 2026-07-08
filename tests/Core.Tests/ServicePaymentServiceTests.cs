@@ -410,6 +410,175 @@ public class ServicePaymentServiceTests
         await act.Should().ThrowAsync<ArgumentException>();
     }
 
+    // ---- WP-20: paid-in-range breakdown -------------------------------------
+
+    private static SessionServicePayment Allocation(int id, int servicePaymentId, int sessionId, decimal amountApplied,
+        string? referenceNumber = null, DateTime? paymentDate = null) => new()
+    {
+        Id = id,
+        ServicePaymentId = servicePaymentId,
+        TherapySessionId = sessionId,
+        AmountApplied = amountApplied,
+        ServicePayment = new ServicePayment
+        {
+            Id = servicePaymentId,
+            TherapistId = TherapistId,
+            ReferenceNumber = referenceNumber,
+            PaymentDate = paymentDate ?? new DateTime(2026, 5, 31),
+        },
+    };
+
+    [Fact]
+    public async Task GetProviderSessionsBreakdownAsync_PartitionsPayableAndPaid_AndUpholdsInvariant()
+    {
+        // s1 fully paid (20 of 20) -> paid detail only; s2 partially paid (20 of 60 -> 40 remains)
+        // -> payable list AND paid detail; s3 unpaid (30) -> payable only.
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 20m, date: new DateOnly(2026, 4, 5)),
+            Session(2, 60m, date: new DateOnly(2026, 4, 6)),
+            Session(3, 30m, date: new DateOnly(2026, 4, 7)),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            Allocation(1, 88, sessionId: 1, amountApplied: 20m, referenceNumber: "PAYROLL-2026-05"),
+            Allocation(2, 88, sessionId: 2, amountApplied: 20m, referenceNumber: "PAYROLL-2026-05"),
+        };
+        var (service, _, _, _) = BuildService(completedSessions: sessions, existingAllocations: existing);
+
+        var result = await service.GetProviderSessionsBreakdownAsync(TherapistId, new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30));
+
+        // Payable list: s2 (partial) + s3 (unpaid), ordered by date.
+        result.Sessions.Select(s => s.SessionId).Should().Equal(2, 3);
+        result.Sessions.Single(s => s.SessionId == 2).RemainingProviderAmount.Should().Be(40m);
+        result.Sessions.Single(s => s.SessionId == 3).RemainingProviderAmount.Should().Be(30m);
+
+        // Paid detail: s1 (full, remaining clamped to 0) + s2 (partial, remaining 40).
+        result.PaidInRange.Sessions.Select(s => s.SessionId).Should().Equal(1, 2);
+        var full = result.PaidInRange.Sessions.Single(s => s.SessionId == 1);
+        full.AmountApplied.Should().Be(20m);
+        full.RemainingProviderAmount.Should().Be(0m);
+        var partial = result.PaidInRange.Sessions.Single(s => s.SessionId == 2);
+        partial.AmountApplied.Should().Be(20m);
+        partial.RemainingProviderAmount.Should().Be(40m);
+
+        // Fully-paid rollup counts only remaining <= 0; TotalApplied spans ALL sessions.
+        result.PaidInRange.FullyPaidSessionCount.Should().Be(1);
+        result.PaidInRange.FullyPaidTotal.Should().Be(20m);
+        result.PaidInRange.TotalApplied.Should().Be(40m);
+
+        // Reconciliation invariant: ΣProvider = ΣRemaining (payable) + TotalApplied.
+        var totalProvider = sessions.Sum(s => s.ProviderAmount);
+        var totalRemaining = result.Sessions.Sum(s => s.RemainingProviderAmount);
+        (totalRemaining + result.PaidInRange.TotalApplied).Should().Be(totalProvider);
+    }
+
+    [Fact]
+    public async Task GetProviderSessionsBreakdownAsync_ReturnsEmptyEnvelope_WhenNoSessionsInRange()
+    {
+        var (service, _, _, _) = BuildService();
+
+        var result = await service.GetProviderSessionsBreakdownAsync(TherapistId, new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30));
+
+        result.Sessions.Should().BeEmpty();
+        result.PaidInRange.Sessions.Should().BeEmpty();
+        result.PaidInRange.FullyPaidSessionCount.Should().Be(0);
+        result.PaidInRange.FullyPaidTotal.Should().Be(0m);
+        result.PaidInRange.TotalApplied.Should().Be(0m);
+    }
+
+    [Fact]
+    public async Task GetProviderSessionsBreakdownAsync_PopulatesPaymentReferences_GroupingMultipleAllocationsPerSession()
+    {
+        // One session covered by two service payments (30 + 30 of 60 -> fully paid).
+        var sessions = new List<TherapySession> { Session(1, 60m) };
+        var existing = new List<SessionServicePayment>
+        {
+            Allocation(1, 88, sessionId: 1, amountApplied: 30m, referenceNumber: "PAYROLL-2026-05", paymentDate: new DateTime(2026, 5, 31)),
+            Allocation(2, 91, sessionId: 1, amountApplied: 30m, referenceNumber: null, paymentDate: new DateTime(2026, 6, 15)),
+        };
+        var (service, _, _, _) = BuildService(completedSessions: sessions, existingAllocations: existing);
+
+        var result = await service.GetProviderSessionsBreakdownAsync(TherapistId, new DateOnly(2026, 4, 1), new DateOnly(2026, 6, 30));
+
+        result.PaidInRange.Sessions.Should().HaveCount(1);
+        var detail = result.PaidInRange.Sessions[0];
+        detail.AmountApplied.Should().Be(60m);
+        detail.PaymentReferences.Should().HaveCount(2);
+
+        var ref1 = detail.PaymentReferences.Single(r => r.ServicePaymentId == 88);
+        ref1.ReferenceNumber.Should().Be("PAYROLL-2026-05");
+        ref1.PaymentDate.Should().Be("2026-05-31");
+        ref1.AmountApplied.Should().Be(30m);
+
+        var ref2 = detail.PaymentReferences.Single(r => r.ServicePaymentId == 91);
+        ref2.ReferenceNumber.Should().Be(string.Empty); // null reference -> empty string
+        ref2.PaymentDate.Should().Be("2026-06-15");
+        ref2.AmountApplied.Should().Be(30m);
+    }
+
+    [Fact]
+    public async Task GetUnpaidProviderSessionsAsync_DelegatesToBreakdown_ReturningExactlyThePayableList()
+    {
+        // Guards batch payroll: the legacy method must return exactly the breakdown's payable list.
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 60m, date: new DateOnly(2026, 4, 5)),
+            Session(2, 60m, date: new DateOnly(2026, 4, 6)),
+            Session(3, 30m, date: new DateOnly(2026, 4, 7)),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            Allocation(1, 99, sessionId: 1, amountApplied: 60m), // fully paid -> excluded
+            Allocation(2, 99, sessionId: 2, amountApplied: 20m), // partial -> included
+        };
+        var (service, _, _, _) = BuildService(completedSessions: sessions, existingAllocations: existing);
+        var from = new DateOnly(2026, 4, 1);
+        var to = new DateOnly(2026, 4, 30);
+
+        var unpaid = (await service.GetUnpaidProviderSessionsAsync(TherapistId, from, to)).ToList();
+        var breakdown = await service.GetProviderSessionsBreakdownAsync(TherapistId, from, to);
+
+        unpaid.Should().BeEquivalentTo(breakdown.Sessions, o => o.WithStrictOrdering());
+        unpaid.Select(s => s.SessionId).Should().Equal(2, 3);
+        unpaid[0].AlreadyApplied.Should().Be(20m);
+        unpaid[0].RemainingProviderAmount.Should().Be(40m);
+    }
+
+    [Fact]
+    public async Task GetPayrollPreviewAsync_PopulatesPaidContext_AndStillSkipsOnlyPaidTherapists()
+    {
+        // 42 Smith: one fully paid (60) + one partially paid (20 of 60 -> 40 owed)
+        //   -> row with PaidSessionCount 1 (fully paid only) and PaidTotal 80 (all applied money).
+        // 43 Jones: single fully-paid session -> still skipped (paid context rides existing rows only).
+        var sessions = new List<TherapySession>
+        {
+            Session(1, 60m, therapistId: 42), Session(2, 60m, therapistId: 42),
+            Session(3, 100m, therapistId: 43),
+        };
+        var existing = new List<SessionServicePayment>
+        {
+            Allocation(1, 99, sessionId: 1, amountApplied: 60m),
+            Allocation(2, 99, sessionId: 2, amountApplied: 20m),
+            Allocation(3, 99, sessionId: 3, amountApplied: 100m),
+        };
+        var therapists = new List<TherapistProfile>
+        {
+            Therapist(42, "Smith, Jane"), Therapist(43, "Jones, Bob"),
+        };
+        var (service, _, _, _) = BuildService(sessions, existing, therapists);
+
+        var preview = (await service.GetPayrollPreviewAsync(new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30))).ToList();
+
+        preview.Should().HaveCount(1); // Jones (only-paid) skipped
+        var row = preview[0];
+        row.TherapistName.Should().Be("Smith, Jane");
+        row.SessionCount.Should().Be(1);
+        row.TotalRemaining.Should().Be(40m);
+        row.PaidSessionCount.Should().Be(1);   // fully paid sessions only
+        row.PaidTotal.Should().Be(80m);        // Σ applied across ALL in-range sessions (60 + 20)
+    }
+
     // ---- WP-14.5: reversal -------------------------------------------------
 
     private static ServicePayment OriginalPayment(int id = 500, decimal amount = 120m) => new()

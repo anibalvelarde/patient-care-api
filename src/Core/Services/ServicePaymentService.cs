@@ -155,43 +155,87 @@ public class ServicePaymentService : IServicePaymentService
 
     public async Task<IEnumerable<UnpaidProviderSessionSummary>> GetUnpaidProviderSessionsAsync(int therapistId, DateOnly? from, DateOnly? to)
     {
+        // WP-20: the payable list is the Sessions half of the full breakdown — batch payroll and
+        // every other caller keep identical behavior.
+        return (await GetProviderSessionsBreakdownAsync(therapistId, from, to)).Sessions;
+    }
+
+    public async Task<UnpaidProviderSessionsResult> GetProviderSessionsBreakdownAsync(int therapistId, DateOnly? from, DateOnly? to)
+    {
         var (periodStart, periodEnd) = ResolveRange(from, to);
-        _logger.LogInformation("Listing unpaid provider sessions for therapist {TherapistId} {From}..{To}", therapistId, periodStart, periodEnd);
+        _logger.LogInformation("Listing provider session breakdown for therapist {TherapistId} {From}..{To}", therapistId, periodStart, periodEnd);
+
+        var result = new UnpaidProviderSessionsResult();
 
         var completedId = await ResolveCompletedStatusIdAsync();
-        if (completedId == null) return Enumerable.Empty<UnpaidProviderSessionSummary>();
+        if (completedId == null) return result;
 
         var sessions = await _sessionRepo.GetByTherapistIdAndDateRangeAsync(
             therapistId, periodStart, periodEnd, new[] { completedId.Value });
 
         var sessionIds = sessions.Select(s => s.Id).ToList();
         var allocations = await _sessionServicePaymentRepo.GetBySessionIdsAsync(sessionIds);
-        var appliedBySession = allocations
+        var allocationsBySession = allocations
             .GroupBy(a => a.TherapySessionId)
-            .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountApplied));
+            .ToDictionary(g => g.Key, g => g.ToList());
 
-        var results = new List<UnpaidProviderSessionSummary>();
         foreach (var s in sessions.OrderBy(s => s.SessionDate).ThenBy(s => s.SessionTime))
         {
-            var alreadyApplied = appliedBySession.TryGetValue(s.Id, out var sum) ? sum : 0m;
+            var sessionAllocations = allocationsBySession.TryGetValue(s.Id, out var list)
+                ? list
+                : new List<SessionServicePayment>();
+            var alreadyApplied = sessionAllocations.Sum(a => a.AmountApplied);
             var remaining = s.ProviderAmount - alreadyApplied;
-            if (remaining <= 0) continue;
 
-            results.Add(new UnpaidProviderSessionSummary
+            // The invariant term: every applied cent in range counts, incl. partially-paid sessions.
+            result.PaidInRange.TotalApplied += alreadyApplied;
+
+            if (remaining > 0)
             {
-                SessionId = s.Id,
-                SessionDate = s.SessionDate.ToString("yyyy-MM-dd"),
-                SessionTime = s.SessionTime.ToString("HH:mm"),
-                PatientId = s.PatientId,
-                PatientName = ResolvePatientName(s.Patient),
-                TherapyType = ResolveTherapyType(s),
-                ProviderAmount = s.ProviderAmount,
-                AlreadyApplied = alreadyApplied,
-                RemainingProviderAmount = remaining,
-            });
+                result.Sessions.Add(new UnpaidProviderSessionSummary
+                {
+                    SessionId = s.Id,
+                    SessionDate = s.SessionDate.ToString("yyyy-MM-dd"),
+                    SessionTime = s.SessionTime.ToString("HH:mm"),
+                    PatientId = s.PatientId,
+                    PatientName = ResolvePatientName(s.Patient),
+                    TherapyType = ResolveTherapyType(s),
+                    ProviderAmount = s.ProviderAmount,
+                    AlreadyApplied = alreadyApplied,
+                    RemainingProviderAmount = remaining,
+                });
+            }
+
+            if (alreadyApplied > 0)
+            {
+                result.PaidInRange.Sessions.Add(new PaidProviderSessionDetail
+                {
+                    SessionId = s.Id,
+                    SessionDate = s.SessionDate.ToString("yyyy-MM-dd"),
+                    SessionTime = s.SessionTime.ToString("HH:mm"),
+                    PatientName = ResolvePatientName(s.Patient),
+                    TherapyType = ResolveTherapyType(s),
+                    ProviderAmount = s.ProviderAmount,
+                    AmountApplied = alreadyApplied,
+                    RemainingProviderAmount = remaining > 0 ? remaining : 0m,
+                    PaymentReferences = sessionAllocations.Select(a => new PaidByPaymentRef
+                    {
+                        ServicePaymentId = a.ServicePaymentId,
+                        ReferenceNumber = a.ServicePayment?.ReferenceNumber ?? string.Empty,
+                        PaymentDate = a.ServicePayment?.PaymentDate.ToString("yyyy-MM-dd") ?? string.Empty,
+                        AmountApplied = a.AmountApplied,
+                    }).ToList(),
+                });
+
+                if (remaining <= 0)
+                {
+                    result.PaidInRange.FullyPaidSessionCount++;
+                    result.PaidInRange.FullyPaidTotal += s.ProviderAmount;
+                }
+            }
         }
 
-        return results;
+        return result;
     }
 
     public async Task<IEnumerable<PayrollPreviewTherapist>> GetPayrollPreviewAsync(DateOnly? from, DateOnly? to)
@@ -204,7 +248,10 @@ public class ServicePaymentService : IServicePaymentService
         var rows = new List<PayrollPreviewTherapist>();
         foreach (var t in therapists.Where(t => t.IsActive))
         {
-            var unpaid = (await GetUnpaidProviderSessionsAsync(t.TherapistId, periodStart, periodEnd)).ToList();
+            var breakdown = await GetProviderSessionsBreakdownAsync(t.TherapistId, periodStart, periodEnd);
+            var unpaid = breakdown.Sessions;
+            // The preview lists who is *owed*: a therapist with only-paid sessions in range is
+            // still skipped — the WP-20 paid context rides existing rows only.
             if (unpaid.Count == 0) continue;
 
             rows.Add(new PayrollPreviewTherapist
@@ -213,6 +260,8 @@ public class ServicePaymentService : IServicePaymentService
                 TherapistName = t.TherapistName,
                 SessionCount = unpaid.Count,
                 TotalRemaining = unpaid.Sum(s => s.RemainingProviderAmount),
+                PaidSessionCount = breakdown.PaidInRange.FullyPaidSessionCount,
+                PaidTotal = breakdown.PaidInRange.TotalApplied,
                 Sessions = unpaid,
             });
         }

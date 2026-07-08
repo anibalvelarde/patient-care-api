@@ -12,5 +12,12 @@ public class PayrollPreviewTherapist
     public string TherapistName { get; set; } = string.Empty;
     public int SessionCount { get; set; }
     public decimal TotalRemaining { get; set; }
+
+    /// <summary>Fully-paid sessions the therapist has in the window (WP-20, context only).</summary>
+    public int PaidSessionCount { get; set; }
+
+    /// <summary>Σ AmountApplied across all of the therapist's in-range sessions (WP-20, context only).</summary>
+    public decimal PaidTotal { get; set; }
+
     public List<UnpaidProviderSessionSummary> Sessions { get; set; } = new();
 }
