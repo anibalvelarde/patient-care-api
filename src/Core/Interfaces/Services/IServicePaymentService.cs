@@ -20,6 +20,15 @@ public interface IServicePaymentService
     Task<ServicePaymentRecord?> GetByIdAsync(int servicePaymentId);
     Task<IEnumerable<UnpaidProviderSessionSummary>> GetUnpaidProviderSessionsAsync(int therapistId, DateOnly? from, DateOnly? to);
 
+    /// <summary>
+    /// Full payable/paid partition of a therapist's completed sessions in the window (WP-20):
+    /// the payable list (identical to <see cref="GetUnpaidProviderSessionsAsync"/>) plus a
+    /// "paid in range" summary of sessions already covered by prior service payments, with the
+    /// covering payment reference(s). Upholds the reconciliation invariant
+    /// Σ ProviderAmount = Σ RemainingProviderAmount (payable) + PaidInRange.TotalApplied.
+    /// </summary>
+    Task<UnpaidProviderSessionsResult> GetProviderSessionsBreakdownAsync(int therapistId, DateOnly? from, DateOnly? to);
+
     /// <summary>Per-therapist rollup of who is owed what in the window (drives the "Run Payroll" preview).</summary>
     Task<IEnumerable<PayrollPreviewTherapist>> GetPayrollPreviewAsync(DateOnly? from, DateOnly? to);
 

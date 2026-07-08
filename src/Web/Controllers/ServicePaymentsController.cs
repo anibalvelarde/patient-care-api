@@ -41,15 +41,18 @@ public class ServicePaymentsController : ControllerBase
         return Ok(payment);
     }
 
-    // Feeds the "Pay Therapist" wizard: completed sessions in range that still owe the therapist.
+    // Feeds the "Pay Therapist" wizard: completed sessions in range that still owe the therapist,
+    // plus the WP-20 "paid in range" summary so the payable list reconciles against the raw data.
+    // Response is the envelope { sessions, paidInRange } — a deliberate breaking shape change
+    // shipping in lockstep with the UI (WP-20C).
     [HttpGet("unpaid-sessions")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ServicePaymentsView)]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<UnpaidProviderSessionSummary>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(UnpaidProviderSessionsResult))]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetUnpaidSessions([FromQuery] int therapistId, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
     {
-        var sessions = await _servicePaymentService.GetUnpaidProviderSessionsAsync(therapistId, from, to);
-        return Ok(sessions);
+        var result = await _servicePaymentService.GetProviderSessionsBreakdownAsync(therapistId, from, to);
+        return Ok(result);
     }
 
     // "Run Payroll" preview: every therapist owed money in the window (count + total + sessions).

@@ -14,6 +14,7 @@ public class SessionServicePaymentRepository(ApplicationDbContext dbContext) :
         if (ids.Count == 0) return new List<SessionServicePayment>();
 
         return await _dbContext.SessionServicePayments
+            .Include(ssp => ssp.ServicePayment) // WP-20: payment reference/date for the paid-in-range detail
             .Where(ssp => ids.Contains(ssp.TherapySessionId))
             .ToListAsync();
     }
