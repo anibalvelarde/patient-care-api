@@ -79,6 +79,7 @@ public class HealthController : ControllerBase
         var result = new
         {
             Version = version,
+            BuildTimeUtc = BuildInfo.BuildTimestampUtc,
             Statuses = healthStatuses
         };
 
