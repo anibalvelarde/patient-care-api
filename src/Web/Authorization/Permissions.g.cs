@@ -7,7 +7,7 @@
 //   (patient-care-super/tools/generate-access-manifest.sh), re-vendor
 //   docs/access-control-matrix.json, then re-run tools/generate-permissions.sh.
 //
-//   Access-control manifest semantic hash: 16599d6c39fc
+//   Access-control manifest semantic hash: 776a7665d67b
 // </auto-generated>
 
 namespace Neurocorp.Api.Web.Authorization;
