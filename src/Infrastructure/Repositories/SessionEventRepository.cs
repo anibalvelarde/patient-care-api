@@ -17,6 +17,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                          (ts.Therapist != null))
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -35,6 +39,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                          (ts.SessionDate == targetDate))
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -52,6 +60,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
                          (ts.Therapist != null))
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -78,6 +90,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         var result = await query
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -94,6 +110,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         .Where(ts => ts.Id == id)
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -115,6 +135,10 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         var therapySessionToUpdate = await _dbContext.TherapySessions
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient)
+                .ThenInclude(p => p!.Caretakers)
+                    .ThenInclude(pc => pc.Caretaker)
+                        .ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist)
                 .ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
@@ -166,6 +190,12 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
 
         var statusName = ts.AppointmentStatus?.Name ?? "Completed";
 
+        // B3: surface the primary caretaker's contact info (first link as fallback).
+        var caretakerUser = ts.Patient!.Caretakers?
+            .OrderByDescending(pc => pc.PrimaryCaretaker)
+            .Select(pc => pc.Caretaker?.User)
+            .FirstOrDefault(u => u != null);
+
         return new SessionEvent
         {
             SessionId = ts.Id,
@@ -192,6 +222,9 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             SpecialtyAbbreviation = ts.SpecialtyType?.Abbreviation,
             SpecialtyName = ts.SpecialtyType?.Name,
             IsDiscovery = ts.SpecialtyType?.IsDiscovery,
+            CaretakerName = caretakerUser?.GetFullName(),
+            CaretakerPhone = caretakerUser?.PhoneNumber,
+            CaretakerEmail = caretakerUser?.Email,
             ProviderAmount = ts.ProviderAmount,
         };
     }

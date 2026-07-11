@@ -36,6 +36,12 @@ public class SessionEvent
     public string? SpecialtyName { get; set; }
     public bool? IsDiscovery { get; set; }
 
+    // B3 (2026-07-07 punch list): primary caretaker contact info for the Session Details panel.
+    // Falls back to the first linked caretaker when none is flagged primary; null when unlinked.
+    public string? CaretakerName { get; set; }
+    public string? CaretakerPhone { get; set; }
+    public string? CaretakerEmail { get; set; }
+
     // WP-17 access-control: ProviderAmount (therapist payout) is confidential — matrix grants
     // Appointments.ProviderAmount to MGR/AM only (FrontDesk excluded). ProviderAmountResultFilter
     // sets this to null for callers lacking that claim, and WhenWritingNull omits the property
