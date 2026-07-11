@@ -39,9 +39,12 @@ public class BookingRepository : IBookingRepository
         return await _dbContext.TherapySessions
             .Where(ts => ts.Id == sessionId)
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient).ThenInclude(p => p!.Caretakers)
+                .ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
             .Include(ts => ts.Site)
+            .Include(ts => ts.SpecialtyType)
             .Select(ts => MapToSessionEvent(ts))
             .FirstOrDefaultAsync();
     }
@@ -50,9 +53,12 @@ public class BookingRepository : IBookingRepository
     {
         var session = await _dbContext.TherapySessions
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient).ThenInclude(p => p!.Caretakers)
+                .ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
             .Include(ts => ts.Site)
+            .Include(ts => ts.SpecialtyType)
             .FirstOrDefaultAsync(ts => ts.Id == sessionId)
             ?? throw new ArgumentException($"Session {sessionId} not found.");
 
@@ -102,9 +108,12 @@ public class BookingRepository : IBookingRepository
                 && ts.SessionDate >= from && ts.SessionDate <= to
                 && ts.Patient != null && ts.Therapist != null)
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient).ThenInclude(p => p!.Caretakers)
+                .ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
             .Include(ts => ts.Site)
+            .Include(ts => ts.SpecialtyType)
             .OrderBy(ts => ts.SessionDate)
             .ThenBy(ts => ts.SessionTime)
             .Select(ts => MapToSessionEvent(ts))
@@ -119,9 +128,12 @@ public class BookingRepository : IBookingRepository
                 && ts.SessionDate >= from && ts.SessionDate <= to
                 && ts.Patient != null && ts.Therapist != null)
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
+            .Include(ts => ts.Patient).ThenInclude(p => p!.Caretakers)
+                .ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
             .Include(ts => ts.Therapist).ThenInclude(t => t!.User)
             .Include(ts => ts.AppointmentStatus)
             .Include(ts => ts.Site)
+            .Include(ts => ts.SpecialtyType)
             .OrderBy(ts => ts.SessionDate)
             .ThenBy(ts => ts.SessionTime)
             .Select(ts => MapToSessionEvent(ts))
@@ -149,6 +161,14 @@ public class BookingRepository : IBookingRepository
     private static SessionEvent MapToSessionEvent(TherapySession ts)
     {
         var statusName = ts.AppointmentStatus?.Name ?? "Completed";
+
+        // B3: surface the primary caretaker's contact info (first link as fallback) —
+        // keep in step with SessionEventRepository.ExtractSessionEvent.
+        var caretakerUser = ts.Patient!.Caretakers?
+            .OrderByDescending(pc => pc.PrimaryCaretaker)
+            .Select(pc => pc.Caretaker?.User)
+            .FirstOrDefault(u => u != null);
+
         return new SessionEvent
         {
             SessionId = ts.Id,
@@ -171,6 +191,13 @@ public class BookingRepository : IBookingRepository
             IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
             SiteId = ts.SiteId,
             SiteName = ts.Site?.SiteName,
+            SpecialtyTypeId = ts.SpecialtyTypeId,
+            SpecialtyAbbreviation = ts.SpecialtyType?.Abbreviation,
+            SpecialtyName = ts.SpecialtyType?.Name,
+            IsDiscovery = ts.SpecialtyType?.IsDiscovery,
+            CaretakerName = caretakerUser?.GetFullName(),
+            CaretakerPhone = caretakerUser?.PhoneNumber,
+            CaretakerEmail = caretakerUser?.Email,
         };
     }
 }
