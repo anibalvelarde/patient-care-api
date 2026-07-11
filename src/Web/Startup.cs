@@ -46,8 +46,14 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
                 builder => builder
                     .SetIsOriginAllowed(origin =>
                     {
-                        var host = new Uri(origin).Host;
-                        return host.Contains("neurocorp") || host.Contains("localhost");
+                        if (string.IsNullOrEmpty(origin))
+                            return false;
+
+                        var host = new Uri(origin).Host.ToLowerInvariant();
+
+                        return host.Contains("neurocorp") ||
+                            host.Contains("localhost") ||
+                            host.EndsWith(".cloudfront.net");   // ← Allow CloudFront for Swagger UI in dev/staging, but not production (where we use a custom domain).
                     })
                     .AllowAnyHeader()
                     .AllowAnyMethod()
