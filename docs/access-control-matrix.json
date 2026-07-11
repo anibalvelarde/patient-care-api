@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-06-29T19:18:00-05:00",
+    "generatedAt": "2026-07-11T15:16:15-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "16599d6c39fc",
+    "semanticHash": "776a7665d67b",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -14,7 +14,8 @@
     {
       "claim": "Admin.Lookups.AppointmentStatus.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -24,7 +25,8 @@
     {
       "claim": "Admin.Lookups.PaymentType.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -34,7 +36,8 @@
     {
       "claim": "Admin.Lookups.RoleType.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -44,7 +47,8 @@
     {
       "claim": "Admin.Lookups.SpecialtyType.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -54,7 +58,8 @@
     {
       "claim": "Admin.Sites.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -64,13 +69,15 @@
     {
       "claim": "Admin.Users.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Admin.View",
       "grants": [
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -85,7 +92,8 @@
       "claim": "Appointments.ProviderAmount",
       "grants": [
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -100,12 +108,14 @@
       "grants": [
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Caretakers.Edit",
       "grants": [
+        "ACCT",
         "AM",
         "FD",
         "MGR"
@@ -122,9 +132,11 @@
     {
       "claim": "Caretakers.View",
       "grants": [
+        "ACCT",
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -132,14 +144,16 @@
       "grants": [
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Dashboard.ProviderAmount",
       "grants": [
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -147,14 +161,16 @@
       "grants": [
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Patients.Delinquent.View",
       "grants": [
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -183,14 +199,17 @@
     {
       "claim": "Patients.View",
       "grants": [
+        "ACCT",
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Payments.Adjust",
       "grants": [
+        "ACCT",
         "AM",
         "MGR"
       ]
@@ -206,6 +225,7 @@
     {
       "claim": "Payments.Refund",
       "grants": [
+        "ACCT",
         "MGR"
       ]
     },
@@ -220,9 +240,11 @@
     {
       "claim": "Payments.View",
       "grants": [
+        "ACCT",
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -246,47 +268,58 @@
       "grants": [
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "ServicePayments.Adjust",
       "grants": [
+        "ACCT",
         "MGR"
       ]
     },
     {
       "claim": "ServicePayments.Record",
       "grants": [
+        "ACCT",
         "MGR"
       ]
     },
     {
       "claim": "ServicePayments.View",
       "grants": [
+        "ACCT",
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Statements.Caretaker.View",
       "grants": [
+        "ACCT",
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Statements.Therapist.View",
       "grants": [
+        "ACCT",
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
       "claim": "Statements.View",
       "grants": [
+        "ACCT",
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -296,8 +329,10 @@
     {
       "claim": "Therapists.Delinquent.View",
       "grants": [
+        "ACCT",
         "AM",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -316,9 +351,11 @@
     {
       "claim": "Therapists.View",
       "grants": [
+        "ACCT",
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     },
     {
@@ -341,7 +378,8 @@
       "grants": [
         "AM",
         "FD",
-        "MGR"
+        "MGR",
+        "OWN"
       ]
     }
   ],
@@ -349,7 +387,9 @@
     "granular": [
       "MGR",
       "AM",
-      "FD"
+      "FD",
+      "OWN",
+      "ACCT"
     ],
     "restricted": [
       "THERAPIST",
