@@ -77,9 +77,12 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
     private static bool IsDuplicateKey(DbUpdateException dbEx) =>
         dbEx.InnerException is MySqlException { Number: MySqlDuplicateKey };
 
-    private static string DuplicateKeyMessage(DbUpdateException dbEx)
+    private static string DuplicateKeyMessage(DbUpdateException dbEx) =>
+        DuplicateKeyMessageFor(dbEx.InnerException?.Message ?? string.Empty);
+
+    /// <summary>Maps a MySQL 1062 message to a client-friendly conflict message by unique-key name.</summary>
+    public static string DuplicateKeyMessageFor(string message)
     {
-        var message = dbEx.InnerException?.Message ?? string.Empty;
         if (message.Contains("uq_systemuser_email", StringComparison.OrdinalIgnoreCase))
         {
             return "A user with this email address already exists.";
@@ -87,6 +90,11 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         if (message.Contains("uq_patient_cedula", StringComparison.OrdinalIgnoreCase))
         {
             return "A patient with this Cedula already exists.";
+        }
+        // The Patient MRN unique key is named after the column itself, not uq_patient_mrn (B1).
+        if (message.Contains("MedicalRecordNumber", StringComparison.OrdinalIgnoreCase))
+        {
+            return "A patient with this Medical Record Number already exists.";
         }
         return "A record with this value already exists.";
     }

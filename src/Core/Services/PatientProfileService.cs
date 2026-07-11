@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using System;
@@ -17,6 +18,7 @@ public class PatientProfileService : IPatientProfileService
     private readonly IUserRoleRepository _userRoleRepo;
     private readonly IPatientCaretakerRepository _patientCaretakerRepo;
     private readonly ITherapySessionRepository _therapySessionRepo;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PatientProfileService> _logger;
 
     public PatientProfileService(
@@ -26,7 +28,8 @@ public class PatientProfileService : IPatientProfileService
         IUserRepository userRepo,
         IUserRoleRepository userRoleRepo,
         IPatientCaretakerRepository patientCaretakerRepo,
-        ITherapySessionRepository therapySessionRepo)
+        ITherapySessionRepository therapySessionRepo,
+        IUnitOfWork unitOfWork)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
@@ -34,6 +37,7 @@ public class PatientProfileService : IPatientProfileService
         _userRoleRepo = userRoleRepo;
         _patientCaretakerRepo = patientCaretakerRepo;
         _therapySessionRepo = therapySessionRepo;
+        _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
@@ -70,16 +74,24 @@ public class PatientProfileService : IPatientProfileService
     {
         _logger.LogInformation("Creating new patient profile from request.");
         bool isMissingMrn = string.IsNullOrWhiteSpace(patientRequest.MedicalRecordNumber);
-        var newUser = await _userRepo.AddAsync(MapToNewUser(patientRequest, activeStatus: !isMissingMrn));
-        var newPatient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, newUser));
 
-        if (isMissingMrn)
+        // B1: all four writes are one atomic unit — a failure mid-way (e.g. a rejected Patient
+        // INSERT) must not leave a committed, orphaned SystemUser behind.
+        var (newUser, newPatient, newRole) = await _unitOfWork.ExecuteAsync(async () =>
         {
-            newPatient.MedicalRecordNumber = $"TEMP-{newPatient.Id}";
-            await _patientRepo.UpdateAsync(newPatient);
-        }
+            var user = await _userRepo.AddAsync(MapToNewUser(patientRequest, activeStatus: !isMissingMrn));
+            var patient = await _patientRepo.AddAsync(MapToNewPatient(patientRequest, user));
 
-        var newRole = await _userRoleRepo.AddAsync(newPatient.MintNewRole());
+            if (isMissingMrn)
+            {
+                patient.MedicalRecordNumber = $"TEMP-{patient.Id}";
+                await _patientRepo.UpdateAsync(patient);
+            }
+
+            var role = await _userRoleRepo.AddAsync(patient.MintNewRole());
+            return (user, patient, role);
+        });
+
         _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Pid[{newPatient.Id}], Role[{newRole.UserRoleId}]");
         return new PatientProfile
         {
@@ -159,7 +171,11 @@ public class PatientProfileService : IPatientProfileService
             User = user,
             DateOfBirth = patientRequest.DateOfBirth,
             Gender = patientRequest.Gender,
-            MedicalRecordNumber = patientRequest.MedicalRecordNumber,
+            // B1: blank MRN inserts NULL (never '') — '' is a value under the unique key and
+            // collides with the next blank-MRN create; the TEMP-{id} stamp follows the insert.
+            MedicalRecordNumber = string.IsNullOrWhiteSpace(patientRequest.MedicalRecordNumber)
+                ? null
+                : patientRequest.MedicalRecordNumber,
             Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula) ? null : patientRequest.Cedula
         };
     }

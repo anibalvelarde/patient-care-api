@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
@@ -48,6 +49,7 @@ public static class NeurocorpConfigurationExtensions
             .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks");
 
         // Register repositories
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IPatientProfileRepository, PatientProfileRepository>();
