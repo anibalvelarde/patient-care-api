@@ -5,10 +5,13 @@ Every session endpoint now returns `caretakerName`, `caretakerPhone`, `caretaker
 Contract: `patient-care-super/_contracts/sessions-api.md`.
 
 ```bash
-# Login (MGR) and capture a token
+# Login (MGR) and capture a token — the field is accessToken (AuthTokenResponse),
+# NOT .token: jq emits the string "null" for a missing field, which turns into
+# "Authorization: Bearer null" and a misleading 401 on every call.
 TOKEN=$(curl -s -X POST http://localhost:5245/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"<mgr-email>","password":"<password>"}' | jq -r '.token')
+  -d '{"email":"<mgr-email>","password":"<password>"}' | jq -r '.accessToken')
+echo "$TOKEN"   # sanity check: expect a long eyJ... JWT, not "null" or empty
 
 # 1) Day list (feeds the Appointments views + dashboard panel)
 curl -s http://localhost:5245/api/sessions/2026-07-11/all \
