@@ -53,7 +53,10 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
 
                         return host.Contains("neurocorp") ||
                             host.Contains("localhost") ||
-                            host.EndsWith(".cloudfront.net");   // ← Allow CloudFront for Swagger UI in dev/staging, but not production (where we use a custom domain).
+                            // Pinned exact host only — never wildcard *.cloudfront.net: any AWS
+                            // account can mint a distribution under that suffix, and this policy
+                            // also sends AllowCredentials.
+                            host == "d26wxxuffdufr.cloudfront.net";
                     })
                     .AllowAnyHeader()
                     .AllowAnyMethod()
