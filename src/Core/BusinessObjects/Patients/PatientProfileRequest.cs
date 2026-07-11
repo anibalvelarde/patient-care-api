@@ -29,6 +29,8 @@ public class PatientProfileRequest
     public string Email { get; set; }
     [Required]
     public string PhoneNumber { get; set; }
+    // B1: must match the DB enum — anything else used to surface as MySQL 1265 → opaque 500.
     [Required]
+    [AllowedValues("Male", "Female", "Other")]
     public string Gender { get; set; }
 }

@@ -53,4 +53,20 @@ public class GlobalExceptionHandlerTests
             captured.ProblemDetails.Detail.Should().Be(exception.Message);
         }
     }
+
+    // B1 (intake 2026-07-07-001): the Patient MRN unique key is named 'MedicalRecordNumber'
+    // (not uq_patient_mrn), so duplicate MRNs fell through to the unhelpful generic 409 text.
+    [Theory]
+    [InlineData("Duplicate entry 'MRN-001' for key 'Patient.MedicalRecordNumber'",
+        "A patient with this Medical Record Number already exists.")]
+    [InlineData("Duplicate entry 'a@b.com' for key 'SystemUser.uq_systemuser_email'",
+        "A user with this email address already exists.")]
+    [InlineData("Duplicate entry '8-123-456' for key 'Patient.uq_patient_cedula'",
+        "A patient with this Cedula already exists.")]
+    [InlineData("Duplicate entry 'x' for key 'SomeTable.some_other_key'",
+        "A record with this value already exists.")]
+    public void DuplicateKeyMessageFor_maps_unique_key_to_friendly_message(string mysqlMessage, string expected)
+    {
+        GlobalExceptionHandler.DuplicateKeyMessageFor(mysqlMessage).Should().Be(expected);
+    }
 }

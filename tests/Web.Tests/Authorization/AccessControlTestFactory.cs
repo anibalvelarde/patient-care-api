@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Neurocorp.Api.Core.Authorization;
@@ -59,7 +60,10 @@ public class AccessControlTestFactory : WebApplicationFactory<Program>
             foreach (var d in toRemove) services.Remove(d);
 
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseInMemoryDatabase("acl-integration-tests"));
+                options.UseInMemoryDatabase("acl-integration-tests")
+                    // The unit of work (B1) opens a real transaction; InMemory ignores
+                    // transactions and would otherwise throw on BeginTransaction.
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         });
     }
 
