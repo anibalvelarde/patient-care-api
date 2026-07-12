@@ -18,19 +18,25 @@ public class BulkSchedulingService : IBulkSchedulingService
     private readonly ITherapySessionRepository _sessionRepository;
     private readonly ITherapistRepository _therapistRepository;
     private readonly ITherapistSpecialtyRepository _specialtyRepository;
+    private readonly IPatientCaretakerRepository _patientCaretakerRepository;
+    private readonly IPatientProfileService _patientService;
 
     public BulkSchedulingService(
         ILogger<BulkSchedulingService> logger,
         ITreatmentPlanRepository planRepository,
         ITherapySessionRepository sessionRepository,
         ITherapistRepository therapistRepository,
-        ITherapistSpecialtyRepository specialtyRepository)
+        ITherapistSpecialtyRepository specialtyRepository,
+        IPatientCaretakerRepository patientCaretakerRepository,
+        IPatientProfileService patientService)
     {
         _logger = logger;
         _planRepository = planRepository;
         _sessionRepository = sessionRepository;
         _therapistRepository = therapistRepository;
         _specialtyRepository = specialtyRepository;
+        _patientCaretakerRepository = patientCaretakerRepository;
+        _patientService = patientService;
     }
 
     public async Task<BulkScheduleResult> ScheduleAsync(int planId, BulkScheduleRequest request)
@@ -45,6 +51,16 @@ public class BulkSchedulingService : IBulkSchedulingService
 
         if (await _sessionRepository.HasSessionsForPlanAsync(planId))
             throw new ArgumentException("This plan already has scheduled sessions. Cancel existing sessions before re-scheduling.");
+
+        // WP-23 (F10): hard block — no caretaker on file, no booking (same guard as the
+        // single-session path; synthetic placeholders count). ArgumentException → 400.
+        var caretakerLinks = await _patientCaretakerRepository.GetByPatientIdAsync(plan.PatientId);
+        if (!caretakerLinks.Any())
+            throw new ArgumentException("A caretaker must be linked to this patient before booking.");
+
+        // WP-23 (F7): SENADIS patients get a per-line discount floor of 20% of Amount.
+        var patientProfile = await _patientService.GetByIdAsync(plan.PatientId);
+        var hasSenadisDiscount = patientProfile?.HasSenadisDiscount ?? false;
 
         // Build effective lines (plan lines merged with overrides)
         var overrideMap = request.LineOverrides.ToDictionary(o => o.TreatmentPlanLineId);
@@ -161,6 +177,9 @@ public class BulkSchedulingService : IBulkSchedulingService
                 // Compute financials
                 var amount = Math.Round(HourlyRate * line.Duration / 60m, 2);
                 var discountAmount = Math.Min(line.DiscountAmount, amount);
+                // WP-23 (F7): statutory SENADIS floor — staff may grant more, never less.
+                if (hasSenadisDiscount)
+                    discountAmount = Math.Max(discountAmount, Math.Round(0.20m * amount, 2));
                 var netAmount = amount - discountAmount;
                 var providerAmount = ComputeProviderAmount(assignedTherapistId.Value, netAmount, therapistMap);
                 var grossProfit = netAmount - providerAmount;

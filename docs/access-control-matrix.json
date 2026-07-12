@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-07-11T20:33:41-05:00",
+    "generatedAt": "2026-07-12T08:29:39-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "6c42b5362fbc",
+    "semanticHash": "10ad6ddcd5dd",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -192,6 +192,13 @@
     {
       "claim": "Patients.Merge",
       "grants": []
+    },
+    {
+      "claim": "Patients.SenadisDiscount.Edit",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
     },
     {
       "claim": "Patients.StartDiscovery",

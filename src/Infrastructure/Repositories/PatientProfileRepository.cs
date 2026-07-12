@@ -147,6 +147,11 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
                 ? null
                 : patientRequest.Cedula;
         }
+        // WP-23 (F7): null = unchanged; the claim gate ran in the controller before we get here.
+        if (patientRequest.HasSenadisDiscount.HasValue)
+        {
+            patientOnFile.HasSenadisDiscount = patientRequest.HasSenadisDiscount.Value;
+        }
 
         return patientOnFile;
     }
@@ -178,6 +183,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             PatientName = $"{p.User.LastName}, {p.User.FirstName} {p.User.MiddleName}".Trim(),
             MedicalRecordNumber = p.MedicalRecordNumber,
             Cedula = p.Cedula,
+            HasSenadisDiscount = p.HasSenadisDiscount,
             Gender = p.Gender,
             DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
             Email = p.User.Email,

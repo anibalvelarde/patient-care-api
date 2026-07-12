@@ -1,9 +1,11 @@
 using Moq;
 using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.Services;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
+using Neurocorp.Api.Core.Interfaces.Services;
 
 namespace Core.Tests;
 
@@ -13,6 +15,8 @@ public class BulkSchedulingServiceTests
     private readonly Mock<ITherapySessionRepository> _mockSessionRepo;
     private readonly Mock<ITherapistRepository> _mockTherapistRepo;
     private readonly Mock<ITherapistSpecialtyRepository> _mockSpecialtyRepo;
+    private readonly Mock<IPatientCaretakerRepository> _mockPatientCaretakerRepo;
+    private readonly Mock<IPatientProfileService> _mockPatientService;
     private readonly BulkSchedulingService _sut;
 
     public BulkSchedulingServiceTests()
@@ -22,12 +26,24 @@ public class BulkSchedulingServiceTests
         _mockSessionRepo = new Mock<ITherapySessionRepository>();
         _mockTherapistRepo = new Mock<ITherapistRepository>();
         _mockSpecialtyRepo = new Mock<ITherapistSpecialtyRepository>();
+        _mockPatientCaretakerRepo = new Mock<IPatientCaretakerRepository>();
+        _mockPatientService = new Mock<IPatientProfileService>();
+        // WP-23 defaults: patient has a caretaker link and no SENADIS flag, so the
+        // pre-existing scheduling tests run unchanged.
+        _mockPatientCaretakerRepo
+            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<PatientCaretaker> { new() { PatientId = 1, CaretakerId = 1 } });
+        _mockPatientService
+            .Setup(s => s.GetByIdAsync(It.IsAny<int>()))
+            .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "P" });
         _sut = new BulkSchedulingService(
             logger,
             _mockPlanRepo.Object,
             _mockSessionRepo.Object,
             _mockTherapistRepo.Object,
-            _mockSpecialtyRepo.Object);
+            _mockSpecialtyRepo.Object,
+            _mockPatientCaretakerRepo.Object,
+            _mockPatientService.Object);
     }
 
     private TreatmentPlan CreateActivePlan(int id = 1, int patientId = 1, int weeks = 2, int frequency = 1)
@@ -84,6 +100,70 @@ public class BulkSchedulingServiceTests
             .ReturnsAsync(new List<TherapySession>());
         _mockSessionRepo.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()))
             .Returns(Task.CompletedTask);
+    }
+
+    // --- WP-23 (F7/F10): SENADIS floor + caretaker guard on the bulk path ---
+
+    [Fact]
+    public async Task ScheduleAsync_PatientWithoutCaretaker_ThrowsArgumentException()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        _mockPatientCaretakerRepo
+            .Setup(r => r.GetByPatientIdAsync(plan.PatientId))
+            .ReturnsAsync(new List<PatientCaretaker>());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 }));
+
+        Assert.Contains("caretaker must be linked", ex.Message);
+        _mockSessionRepo.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_SenadisPatient_FloorsEachLineDiscountAtTwentyPercent()
+    {
+        // 60-min line at the 65/h rate → amount 65.00; floor = round(0.20 × 65, 2) = 13.00.
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        _mockPatientService
+            .Setup(s => s.GetByIdAsync(plan.PatientId))
+            .ReturnsAsync(new PatientProfile { PatientId = plan.PatientId, PatientName = "P", HasSenadisDiscount = true });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var session = Assert.Single(result.Sessions);
+        Assert.Equal(65.00m, session.Amount);
+        Assert.Equal(13.00m, session.DiscountAmount);                       // floored from 0
+        Assert.Equal(Math.Round((65.00m - 13.00m) * 0.40m, 2), Math.Round(session.ProviderAmount, 2)); // fee on net
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_SenadisPatient_KeepsLargerRequestedDiscount()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        _mockPatientService
+            .Setup(s => s.GetByIdAsync(plan.PatientId))
+            .ReturnsAsync(new PatientProfile { PatientId = plan.PatientId, PatientName = "P", HasSenadisDiscount = true });
+
+        var request = new BulkScheduleRequest
+        {
+            StartDate = new DateOnly(2026, 4, 13),
+            SiteId = 1,
+            LineOverrides = [new LineOverride { TreatmentPlanLineId = 1, DiscountAmount = 30m }]
+        };
+
+        var result = await _sut.ScheduleAsync(1, request);
+
+        var session = Assert.Single(result.Sessions);
+        Assert.Equal(30m, session.DiscountAmount); // above the 13.00 floor → kept
     }
 
     [Fact]

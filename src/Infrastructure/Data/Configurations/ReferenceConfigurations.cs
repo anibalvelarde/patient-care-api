@@ -32,6 +32,7 @@ public class SpecialtyTypeConfiguration : IEntityTypeConfiguration<SpecialtyType
         builder.Property(e => e.Abbreviation).HasColumnName("SpecialtyAbbreviation");
         builder.Property(e => e.Name).HasColumnName("SpecialtyName");
         builder.Property(e => e.Description).HasColumnName("SpecialtyDescription");
+        builder.Property(e => e.DefaultAmount).HasPrecision(10, 2);
     }
 }
 

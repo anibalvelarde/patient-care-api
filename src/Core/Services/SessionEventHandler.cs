@@ -18,8 +18,9 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly ITherapistProfileService _therapistService;
     private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
     private readonly ITherapistSpecialtyRepository _therapistSpecialtyRepository;
+    private readonly IPatientCaretakerRepository _patientCaretakerRepository;
 
-    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo)
+    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo, IPatientCaretakerRepository patientCaretakerRepo)
     {
         _logger = logger;
         _repository = repo;
@@ -28,6 +29,7 @@ public class SessionEventHandler : IHandleSessionEvent
         _therapistService = therapistSvc;
         _specialtyTypeRepository = specialtyTypeRepo;
         _therapistSpecialtyRepository = therapistSpecialtyRepo;
+        _patientCaretakerRepository = patientCaretakerRepo;
     }
 
     public async Task<IEnumerable<SessionEvent>> GetAllAsync()
@@ -131,6 +133,23 @@ public class SessionEventHandler : IHandleSessionEvent
     {
         _logger.LogInformation("Started creating a new therapy session from request.");
         var (pProfile, tProfile) = await FetchTargetPartiesAsync(request);
+
+        // WP-23 (F10): hard block — no caretaker on file, no booking (owner ruling: synthetic
+        // placeholders satisfy the rule; they are PatientCaretaker links like any other).
+        // ArgumentException → 400 via GlobalExceptionHandler.
+        var caretakerLinks = await _patientCaretakerRepository.GetByPatientIdAsync(request.PatientId);
+        if (!caretakerLinks.Any())
+        {
+            throw new ArgumentException("A caretaker must be linked to this patient before booking.");
+        }
+
+        // WP-23 (F7): statutory SENADIS discount FLOOR — 20% of Amount, staff may grant more,
+        // never less. (A pending "no stacking" customer ruling would tighten this to exactly-20%.)
+        if (pProfile!.HasSenadisDiscount)
+        {
+            request.Discount = Math.Max(request.Discount, Math.Round(0.20m * request.Amount, 2));
+        }
+
         var specialty = await ResolveSpecialtyAsync(request);
 
         // Discovery-first enforcement: treatment specialties require a completed discovery session
@@ -212,8 +231,11 @@ public class SessionEventHandler : IHandleSessionEvent
 
     private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req, SpecialtyType? specialty)
     {
-        var calcProviderAmt = tProfile.CalculateFee(req.Amount);
-        var calcGrossProfit = CalculateGrossProfit(tProfile, req);
+        // WP-23 (Questionnaire E ruling): the therapist fee applies to the NET amount — after
+        // discounts — matching BulkSchedulingService. Flat fees are unaffected by the base.
+        var netAmount = req.Amount - req.Discount;
+        var calcProviderAmt = tProfile.CalculateFee(netAmount);
+        var calcGrossProfit = netAmount - calcProviderAmt;
         // When SpecialtyTypeId is provided, populate TherapyTypes from specialty for backward compat
         var therapyTypes = specialty != null ? specialty.Abbreviation : req.TherapyType;
         return new TherapySession()
@@ -233,11 +255,6 @@ public class SessionEventHandler : IHandleSessionEvent
             SiteId = req.SiteId,
             SpecialtyTypeId = specialty?.Id ?? req.SpecialtyTypeId,
         };
-    }
-
-    private static decimal CalculateGrossProfit(TherapistProfile tProfile, SessionEventRequest request)
-    {
-        return request.Amount - request.Discount - tProfile.CalculateFee(request.Amount);
     }
 
     private async Task<SpecialtyType?> ResolveSpecialtyAsync(SessionEventRequest request)

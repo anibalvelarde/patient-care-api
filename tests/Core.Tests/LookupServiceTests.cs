@@ -179,4 +179,96 @@ public class LookupServiceTests
         // Assert
         Assert.False(result);
     }
+
+    // --- WP-23 (F6): DefaultAmount is a per-type field — SpecialtyType only ---
+
+    private Mock<IRepository<SpecialtyType>> UseSpecialtyRepo()
+    {
+        var mockSpecialtyRepo = new Mock<IRepository<SpecialtyType>>();
+        var mockServiceProvider = new Mock<IServiceProvider>();
+        mockServiceProvider
+            .Setup(sp => sp.GetService(typeof(IRepository<SpecialtyType>)))
+            .Returns(mockSpecialtyRepo.Object);
+        _specialtyService = new LookupService(mockServiceProvider.Object, Mock.Of<ILogger<LookupService>>());
+        return mockSpecialtyRepo;
+    }
+
+    private LookupService _specialtyService = null!;
+
+    [Fact]
+    public async Task GetAllAsync_SpecialtyTypes_PopulatesDefaultAmount()
+    {
+        var repo = UseSpecialtyRepo();
+        repo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<SpecialtyType>
+        {
+            new() { Id = 1, Abbreviation = "TL", Name = "Language Therapy", DefaultAmount = 65.00m },
+            new() { Id = 2, Abbreviation = "FS", Name = "Physiotherapy", DefaultAmount = null },
+        });
+
+        var items = (await _specialtyService.GetAllAsync("specialty-types")).ToList();
+
+        Assert.Equal(65.00m, items[0].DefaultAmount);
+        Assert.Null(items[1].DefaultAmount);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_NonSpecialtyTable_DefaultAmountIsAlwaysNull()
+    {
+        _mockRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<AppointmentStatus>
+        {
+            new() { Id = 1, Abbreviation = "PROP", Name = "Proposed" },
+        });
+
+        var items = (await _service.GetAllAsync("appointment-statuses")).ToList();
+
+        Assert.Null(items[0].DefaultAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SpecialtyType_HonorsDefaultAmount()
+    {
+        var repo = UseSpecialtyRepo();
+        SpecialtyType? captured = null;
+        repo.Setup(r => r.AddAsync(It.IsAny<SpecialtyType>()))
+            .Callback<SpecialtyType>(e => captured = e)
+            .ReturnsAsync((SpecialtyType e) => e);
+
+        var result = await _specialtyService.CreateAsync("specialty-types",
+            new LookupCreateRequest { Abbreviation = "HYD", Name = "Hydrotherapy", DefaultAmount = 80.50m });
+
+        Assert.Equal(80.50m, captured!.DefaultAmount);
+        Assert.Equal(80.50m, result.DefaultAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NonSpecialtyTable_IgnoresDefaultAmount()
+    {
+        AppointmentStatus? captured = null;
+        _mockRepo.Setup(r => r.AddAsync(It.IsAny<AppointmentStatus>()))
+            .Callback<AppointmentStatus>(e => captured = e)
+            .ReturnsAsync((AppointmentStatus e) => e);
+
+        var result = await _service.CreateAsync("appointment-statuses",
+            new LookupCreateRequest { Abbreviation = "NEW", Name = "NewStatus", DefaultAmount = 99m });
+
+        Assert.NotNull(captured); // entity has no DefaultAmount property to set — nothing to assert on it
+        Assert.Null(result.DefaultAmount);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SpecialtyType_SetsDefaultAmount_AndNullMeansUnchanged()
+    {
+        var repo = UseSpecialtyRepo();
+        var existing = new SpecialtyType { Id = 1, Abbreviation = "TL", Name = "Language Therapy", DefaultAmount = 65m };
+        repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(existing);
+        repo.Setup(r => r.UpdateAsync(It.IsAny<SpecialtyType>())).Returns(Task.CompletedTask);
+
+        // null = unchanged
+        await _specialtyService.UpdateAsync("specialty-types", 1, new LookupUpdateRequest { Name = "Renamed" });
+        Assert.Equal(65m, existing.DefaultAmount);
+
+        // provided = set
+        await _specialtyService.UpdateAsync("specialty-types", 1, new LookupUpdateRequest { DefaultAmount = 70.25m });
+        Assert.Equal(70.25m, existing.DefaultAmount);
+    }
 }

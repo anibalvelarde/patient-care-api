@@ -16,6 +16,9 @@ public class Patient : PersonBase
     // markers). Deliberately NOT surfaced in any DTO/endpoint/UI — the property exists so the
     // entity stays conformant with the DB schema (V021) for /audit-db-api.
     public string? Notes { get; set; }
+    // WP-23 (F7): statutory SENADIS 20% discount — both session-create paths apply a
+    // 20%-of-Amount discount floor when set.
+    public bool HasSenadisDiscount { get; set; }
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public bool HasTemporaryMrn()

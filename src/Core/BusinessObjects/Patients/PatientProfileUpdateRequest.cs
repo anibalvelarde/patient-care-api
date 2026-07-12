@@ -29,6 +29,9 @@ public class PatientProfileUpdateRequest
     public bool ActiveStatus { get; set; }
     public string? MedicalRecordNumber { get; set; }
     public string? Cedula { get; set; }
+    // WP-23 (F7): omitted/null = unchanged. Changing the stored value requires the
+    // Patients.SenadisDiscount.Edit claim (gate enforced in PatientsController.UpdatePatient).
+    public bool? HasSenadisDiscount { get; set; }
 
     public override string ToString()
     {

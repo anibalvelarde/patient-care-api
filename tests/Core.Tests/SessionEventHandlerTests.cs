@@ -18,6 +18,7 @@ public class SessionEventHandlerTests
     private readonly Mock<ITherapistProfileService> _mockTherapistService;
     private readonly Mock<IRepository<SpecialtyType>> _mockSpecialtyTypeRepository;
     private readonly Mock<ITherapistSpecialtyRepository> _mockTherapistSpecialtyRepository;
+    private readonly Mock<IPatientCaretakerRepository> _mockPatientCaretakerRepository;
     private readonly SessionEventHandler _sut;
 
     public SessionEventHandlerTests()
@@ -29,6 +30,11 @@ public class SessionEventHandlerTests
         _mockTherapistService = new Mock<ITherapistProfileService>();
         _mockSpecialtyTypeRepository = new Mock<IRepository<SpecialtyType>>();
         _mockTherapistSpecialtyRepository = new Mock<ITherapistSpecialtyRepository>();
+        _mockPatientCaretakerRepository = new Mock<IPatientCaretakerRepository>();
+        // WP-23 (F10): default = patient HAS a caretaker link so pre-existing tests book freely.
+        _mockPatientCaretakerRepository
+            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>()))
+            .ReturnsAsync(new List<PatientCaretaker> { new() { PatientId = 1, CaretakerId = 1 } });
         _sut = new SessionEventHandler(
             fakeLogger,
             _mockRepository.Object,
@@ -36,7 +42,8 @@ public class SessionEventHandlerTests
             _mockTherapistService.Object,
             _mockPatientService.Object,
             _mockSpecialtyTypeRepository.Object,
-            _mockTherapistSpecialtyRepository.Object);
+            _mockTherapistSpecialtyRepository.Object,
+            _mockPatientCaretakerRepository.Object);
     }
 
     [Fact]
@@ -218,6 +225,121 @@ public class SessionEventHandlerTests
         Assert.Null(result.SpecialtyAbbreviation);
         Assert.Null(result.IsDiscovery);
         Assert.Equal("N/A", result.TherapyTypes);
+    }
+
+    // --- WP-23: fee-on-net + SENADIS floor + caretaker guard (F7/F10, Questionnaire E) ---
+
+    private TherapySession? _capturedSession;
+
+    private void SetupCreateAsyncWithCapture(PatientProfile patient, TherapistProfile therapist)
+    {
+        _mockPatientService.Setup(s => s.GetByIdAsync(patient.PatientId)).ReturnsAsync(patient);
+        _mockTherapistService.Setup(s => s.GetByIdAsync(therapist.TherapistId)).ReturnsAsync(therapist);
+        _mockTherapySessionRepository
+            .Setup(r => r.AddAsync(It.IsAny<TherapySession>()))
+            .Callback<TherapySession>(ts => _capturedSession = ts)
+            .ReturnsAsync((TherapySession ts) => ts);
+        _mockTherapySessionRepository
+            .Setup(r => r.HasCompletedDiscoveryAsync(It.IsAny<int>()))
+            .ReturnsAsync(true);
+        _mockTherapistSpecialtyRepository
+            .Setup(r => r.HasTherapistSpecialtyAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(true);
+        _mockSpecialtyTypeRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<SpecialtyType>());
+    }
+
+    private static SessionEventRequest MakeRequest(decimal amount, decimal discount) => new()
+    {
+        PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-07-20"),
+        SessionTime = TimeOnly.Parse("10:00"), Amount = amount, Discount = discount, Duration = 60,
+        TherapyType = "N/A"
+    };
+
+    [Fact]
+    public async Task CreateAsync_PercentFee_ComputesProviderAmountOnNet()
+    {
+        // Questionnaire E ruling (owner 2026-07-12): fee applies AFTER discounts — net, not gross.
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePctPerSession = 0.50m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 20m));
+
+        Assert.NotNull(_capturedSession);
+        Assert.Equal(40m, _capturedSession!.ProviderAmount);  // 0.50 × (100 − 20), was 50 on gross
+        Assert.Equal(40m, _capturedSession.GrossProfit);      // 80 − 40
+    }
+
+    [Fact]
+    public async Task CreateAsync_FlatFee_GrossProfitIsNetMinusFlatFee()
+    {
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 20m));
+
+        Assert.Equal(25m, _capturedSession!.ProviderAmount);  // flat fee unchanged by net
+        Assert.Equal(55m, _capturedSession.GrossProfit);      // (100 − 20) − 25
+    }
+
+    [Theory]
+    [InlineData(100, 5, 20)]    // below the floor → raised to 20% of amount
+    [InlineData(100, 20, 20)]   // exactly at the floor → unchanged
+    [InlineData(100, 30, 30)]   // above the floor → staff discretion kept
+    [InlineData(100, 0, 20)]    // no discount requested → floor applies
+    public async Task CreateAsync_SenadisPatient_FloorsDiscountAtTwentyPercent(
+        decimal amount, decimal requested, decimal expected)
+    {
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P", HasSenadisDiscount = true },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePctPerSession = 0.50m });
+
+        await _sut.CreateAsync(MakeRequest(amount, requested));
+
+        Assert.Equal(expected, _capturedSession!.DiscountAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SenadisFloor_RoundsToTwoDecimals()
+    {
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P", HasSenadisDiscount = true },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 33.33m, discount: 0m));
+
+        Assert.Equal(6.67m, _capturedSession!.DiscountAmount); // round(0.20 × 33.33, 2)
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnflaggedPatient_DiscountUntouched()
+    {
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P", HasSenadisDiscount = false },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 5m));
+
+        Assert.Equal(5m, _capturedSession!.DiscountAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PatientWithoutCaretaker_ThrowsArgumentException()
+    {
+        // WP-23 (F10): hard block — GlobalExceptionHandler maps ArgumentException → 400.
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+        _mockPatientCaretakerRepository
+            .Setup(r => r.GetByPatientIdAsync(1))
+            .ReturnsAsync(new List<PatientCaretaker>());
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.CreateAsync(MakeRequest(amount: 100m, discount: 0m)));
+
+        Assert.Contains("caretaker must be linked", ex.Message);
+        _mockTherapySessionRepository.Verify(r => r.AddAsync(It.IsAny<TherapySession>()), Times.Never);
     }
 
     [Fact]
