@@ -15,6 +15,8 @@ public class GlobalExceptionHandlerTests
         new object[] { new ArgumentException("bad input"), StatusCodes.Status400BadRequest, "Bad Request" },
         new object[] { new ArgumentNullException("param"), StatusCodes.Status400BadRequest, "Bad Request" },
         new object[] { new NotFoundException("Session", 5), StatusCodes.Status404NotFound, "Not Found" },
+        // WP-22: domain-state conflicts (merge blockers) map to 409 with the message intact.
+        new object[] { new ConflictException("merge blocked"), StatusCodes.Status409Conflict, "Conflict" },
         new object[] { new InvalidOperationException("boom"), StatusCodes.Status500InternalServerError, "An unexpected error occurred." },
     };
 

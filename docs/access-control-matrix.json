@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-07-11T15:16:15-05:00",
+    "generatedAt": "2026-07-11T20:33:41-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "776a7665d67b",
+    "semanticHash": "6c42b5362fbc",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -188,6 +188,10 @@
         "FD",
         "MGR"
       ]
+    },
+    {
+      "claim": "Patients.Merge",
+      "grants": []
     },
     {
       "claim": "Patients.StartDiscovery",

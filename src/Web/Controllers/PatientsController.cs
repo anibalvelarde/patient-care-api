@@ -19,15 +19,19 @@ public class PatientsController : ControllerBase
     private readonly ISessionEventRepository _sessionEventRepository;
     private readonly ILogger<PatientsController> _logger;
 
+    private readonly IPatientMergeService _patientMergeService;
+
     public PatientsController(
         ILogger<PatientsController> logger,
         IPatientProfileService patientProfileService,
         IHandleSessionEvent sessionEventHandler,
-        ISessionEventRepository sessionEventRepository)
+        ISessionEventRepository sessionEventRepository,
+        IPatientMergeService patientMergeService)
     {
         _patientProfileService = patientProfileService;
         _sessionEventHandler = sessionEventHandler;
         _sessionEventRepository = sessionEventRepository;
+        _patientMergeService = patientMergeService;
         _logger = logger;
     }
 
@@ -167,6 +171,35 @@ public class PatientsController : ControllerBase
             // InvalidOperationException to 500, not 400).
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: ex.Message, title: "Bad Request");
         }
+    }
+
+    // WP-22 (F2): duplicate-patient merge — SYSADMIN-only by customer ruling. Patients.Merge
+    // has an EMPTY grants row in the matrix (hash 6c42b5362fbc); only the System/FullAccess
+    // wildcard satisfies it, so no RoleClaim was seeded. Preview is side-effect-free; execute
+    // remaps sessions/plans/caretaker-links, fills survivor blanks, writes PatientMergeLog +
+    // a [MERGED: ...] Notes marker, and hard-deletes the eliminated Patient + SystemUser.
+
+    [HttpPost("merge/preview")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsMerge)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientMergePreview))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PreviewPatientMerge([FromBody] PatientMergeRequest request)
+    {
+        var preview = await _patientMergeService.PreviewAsync(request);
+        return Ok(preview);
+    }
+
+    [HttpPost("merge")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsMerge)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PatientMergeResult))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MergePatients([FromBody] PatientMergeRequest request)
+    {
+        var result = await _patientMergeService.MergeAsync(request);
+        return Ok(result);
     }
 
     private async Task<PatientPastDueInfo> PackagePastDueInfoAsync(int patientId)

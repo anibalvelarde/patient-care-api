@@ -52,6 +52,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
         services.AddScoped<IPatientRepository, PatientRepository>();
+        services.AddScoped<IPatientMergeRepository, PatientMergeRepository>();
         services.AddScoped<IPatientProfileRepository, PatientProfileRepository>();
         services.AddScoped<ICaretakerProfileRepository, CaretakerProfileRepository>();
         services.AddScoped<ITherapistProfileRepository, TherapistProfileRepository>();

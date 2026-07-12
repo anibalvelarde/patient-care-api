@@ -41,6 +41,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TherapistSpecialty> TherapistSpecialties { get; set; }
     public DbSet<TreatmentPlan> TreatmentPlans { get; set; }
     public DbSet<TreatmentPlanLine> TreatmentPlanLines { get; set; }
+    public DbSet<PatientMergeLog> PatientMergeLogs { get; set; }
 
     public override int SaveChanges()
     {
