@@ -174,9 +174,13 @@ public class SessionsControllerTests
         // Arrange
         var newSession = Mock.Of<SessionEventRequest>();
         var fakeNewSessionId = DateTime.UtcNow.Millisecond;
-        _mockSessionEventHandler        
+        // WP-24 (audit F1): a non-discovery request skips the Patients.StartDiscovery gate.
+        _mockSessionEventHandler
+            .Setup(x => x.IsDiscoveryRequestAsync(newSession))
+            .ReturnsAsync(false);
+        _mockSessionEventHandler
             .Setup(x => x.CreateAsync(newSession))
-            .ReturnsAsync(new SessionEvent(){SessionId = fakeNewSessionId});        
+            .ReturnsAsync(new SessionEvent(){SessionId = fakeNewSessionId});
 
         // Act
         var result = await _controller.CreateSession(newSession);

@@ -35,4 +35,8 @@ public class PatientProfileRequest
     public string Gender { get; set; }
     // WP-23 (F7): settable at create by any patient-creating role (Questionnaire E gates edits only).
     public bool HasSenadisDiscount { get; set; }
+    // WP-24 (F3): settable at create by any patient-creating role; DEFAULT TRUE per
+    // Questionnaire C — an omitted JSON field means the new patient must complete a
+    // discovery session before treatment bookings. Later edits are claim-gated.
+    public bool RequiresDiscovery { get; set; } = true;
 }

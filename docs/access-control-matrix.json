@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-07-12T08:29:39-05:00",
+    "generatedAt": "2026-07-12T15:22:29-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "10ad6ddcd5dd",
+    "semanticHash": "7ae3aa5e3274",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -194,6 +194,13 @@
       "grants": []
     },
     {
+      "claim": "Patients.RequiresDiscovery.Edit",
+      "grants": [
+        "AM",
+        "MGR"
+      ]
+    },
+    {
       "claim": "Patients.SenadisDiscount.Edit",
       "grants": [
         "AM",
@@ -204,6 +211,7 @@
       "claim": "Patients.StartDiscovery",
       "grants": [
         "AM",
+        "FD",
         "MGR"
       ]
     },

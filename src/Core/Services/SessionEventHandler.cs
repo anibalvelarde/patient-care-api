@@ -152,8 +152,10 @@ public class SessionEventHandler : IHandleSessionEvent
 
         var specialty = await ResolveSpecialtyAsync(request);
 
-        // Discovery-first enforcement: treatment specialties require a completed discovery session
-        if (specialty != null && !specialty.IsDiscovery)
+        // Discovery-first enforcement: treatment specialties require a completed discovery session.
+        // WP-24 (F3/F4): only when the patient's RequiresDiscovery flag is set — false = waived
+        // (e.g. legacy-imported patients), which skips the check entirely.
+        if (specialty != null && !specialty.IsDiscovery && pProfile!.RequiresDiscovery)
         {
             var hasDiscovery = await _therapySessionRepository.HasCompletedDiscoveryAsync(request.PatientId);
             if (!hasDiscovery)
@@ -198,6 +200,16 @@ public class SessionEventHandler : IHandleSessionEvent
             SpecialtyName = specialty?.Name,
             IsDiscovery = specialty?.IsDiscovery,
         };
+    }
+
+    // WP-24 (audit F1): lets the controller ask "is this a discovery-specialty request?" BEFORE
+    // CreateAsync, so the Patients.StartDiscovery gate can 403 with nothing created. Uses the
+    // same resolution CreateAsync will run — Core stays free of HttpContext; the permission
+    // check itself lives in SessionsController.
+    public async Task<bool> IsDiscoveryRequestAsync(SessionEventRequest request)
+    {
+        var specialty = await ResolveSpecialtyAsync(request);
+        return specialty?.IsDiscovery == true;
     }
 
     public async Task<bool> UpdateAsync(int sessionEventId, SessionEventUpdateRequest request)

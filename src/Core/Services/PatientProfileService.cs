@@ -102,6 +102,7 @@ public class PatientProfileService : IPatientProfileService
             MedicalRecordNumber = newPatient.MedicalRecordNumber,
             Cedula = newPatient.Cedula,
             HasSenadisDiscount = newPatient.HasSenadisDiscount,
+            RequiresDiscovery = newPatient.RequiresDiscovery,
             DateOfBirth = newPatient.DateOfBirth ?? DateTime.MinValue,
             Email = newUser.Email,
             PhoneNumber = newUser.PhoneNumber,
@@ -186,7 +187,8 @@ public class PatientProfileService : IPatientProfileService
                 ? null
                 : patientRequest.MedicalRecordNumber,
             Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula) ? null : patientRequest.Cedula,
-            HasSenadisDiscount = patientRequest.HasSenadisDiscount
+            HasSenadisDiscount = patientRequest.HasSenadisDiscount,
+            RequiresDiscovery = patientRequest.RequiresDiscovery
         };
     }
 

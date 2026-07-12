@@ -22,6 +22,9 @@ public class PatientProfile : IProfile
     public bool IsActive { get; set; }
     // WP-23 (F7): statutory SENADIS 20% discount flag; edit gated by Patients.SenadisDiscount.Edit.
     public bool HasSenadisDiscount { get; set; }
+    // WP-24 (F3/F4): discovery-first waiver; false = exempt. Edit gated by
+    // Patients.RequiresDiscovery.Edit.
+    public bool RequiresDiscovery { get; set; }
     public bool? HasCompletedDiscovery { get; set; }
     public List<PatientCaretakerSummary> Caretakers { get; set; } = new();
 

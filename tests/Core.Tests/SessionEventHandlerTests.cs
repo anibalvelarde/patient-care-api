@@ -342,6 +342,82 @@ public class SessionEventHandlerTests
         _mockTherapySessionRepository.Verify(r => r.AddAsync(It.IsAny<TherapySession>()), Times.Never);
     }
 
+    // --- WP-24 (F3/F4): discovery-first waiver — the completed-discovery check only runs
+    // when the patient's RequiresDiscovery flag is true (false = waived, e.g. legacy import) ---
+
+    private void SetupWaiverScenario(bool requiresDiscovery, bool hasCompletedDiscovery, SpecialtyType specialty)
+    {
+        SetupCreateAsyncWithCapture(
+            new PatientProfile { PatientId = 1, PatientName = "P", RequiresDiscovery = requiresDiscovery },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+        _mockTherapySessionRepository
+            .Setup(r => r.HasCompletedDiscoveryAsync(It.IsAny<int>()))
+            .ReturnsAsync(hasCompletedDiscovery);
+        _mockSpecialtyTypeRepository
+            .Setup(r => r.GetByIdAsync(specialty.Id))
+            .ReturnsAsync(specialty);
+    }
+
+    private static SessionEventRequest MakeSpecialtyRequest(int specialtyTypeId) => new()
+    {
+        PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-07-20"),
+        SessionTime = TimeOnly.Parse("10:00"), Amount = 100m, Duration = 60,
+        SpecialtyTypeId = specialtyTypeId
+    };
+
+    [Fact]
+    public async Task CreateAsync_WaivedPatient_TreatmentSpecialty_NoCompletedDiscovery_Creates()
+    {
+        var treatment = new SpecialtyType { Id = 5, Abbreviation = "TC", Name = "Conduct Therapy", IsDiscovery = false };
+        SetupWaiverScenario(requiresDiscovery: false, hasCompletedDiscovery: false, treatment);
+
+        var result = await _sut.CreateAsync(MakeSpecialtyRequest(5));
+
+        Assert.NotNull(_capturedSession);
+        Assert.Equal(5, result.SpecialtyTypeId);
+        // Waived patients skip the check entirely — the repository is never even asked.
+        _mockTherapySessionRepository.Verify(r => r.HasCompletedDiscoveryAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UnwaivedPatient_TreatmentSpecialty_NoCompletedDiscovery_Throws()
+    {
+        var treatment = new SpecialtyType { Id = 5, Abbreviation = "TC", Name = "Conduct Therapy", IsDiscovery = false };
+        SetupWaiverScenario(requiresDiscovery: true, hasCompletedDiscovery: false, treatment);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.CreateAsync(MakeSpecialtyRequest(5)));
+
+        Assert.Contains("requires a completed discovery", ex.Message);
+        _mockTherapySessionRepository.Verify(r => r.AddAsync(It.IsAny<TherapySession>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DiscoverySpecialty_NeverTripsDiscoveryCheck_RegardlessOfFlag()
+    {
+        var discovery = new SpecialtyType { Id = 8, Abbreviation = "Obs-TO", Name = "Observacion TO", IsDiscovery = true };
+        SetupWaiverScenario(requiresDiscovery: true, hasCompletedDiscovery: false, discovery);
+
+        var result = await _sut.CreateAsync(MakeSpecialtyRequest(8));
+
+        Assert.True(result.IsDiscovery);
+        Assert.NotNull(_capturedSession);
+    }
+
+    [Fact]
+    public void PatientProfileRequest_JsonWithoutRequiresDiscovery_DefaultsTrue()
+    {
+        // WP-24 (F3, Questionnaire C): an omitted JSON field must mean "requires discovery" —
+        // the serializer keeps the property initializer when the field is absent.
+        var json = """{"firstName": "New", "lastName": "Patient", "gender": "Other"}""";
+
+        var request = System.Text.Json.JsonSerializer.Deserialize<PatientProfileRequest>(
+            json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.NotNull(request);
+        Assert.True(request!.RequiresDiscovery);
+    }
+
     [Fact]
     public async Task CreateAsync_WhenDiscoverySpecialtyProvided_IsDiscoveryIsTrue()
     {
