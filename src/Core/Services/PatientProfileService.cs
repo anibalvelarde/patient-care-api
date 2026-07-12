@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces;
@@ -147,6 +148,13 @@ public class PatientProfileService : IPatientProfileService
             return true;
         }
         return false;
+    }
+
+    public async Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize)
+    {
+        _logger.LogInformation("Getting patient session-history summaries (search: {Search}, page: {Page}, pageSize: {PageSize}).",
+            search, page, pageSize);
+        return await _repository.GetSessionHistoryAsync(search, page, pageSize);
     }
 
     public async Task<IEnumerable<PatientCaretakerSummary>> GetCaretakersForPatientAsync(int patientId)

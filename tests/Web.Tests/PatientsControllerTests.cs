@@ -6,6 +6,7 @@ using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Controllers;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using FluentAssertions;
@@ -49,6 +50,79 @@ public class PatientsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var returnedPatients = Assert.IsType<List<PatientProfile>>(okResult.Value);
         Assert.Equal(mockPatients.Count, returnedPatients.Count);
+    }
+
+    // ── WP-21 (F1): paged session-history endpoints ──────────────────────────────────
+
+    [Fact]
+    public async Task GetPatientSessionHistory_ReturnsOk_WithPagedResult()
+    {
+        var envelope = new PagedResult<PatientSessionHistorySummary>
+        {
+            Items = new List<PatientSessionHistorySummary> { new() { PatientId = 7 } },
+            Page = 1,
+            PageSize = 30,
+            TotalCount = 1,
+        };
+        _mockPatientProfileService
+            .Setup(s => s.GetSessionHistoryAsync("doe", 1, 30))
+            .ReturnsAsync(envelope);
+
+        var result = await _controller.GetPatientSessionHistory("doe", 1, 30);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returned = Assert.IsType<PagedResult<PatientSessionHistorySummary>>(okResult.Value);
+        returned.Should().BeSameAs(envelope);
+        _mockPatientProfileService.Verify(s => s.GetSessionHistoryAsync("doe", 1, 30), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPatientSessionHistory_ClampsPagingParams()
+    {
+        _mockPatientProfileService
+            .Setup(s => s.GetSessionHistoryAsync(null, It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(new PagedResult<PatientSessionHistorySummary>());
+
+        // page 0 → 1; pageSize 9999 → the 100 ceiling; pageSize 0 → the 30 default.
+        await _controller.GetPatientSessionHistory(null, page: 0, pageSize: 9999);
+        _mockPatientProfileService.Verify(s => s.GetSessionHistoryAsync(null, 1, 100), Times.Once);
+
+        await _controller.GetPatientSessionHistory(null, page: 3, pageSize: 0);
+        _mockPatientProfileService.Verify(s => s.GetSessionHistoryAsync(null, 3, 30), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPatientSessions_ReturnsOk_WithPagedResult()
+    {
+        var envelope = new PagedResult<SessionEvent>
+        {
+            Items = new List<SessionEvent> { new() { SessionId = 42 } },
+            Page = 2,
+            PageSize = 25,
+            TotalCount = 132,
+        };
+        _mockSessionEventRepository
+            .Setup(r => r.GetByPatientIdAsync(7, 2, 25, null, null))
+            .ReturnsAsync(envelope);
+
+        var result = await _controller.GetPatientSessions(7, page: 2, pageSize: 25);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returned = Assert.IsType<PagedResult<SessionEvent>>(okResult.Value);
+        returned.Should().BeSameAs(envelope);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 2, 25, null, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetPatientSessions_ClampsPagingParams_AndForwardsFilters()
+    {
+        _mockSessionEventRepository
+            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool?>(), It.IsAny<string?>()))
+            .ReturnsAsync(new PagedResult<SessionEvent>());
+
+        await _controller.GetPatientSessions(7, page: -5, pageSize: 400, isDiscovery: true, status: "Completed");
+
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 100, true, "Completed"), Times.Once);
     }
 
     [Fact]

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Neurocorp.Api.Core.Authorization;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Web.Authorization;
 using Xunit;
@@ -117,6 +118,70 @@ public class ProviderAmountShapingTests
         var payload = new { Secret = "keep-me" };
         var result = await RunFilter(FrontDesk(), payload);
         result.Value.Should().BeSameAs(payload);
+    }
+
+    // ── WP-21: the PagedResult<SessionEvent> envelope must be shaped too ─────────────
+    // The WP-21 endpoints are reachable via Patients.View, so principals like ACCT/FD hit them
+    // WITHOUT Appointments.ProviderAmount — the envelope arm is what keeps the payout confidential.
+
+    private static PagedResult<SessionEvent> Envelope(params decimal?[] providerAmounts) => new()
+    {
+        Items = providerAmounts.Select(pa => new SessionEvent { ProviderAmount = pa }).ToList(),
+        Page = 2,
+        PageSize = 25,
+        TotalCount = 132,
+    };
+
+    // ACCT-shaped principal: holds Patients.View (reaches the WP-21 endpoints) but no ProviderAmount claim.
+    private static ClaimsPrincipal PatientsViewOnly() =>
+        Principal(new Claim(SystemClaims.PermissionClaimType, "Patients.View"));
+
+    [Fact]
+    public async Task FrontDesk_paged_envelope_items_are_redacted()
+    {
+        var result = await RunFilter(FrontDesk(), Envelope(10m, 20m));
+        ((PagedResult<SessionEvent>)result.Value!).Items.Should().OnlyContain(e => e.ProviderAmount == null);
+    }
+
+    [Fact]
+    public async Task PatientsView_only_principal_paged_envelope_is_redacted()
+    {
+        var result = await RunFilter(PatientsViewOnly(), Envelope(50m));
+        ((PagedResult<SessionEvent>)result.Value!).Items.Should().OnlyContain(e => e.ProviderAmount == null);
+    }
+
+    [Fact]
+    public async Task Manager_paged_envelope_keeps_ProviderAmount()
+    {
+        var result = await RunFilter(Manager(), Envelope(99m));
+        ((PagedResult<SessionEvent>)result.Value!).Items.Single().ProviderAmount.Should().Be(99m);
+    }
+
+    [Fact]
+    public async Task Wildcard_paged_envelope_keeps_ProviderAmount()
+    {
+        var result = await RunFilter(Wildcard(), Envelope(99m));
+        ((PagedResult<SessionEvent>)result.Value!).Items.Single().ProviderAmount.Should().Be(99m);
+    }
+
+    [Fact]
+    public async Task Paged_envelope_metadata_survives_redaction()
+    {
+        var result = await RunFilter(FrontDesk(), Envelope(10m, 20m));
+        var paged = (PagedResult<SessionEvent>)result.Value!;
+        paged.Page.Should().Be(2);
+        paged.PageSize.Should().Be(25);
+        paged.TotalCount.Should().Be(132);
+        paged.Items.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Paged_envelope_of_other_type_is_untouched()
+    {
+        var payload = new PagedResult<string> { Items = ["keep-me"], Page = 1, PageSize = 30, TotalCount = 1 };
+        var result = await RunFilter(FrontDesk(), payload);
+        result.Value.Should().BeSameAs(payload);
+        ((PagedResult<string>)result.Value!).Items.Single().Should().Be("keep-me");
     }
 
     // ── serialization: null ⇒ property omitted entirely ──────────────────────────────
