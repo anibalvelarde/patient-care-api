@@ -109,6 +109,13 @@ public class LookupService : ILookupService
             LastUpdatedTimestamp = now,
         };
 
+        // WP-23 (F6): DefaultAmount is a per-type field — honored only for SpecialtyType,
+        // silently ignored for every other lookup table (their schema has no such column).
+        if (entity is SpecialtyType specialty && request.DefaultAmount.HasValue)
+        {
+            specialty.DefaultAmount = request.DefaultAmount;
+        }
+
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
         var created = await repository.AddAsync(entity);
         _logger.LogInformation("Created {EntityType} with ID: {Id}", typeof(T).Name, created.Id);
@@ -128,6 +135,11 @@ public class LookupService : ILookupService
         if (request.Name != null) entity.Name = request.Name;
         if (request.Description != null) entity.Description = request.Description;
         if (request.SortOrder != null) entity.SortOrder = (short)request.SortOrder.Value;
+        // WP-23 (F6): per-type field — SpecialtyType only; null = unchanged (0 is a legal price).
+        if (entity is SpecialtyType specialty && request.DefaultAmount.HasValue)
+        {
+            specialty.DefaultAmount = request.DefaultAmount;
+        }
         entity.LastUpdatedTimestamp = DateTime.UtcNow;
 
         await repository.UpdateAsync(entity);
@@ -144,6 +156,8 @@ public class LookupService : ILookupService
             Name = entity.Name,
             Description = entity.Description,
             SortOrder = entity.SortOrder,
+            // WP-23 (F6): per-type field — populated only for SpecialtyType, null elsewhere.
+            DefaultAmount = (entity as SpecialtyType)?.DefaultAmount,
             CreatedTimestamp = entity.CreatedTimestamp,
             LastUpdatedTimestamp = entity.LastUpdatedTimestamp,
         };

@@ -16,4 +16,8 @@ public class LookupCreateRequest
     public string? Description { get; set; }
 
     public int SortOrder { get; set; } = 0;
+
+    // WP-23 (F6): accepted only for specialty-types; ignored for every other table.
+    [Range(0, 99999999.99)]
+    public decimal? DefaultAmount { get; set; }
 }

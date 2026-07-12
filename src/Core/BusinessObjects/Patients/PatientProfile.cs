@@ -20,6 +20,8 @@ public class PatientProfile : IProfile
     public DateTime CreatedTimestamp { get; set; }
     public string? Gender { get; set; }
     public bool IsActive { get; set; }
+    // WP-23 (F7): statutory SENADIS 20% discount flag; edit gated by Patients.SenadisDiscount.Edit.
+    public bool HasSenadisDiscount { get; set; }
     public bool? HasCompletedDiscovery { get; set; }
     public List<PatientCaretakerSummary> Caretakers { get; set; } = new();
 

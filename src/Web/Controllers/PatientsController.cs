@@ -151,11 +151,24 @@ public class PatientsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     public async Task<IActionResult> UpdatePatient(int id, [FromBody] PatientProfileUpdateRequest patientRequest)
     {
-        if (!await _patientProfileService.VerifyRequestAsync(id))
+        var patientOnFile = await _patientProfileService.GetByIdAsync(id);
+        if (patientOnFile is null)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest,
                 detail: $"The update request is not valid for patient {id}.", title: "Bad Request");
         }
+
+        // WP-23 (F7): field-level WRITE gate — the platform's first (read-side precedent:
+        // ProviderAmountResultFilter). Changing the SENADIS flag needs its own claim (MGR/AM by
+        // Questionnaire E); present-but-unchanged passes so clients that echo the full profile
+        // keep working for FD. Nothing is applied on the Forbid path.
+        if (patientRequest.HasSenadisDiscount.HasValue
+            && patientRequest.HasSenadisDiscount.Value != patientOnFile.HasSenadisDiscount
+            && !User.HasPermission(Permissions.PatientsSenadisDiscountEdit))
+        {
+            return Forbid();
+        }
+
         try
         {
             if (!await _patientProfileService.UpdateAsync(id, patientRequest))

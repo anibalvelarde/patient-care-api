@@ -14,4 +14,9 @@ public class LookupUpdateRequest
     public string? Description { get; set; }
 
     public int? SortOrder { get; set; }
+
+    // WP-23 (F6): accepted only for specialty-types (null = unchanged; clearing to NULL is out of
+    // scope — 0 is a legal price, not a sentinel); ignored for every other table.
+    [Range(0, 99999999.99)]
+    public decimal? DefaultAmount { get; set; }
 }

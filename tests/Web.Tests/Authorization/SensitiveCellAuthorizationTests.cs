@@ -247,6 +247,87 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
             "the secure-by-default fallback policy still requires authentication before the action runs");
     }
 
+    // ── WP-23 (F7): hasSenadisDiscount field-level WRITE gate on PUT /api/patients/{id} ──
+    // The action rides Patients.Edit (FD included); CHANGING the stored flag additionally
+    // requires Patients.SenadisDiscount.Edit [AM,MGR]. Unlike the attribute cells above, the
+    // 403 comes from the imperative in-action check — so these tests create a real patient
+    // first and assert the present-AND-differs semantics end-to-end.
+
+    [Theory]
+    [InlineData("FD")]
+    [InlineData("ACCT")]
+    public async Task SenadisFlagChange_RoleWithoutGateClaim_Is403(string role)
+    {
+        var patientId = await CreatePatientAsync(senadis: false);
+
+        var response = await PutPatientAsync(patientId, TokenFor(role), "{\"hasSenadisDiscount\": true}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            $"{role} holds Patients.Edit-adjacent access but not Patients.SenadisDiscount.Edit");
+    }
+
+    [Theory]
+    [InlineData("MGR")]
+    [InlineData("AM")]
+    [InlineData("SYSADMIN")]
+    public async Task SenadisFlagChange_RoleWithGateClaim_IsNotBlocked(string role)
+    {
+        var patientId = await CreatePatientAsync(senadis: false);
+
+        var response = await PutPatientAsync(patientId, TokenFor(role), "{\"hasSenadisDiscount\": true}");
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            $"{role} may change the SENADIS flag (matrix: MGR/AM + wildcard)");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "the token is valid");
+    }
+
+    [Fact]
+    public async Task SenadisFlagEchoedUnchanged_FD_Passes()
+    {
+        // FD clients that round-trip the whole profile must keep working: present-but-equal
+        // is not a change and must not 403.
+        var patientId = await CreatePatientAsync(senadis: true);
+
+        var response = await PutPatientAsync(patientId, _factory.MintRoleToken("FD"),
+            "{\"hasSenadisDiscount\": true, \"phoneNumber\": \"555-0199\"}");
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "echoing the stored value is not a change — the gate keys on present AND differs");
+    }
+
+    private async Task<int> CreatePatientAsync(bool senadis)
+    {
+        var unique = Guid.NewGuid().ToString("N")[..10];
+        var body = $$"""
+            {
+              "firstName": "Wp23", "middleName": "", "lastName": "Gate-{{unique}}",
+              "medicalRecordNumber": "WP23-{{unique}}",
+              "dateOfBirth": "2015-01-01T00:00:00", "email": "wp23-{{unique}}@neurocorp.test",
+              "phoneNumber": "555-0100", "gender": "Other",
+              "hasSenadisDiscount": {{(senadis ? "true" : "false")}}
+            }
+            """;
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/patients")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new("Bearer", _factory.MintWildcardToken());
+        var response = await _factory.CreateClient().SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        using var doc = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.GetProperty("patientId").GetInt32();
+    }
+
+    private async Task<HttpResponseMessage> PutPatientAsync(int patientId, string token, string jsonBody)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, $"/api/patients/{patientId}")
+        {
+            Content = new StringContent(jsonBody, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new("Bearer", token);
+        return await _factory.CreateClient().SendAsync(request);
+    }
+
     private string TokenFor(string role) =>
         role == "SYSADMIN" ? _factory.MintWildcardToken() : _factory.MintRoleToken(role);
 

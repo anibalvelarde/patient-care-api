@@ -33,4 +33,6 @@ public class PatientProfileRequest
     [Required]
     [AllowedValues("Male", "Female", "Other")]
     public string Gender { get; set; }
+    // WP-23 (F7): settable at create by any patient-creating role (Questionnaire E gates edits only).
+    public bool HasSenadisDiscount { get; set; }
 }

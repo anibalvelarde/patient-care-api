@@ -11,8 +11,12 @@ using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using FluentAssertions;
 using System.Linq;
+using System.Security.Claims;
 using Castle.Core.Logging;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.Authorization;
+using Neurocorp.Api.Web.Authorization;
 
 namespace Web.Tests.Controllers;
 
@@ -294,5 +298,105 @@ public class PatientsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         okResult.Value.Should().BeSameAs(mergeResult);
         _mockPatientMergeService.Verify(s => s.MergeAsync(request), Times.Once);
+    }
+
+    // ── WP-23 (F7): hasSenadisDiscount field-level edit gate on PUT ──────────────────
+    // Changing the stored flag needs Patients.SenadisDiscount.Edit; omitted/null/echoed-
+    // unchanged values pass so FD clients that round-trip the profile keep working.
+
+    private void UseCaller(params (string Type, string Value)[] claims)
+    {
+        var identity = new ClaimsIdentity(
+            claims.Select(c => new Claim(c.Type, c.Value)), authenticationType: "TestAuth");
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+        };
+    }
+
+    private void SetupPatientOnFile(int id, bool hasSenadisDiscount)
+    {
+        _mockPatientProfileService
+            .Setup(s => s.GetByIdAsync(id))
+            .ReturnsAsync(new PatientProfile { PatientId = id, PatientName = "P", HasSenadisDiscount = hasSenadisDiscount });
+        _mockPatientProfileService
+            .Setup(s => s.UpdateAsync(id, It.IsAny<PatientProfileUpdateRequest>()))
+            .ReturnsAsync(true);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisChanged_WithoutClaim_ReturnsForbid_AndDoesNotUpdate()
+    {
+        SetupPatientOnFile(7, hasSenadisDiscount: false);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit)); // FD-like: Edit but not the gate
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { HasSenadisDiscount = true });
+
+        Assert.IsType<ForbidResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<PatientProfileUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisChanged_WithClaim_Delegates()
+    {
+        SetupPatientOnFile(7, hasSenadisDiscount: false);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsSenadisDiscountEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { HasSenadisDiscount = true });
+
+        Assert.IsType<NoContentResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(7, It.Is<PatientProfileUpdateRequest>(r => r.HasSenadisDiscount == true)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisChanged_WithWildcard_Delegates()
+    {
+        SetupPatientOnFile(7, hasSenadisDiscount: true);
+        UseCaller((SystemClaims.SystemClaimType, SystemClaims.FullAccessValue)); // SYSADMIN
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { HasSenadisDiscount = false });
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisEchoedUnchanged_WithoutClaim_Passes()
+    {
+        SetupPatientOnFile(7, hasSenadisDiscount: true);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { HasSenadisDiscount = true }); // echo, not a change
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisOmitted_WithoutClaim_Passes()
+    {
+        SetupPatientOnFile(7, hasSenadisDiscount: true);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { FirstName = "Renamed" }); // null flag = unchanged
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_UnknownPatient_Returns400()
+    {
+        _mockPatientProfileService.Setup(s => s.GetByIdAsync(99)).ReturnsAsync((PatientProfile?)null);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(99, new PatientProfileUpdateRequest());
+
+        var problem = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.StatusCode);
     }
 }
