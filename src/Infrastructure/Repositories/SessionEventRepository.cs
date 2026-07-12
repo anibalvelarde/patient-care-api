@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
@@ -74,7 +75,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return result;
     }
 
-    public async Task<IReadOnlyList<SessionEvent>> GetByPatientIdAsync(int patientId, bool? isDiscovery = null, string? status = null)
+    public async Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null)
     {
         var query = _dbContext.TherapySessions
             .Where(ts => ts.PatientId == patientId &&
@@ -87,7 +88,18 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(status))
             query = query.Where(ts => ts.AppointmentStatus != null && ts.AppointmentStatus.Name == status);
 
-        var result = await query
+        // COUNT(*) over the filters only — no Includes, so no join amplification.
+        var totalCount = await query.CountAsync();
+
+        // WP-21: newest first with deterministic tiebreaks so pages are stable. Ordering and
+        // Skip/Take sit on TherapySession columns and run in SQL; ExtractSessionEvent below is
+        // client-evaluated, so paging MUST stay ahead of that projection.
+        var items = await query
+            .OrderByDescending(ts => ts.SessionDate)
+            .ThenByDescending(ts => ts.SessionTime)
+            .ThenByDescending(ts => ts.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Patient)
@@ -101,7 +113,14 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.SpecialtyType)
             .Select(ts => ExtractSessionEvent(ts))
             .ToListAsync();
-        return result;
+
+        return new PagedResult<SessionEvent>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     public override async Task<SessionEvent?> GetByIdAsync(int id)

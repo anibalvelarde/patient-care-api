@@ -36,6 +36,11 @@ namespace Neurocorp.Api.Web.Tests.Authorization;
 ///   TreatmentPlans.Edit   [AM,MGR]      PUT  /api/treatment-plans/{id} (content edit; FD denied)
 ///   TreatmentPlans.Book   [AM,FD,MGR]   POST /api/treatment-plans, POST …/{id}/schedule,
 ///                                       PUT …/{id}/activate|complete|cancel (FD retains setup)
+///
+/// WP-21 (F1) — patient session history rides Patients.View (supersedes D-8 for these reads):
+///   Patients.View [ACCT,AM,FD,MGR,OWN]  GET /api/patients/session-history,
+///                                       GET /api/patients/{id}/sessions
+///   (the ACCT rows are the F1 proof — ACCT lacks Appointments.View, the endpoint's old gate)
 /// </summary>
 public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFactory>
 {
@@ -76,6 +81,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // ServicePayments.Adjust [MGR] (WP-14.5) — reversing a disbursement is MGR-only; AM (view-only) and FD denied.
     [InlineData("POST", "/api/service-payments/1/reverse", "AM")]
     [InlineData("POST", "/api/service-payments/1/reverse", "FD")]
+    // Patients.View (WP-21, F1) — restricted roles hold no granular claims ⇒ locked out.
+    [InlineData("GET", "/api/patients/session-history", "CARETAKER")]
+    [InlineData("GET", "/api/patients/1/sessions", "CARETAKER")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -124,6 +132,14 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // ServicePayments.Adjust [MGR] (WP-14.5) — MGR may reverse; SYSADMIN via wildcard.
     [InlineData("POST", "/api/service-payments/1/reverse", "MGR")]
     [InlineData("POST", "/api/service-payments/1/reverse", "SYSADMIN")]
+    // Patients.View (WP-21, F1) — the whole Session History audience gets through; the ACCT rows
+    // would have failed under the endpoint's pre-WP-21 gate (Appointments.View, which ACCT lacks).
+    [InlineData("GET", "/api/patients/session-history", "ACCT")]
+    [InlineData("GET", "/api/patients/session-history", "FD")]
+    [InlineData("GET", "/api/patients/session-history", "OWN")]
+    [InlineData("GET", "/api/patients/session-history", "SYSADMIN")]
+    [InlineData("GET", "/api/patients/1/sessions", "ACCT")]
+    [InlineData("GET", "/api/patients/1/sessions", "FD")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -139,6 +155,7 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("POST", "/api/sites")]
     [InlineData("GET", "/api/caretakers/1/statement")]
     [InlineData("GET", "/api/patients/pastdue")]
+    [InlineData("GET", "/api/patients/session-history")]
     public async Task NoToken_Is401(string method, string route)
     {
         var response = await SendAsync(method, route, token: null);

@@ -43,7 +43,7 @@ public class SessionEvent
     public string? CaretakerEmail { get; set; }
 
     // WP-17 access-control: ProviderAmount (therapist payout) is confidential — matrix grants
-    // Appointments.ProviderAmount to MGR/AM only (FrontDesk excluded). ProviderAmountResultFilter
+    // Appointments.ProviderAmount to AM/MGR/OWN only (FrontDesk/Accountant excluded). ProviderAmountResultFilter
     // sets this to null for callers lacking that claim, and WhenWritingNull omits the property
     // entirely from the JSON so FD never receives the figure (not just a zeroed value).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

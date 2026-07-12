@@ -13,6 +13,8 @@
 | GET | `/api/patients` | List all patients | — | `PatientProfile[]` |
 | GET | `/api/patients/{id}` | Get patient by ID | — | `PatientProfile` |
 | GET | `/api/patients/{id}/pastdue` | Past-due billing summary for a patient | — | `PatientPastDueInfo` |
+| GET | `/api/patients/session-history` | Paged patient summaries by most-recent-session (WP-21; `?search=&page=&pageSize=30`) | — | `PagedResult<PatientSessionHistorySummary>` |
+| GET | `/api/patients/{id}/sessions` | Paged session history, newest first (WP-21; `?page=&pageSize=25&isDiscovery=&status=`; **breaking**: was a bare `SessionEvent[]` — no consumers) | — | `PagedResult<SessionEvent>` |
 | POST | `/api/patients` | Create a new patient | `PatientProfileRequest` | `PatientProfile` (201) |
 | PUT | `/api/patients/{id}` | Update an existing patient | `PatientProfileUpdateRequest` | 204 No Content |
 

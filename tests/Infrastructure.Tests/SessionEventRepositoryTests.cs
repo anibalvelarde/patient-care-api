@@ -102,6 +102,134 @@ public class SessionEventRepositoryTests
         }
     }
 
+    // ── WP-21 (F1): GetByPatientIdAsync paging ───────────────────────────────────────
+
+    private static TherapySession Session(int id, int patientId, Patient patient, Therapist therapist,
+        DateOnly date, TimeOnly time, decimal amount = 100) => new()
+    {
+        Id = id,
+        PatientId = patientId,
+        Patient = patient,
+        Therapist = therapist,
+        SessionDate = date,
+        SessionTime = time,
+        Amount = amount,
+    };
+
+    [Fact]
+    public async Task GetByPatientIdAsync_PagesNewestFirst_WithStableTiebreaks()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp21Paging")
+            .Options;
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+            var patient = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } };
+            var therapist = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } };
+
+            // Three dates + a same-date/different-time pair + a same-date/same-time id tie.
+            context.TherapySessions.AddRange(
+                Session(1, 1, patient, therapist, new DateOnly(2026, 5, 1), new TimeOnly(9, 0)),
+                Session(2, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(9, 0)),
+                Session(3, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(14, 0)),
+                Session(4, 1, patient, therapist, new DateOnly(2026, 6, 1), new TimeOnly(9, 0)),
+                Session(5, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(14, 0)));
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new SessionEventRepository(context);
+
+            // Newest first: date DESC, time DESC, id DESC → 5, 3, 2, 4, 1.
+            var page1 = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 2);
+            Assert.Equal(5, page1.TotalCount);
+            Assert.Equal(1, page1.Page);
+            Assert.Equal(2, page1.PageSize);
+            Assert.Equal(new[] { 5, 3 }, page1.Items.Select(se => se.SessionId).ToArray());
+
+            var page2 = await repository.GetByPatientIdAsync(1, page: 2, pageSize: 2);
+            Assert.Equal(5, page2.TotalCount);
+            Assert.Equal(new[] { 2, 4 }, page2.Items.Select(se => se.SessionId).ToArray());
+
+            var page3 = await repository.GetByPatientIdAsync(1, page: 3, pageSize: 2);
+            Assert.Equal(new[] { 1 }, page3.Items.Select(se => se.SessionId).ToArray());
+        }
+    }
+
+    [Fact]
+    public async Task GetByPatientIdAsync_FiltersAndTotalCountAgree()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp21Filters")
+            .Options;
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.AddRange(
+                new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" },
+                new AppointmentStatus { Id = 8, Name = "Cancelled", Description = "Session cancelled" });
+            var patient = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } };
+            var therapist = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } };
+
+            var completed = Session(1, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(9, 0));
+            completed.AppointmentStatusId = 4;
+            var cancelled = Session(2, 1, patient, therapist, new DateOnly(2026, 7, 2), new TimeOnly(9, 0));
+            cancelled.AppointmentStatusId = 8;
+            var otherPatientSession = Session(3, 2,
+                new Patient { Id = 2, User = new User { FirstName = "Alice", LastName = "Wonder" } },
+                therapist, new DateOnly(2026, 7, 3), new TimeOnly(9, 0));
+            otherPatientSession.AppointmentStatusId = 4;
+
+            context.TherapySessions.AddRange(completed, cancelled, otherPatientSession);
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new SessionEventRepository(context);
+
+            // status filter narrows both the items AND the totalCount (not the patient's full set).
+            var filtered = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25, status: "Completed");
+            Assert.Equal(1, filtered.TotalCount);
+            Assert.Equal(1, Assert.Single(filtered.Items).SessionId);
+
+            var unfiltered = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25);
+            Assert.Equal(2, unfiltered.TotalCount);
+        }
+    }
+
+    [Fact]
+    public async Task GetByPatientIdAsync_PageBeyondEnd_ReturnsEmptyItemsWithTotalCount()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp21BeyondEnd")
+            .Options;
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+            context.TherapySessions.Add(Session(1, 1,
+                new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } },
+                new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } },
+                new DateOnly(2026, 7, 1), new TimeOnly(9, 0)));
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new SessionEventRepository(context);
+
+            var result = await repository.GetByPatientIdAsync(1, page: 5, pageSize: 25);
+
+            Assert.Empty(result.Items);
+            Assert.Equal(1, result.TotalCount);
+            Assert.Equal(5, result.Page);
+        }
+    }
+
     // B3 (2026-07-07 punch list): Session Details must carry the primary caretaker's
     // name/phone/email so the Proposed > Session Details panel can display them.
     [Fact]

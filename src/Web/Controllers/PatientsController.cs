@@ -88,19 +88,46 @@ public class PatientsController : ControllerBase
         return Ok(caretakers);
     }
 
-    // WP-17 (D-8): cross-resource read gated by the data's own domain claim (Appointments.View) —
-    // these are the patient's session/appointment rows. AM/FD/MGR.
-    [HttpGet("{patientId}/sessions")]
-    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
-    [ProducesResponseType(typeof(IEnumerable<SessionEvent>), StatusCodes.Status200OK)]
+    // WP-21 (F1): paged patient summaries ordered by most-recent-session first — backs the
+    // Patients → Session History tab's patient list.
+    [HttpGet("session-history")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResult<PatientSessionHistorySummary>))]
+    public async Task<IActionResult> GetPatientSessionHistory(
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30)
+    {
+        var (safePage, safeSize) = ClampPaging(page, pageSize, defaultPageSize: 30);
+        var result = await _patientProfileService.GetSessionHistoryAsync(search, safePage, safeSize);
+        return Ok(result);
+    }
+
+    // WP-21 (F1 ruling — supersedes WP-17 D-8 for patient-context session reads): gated by the
+    // PATIENT domain claim (Patients.View: ACCT/AM/FD/MGR/OWN) so the Session History tab's whole
+    // audience can read a patient's sessions; Appointments.View would exclude ACCT. ProviderAmount
+    // confidentiality stays field-level — ProviderAmountResultFilter shapes the paged envelope too.
+    [HttpGet("{patientId:int}/sessions")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
+    [ProducesResponseType(typeof(PagedResult<SessionEvent>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPatientSessions(
         int patientId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
         [FromQuery] bool? isDiscovery = null,
         [FromQuery] string? status = null)
     {
-        var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, isDiscovery, status);
+        var (safePage, safeSize) = ClampPaging(page, pageSize, defaultPageSize: 25);
+        var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, safePage, safeSize, isDiscovery, status);
         return Ok(sessions);
     }
+
+    private const int MaxPageSize = 100;
+
+    // Lenient clamping (silent, not 400) matches the API's existing query-param style; the
+    // pageSize ceiling keeps "?pageSize=100000" from re-creating the unpaged endpoint.
+    private static (int Page, int PageSize) ClampPaging(int page, int pageSize, int defaultPageSize) =>
+        (Math.Max(1, page), pageSize < 1 ? defaultPageSize : Math.Min(pageSize, MaxPageSize));
 
     [HttpPost]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]

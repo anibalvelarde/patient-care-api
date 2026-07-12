@@ -1,4 +1,5 @@
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
@@ -47,6 +48,69 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
     public override async Task<PatientProfile> UpdateAsync(PatientProfile entity)
     {
         return await Task.FromException<PatientProfile>(new NotImplementedException());
+    }
+
+    // WP-21 (F1): paged patient summaries for the Session History tab, ordered by
+    // most-recent-session first. Recency/count come from correlated scalar subqueries — they
+    // translate to SQL on every provider (incl. the InMemory test provider), and at this table's
+    // scale (~1k patients / ~11k sessions) they're as good as a grouped join.
+    public async Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize)
+    {
+        var patients = _dbContext.Patients.Where(p => p.User != null);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            // Explicit ToLower(): MySQL columns are already _ci-collated; this keeps the
+            // InMemory provider (LINQ-to-objects, case-sensitive Contains) behaving identically.
+            var term = search.Trim().ToLower();
+            patients = patients.Where(p =>
+                p.User!.FirstName.ToLower().Contains(term) ||
+                p.User!.LastName.ToLower().Contains(term) ||
+                (p.MedicalRecordNumber != null && p.MedicalRecordNumber.ToLower().Contains(term)));
+        }
+
+        var totalCount = await patients.CountAsync();
+
+        var rows = await patients
+            .Select(p => new
+            {
+                p.Id,
+                p.User!.FirstName,
+                p.User!.LastName,
+                p.User!.MiddleName,
+                p.MedicalRecordNumber,
+                LastSessionDate = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Max(ts => (DateOnly?)ts.SessionDate),
+                TotalSessions = _dbContext.TherapySessions
+                    .Count(ts => ts.PatientId == p.Id),
+            })
+            // MySQL puts NULLs last under ORDER BY ... DESC, matching .NET's comparer — patients
+            // who never had a session deliberately sort to the end on both providers.
+            .OrderByDescending(x => x.LastSessionDate)
+            .ThenBy(x => x.LastName)
+            .ThenBy(x => x.FirstName)
+            .ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = rows.Select(r => new PatientSessionHistorySummary
+        {
+            PatientId = r.Id,
+            PatientName = $"{r.LastName}, {r.FirstName} {r.MiddleName}".Trim(),
+            MedicalRecordNumber = r.MedicalRecordNumber,
+            LastSessionDate = r.LastSessionDate,
+            TotalSessions = r.TotalSessions,
+        }).ToList();
+
+        return new PagedResult<PatientSessionHistorySummary>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
     public async Task<PatientProfile> UpdateAsync(int patientId, int userId, PatientProfileUpdateRequest updateRequest)
