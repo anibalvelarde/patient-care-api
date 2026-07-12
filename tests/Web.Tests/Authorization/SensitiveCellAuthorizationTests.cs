@@ -84,6 +84,16 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // Patients.View (WP-21, F1) — restricted roles hold no granular claims ⇒ locked out.
     [InlineData("GET", "/api/patients/session-history", "CARETAKER")]
     [InlineData("GET", "/api/patients/1/sessions", "CARETAKER")]
+    // Patients.Merge (WP-22, F2) — EMPTY grants row: only the SYSADMIN wildcard satisfies it,
+    // so every granular operator role is denied.
+    [InlineData("POST", "/api/patients/merge/preview", "MGR")]
+    [InlineData("POST", "/api/patients/merge/preview", "OWN")]
+    [InlineData("POST", "/api/patients/merge", "MGR")]
+    [InlineData("POST", "/api/patients/merge", "AM")]
+    [InlineData("POST", "/api/patients/merge", "FD")]
+    [InlineData("POST", "/api/patients/merge", "OWN")]
+    [InlineData("POST", "/api/patients/merge", "ACCT")]
+    [InlineData("POST", "/api/patients/merge", "CARETAKER")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -140,6 +150,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/patients/session-history", "SYSADMIN")]
     [InlineData("GET", "/api/patients/1/sessions", "ACCT")]
     [InlineData("GET", "/api/patients/1/sessions", "FD")]
+    // Patients.Merge (WP-22, F2) — SYSADMIN reaches both actions via the wildcard (no seed).
+    [InlineData("POST", "/api/patients/merge/preview", "SYSADMIN")]
+    [InlineData("POST", "/api/patients/merge", "SYSADMIN")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -156,6 +169,8 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/caretakers/1/statement")]
     [InlineData("GET", "/api/patients/pastdue")]
     [InlineData("GET", "/api/patients/session-history")]
+    [InlineData("POST", "/api/patients/merge/preview")]
+    [InlineData("POST", "/api/patients/merge")]
     public async Task NoToken_Is401(string method, string route)
     {
         var response = await SendAsync(method, route, token: null);

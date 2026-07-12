@@ -64,6 +64,10 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
     {
         NotFoundException => (StatusCodes.Status404NotFound, "Not Found", exception.Message),
 
+        // Domain-state conflicts (e.g. WP-22 merge blockers) — the domain-driven sibling of
+        // the duplicate-key 409 below.
+        ConflictException => (StatusCodes.Status409Conflict, "Conflict", exception.Message),
+
         // Covers ArgumentNullException / ArgumentOutOfRangeException too (both derive from ArgumentException).
         ArgumentException => (StatusCodes.Status400BadRequest, "Bad Request", exception.Message),
 

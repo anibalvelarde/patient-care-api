@@ -21,6 +21,7 @@ public class PatientsControllerTests
     private readonly Mock<IPatientProfileService> _mockPatientProfileService;
     private readonly Mock<IHandleSessionEvent> _mockSessionEventHandler;
     private readonly Mock<ISessionEventRepository> _mockSessionEventRepository;
+    private readonly Mock<IPatientMergeService> _mockPatientMergeService;
     private readonly PatientsController _controller;
 
     public PatientsControllerTests()
@@ -29,7 +30,8 @@ public class PatientsControllerTests
         _mockPatientProfileService = new Mock<IPatientProfileService>();
         _mockSessionEventHandler = new Mock<IHandleSessionEvent>();
         _mockSessionEventRepository = new Mock<ISessionEventRepository>();
-        _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object, _mockSessionEventRepository.Object);
+        _mockPatientMergeService = new Mock<IPatientMergeService>();
+        _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object, _mockSessionEventRepository.Object, _mockPatientMergeService.Object);
     }
 
     [Fact]
@@ -261,5 +263,36 @@ public class PatientsControllerTests
         patientInfo.AmountPaidSoFar.Should().BeGreaterOrEqualTo(0);
         patientInfo.Delinquency.Should().NotBeNull()
             .And.HaveCount(0);
-    }    
+    }
+
+    // ── WP-22 (F2): duplicate-patient merge ───────────────────────────────────────────
+
+    [Fact]
+    public async Task PreviewPatientMerge_ReturnsOk_WithServicePreview()
+    {
+        var request = new PatientMergeRequest { SurvivorPatientId = 1, EliminatedPatientId = 2 };
+        var preview = new PatientMergePreview { Blockers = new List<string> { "blocked" } };
+        _mockPatientMergeService.Setup(s => s.PreviewAsync(request)).ReturnsAsync(preview);
+
+        var result = await _controller.PreviewPatientMerge(request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        okResult.Value.Should().BeSameAs(preview);
+        _mockPatientMergeService.Verify(s => s.PreviewAsync(request), Times.Once);
+        _mockPatientMergeService.Verify(s => s.MergeAsync(It.IsAny<PatientMergeRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task MergePatients_ReturnsOk_WithServiceResult()
+    {
+        var request = new PatientMergeRequest { SurvivorPatientId = 1, EliminatedPatientId = 2 };
+        var mergeResult = new PatientMergeResult { SurvivorPatientId = 1, EliminatedPatientId = 2, MergeLogId = 42 };
+        _mockPatientMergeService.Setup(s => s.MergeAsync(request)).ReturnsAsync(mergeResult);
+
+        var result = await _controller.MergePatients(request);
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        okResult.Value.Should().BeSameAs(mergeResult);
+        _mockPatientMergeService.Verify(s => s.MergeAsync(request), Times.Once);
+    }
 }
