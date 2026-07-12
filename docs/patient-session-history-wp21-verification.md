@@ -10,8 +10,10 @@ the WP-21 `PagedResult<T>` envelope `{ items, page, pageSize, totalCount }`. Con
 BASE=http://localhost:5245            # deployed: http://neurocorp.k3s:30000
 TOKEN=$(curl -s -X POST $BASE/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"<owner-user>","password":"<password>"}' | jq -r '.accessToken')
-# NB: the field is .accessToken (NOT .token — see fix b3-verification-doc-token-field).
+  -d '{"email":"<owner-email>","password":"<password>"}' | jq -r '.accessToken')
+# NB: the request field is "email" (NOT "username" — LoginRequest binds Email; a "username"
+# key silently binds empty → 401) and the response field is .accessToken (NOT .token — see
+# fix b3-verification-doc-token-field).
 ```
 
 ## 1. Summary list — paged, most-recent-session first
