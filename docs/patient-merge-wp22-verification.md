@@ -10,14 +10,65 @@ granular role (MGR/AM/FD/OWN/ACCT) gets 403. Contract:
 so they have no unit-test coverage by design. Run the full sequence against a **rehearsal DB
 (prod dump in a `mysql:8` container)** first, exactly like the WP-19 promotion rehearsals.
 
+## Rehearsal environment — `wp19-rehearsal` (local Docker) ✅ USED 2026-07-11
+
+A prod-dump `mysql:8` container on the owner's workstation. **Local-rehearsal-only
+credentials — never valid anywhere else:**
+
+| What | Value |
+|---|---|
+| Container | `wp19-rehearsal` (mysql:8, host port **33061** → 3306) |
+| Database | `neurocorp` — root / `rehearse19` |
+| App login (SA) | `anibalvelarde+sa@gmail.com` / `rehearse19` (hash reset in-container, see below) |
+| API | `http://localhost:52455` (run from `feature/wp-22b-patient-merge`) |
+
+**One-time DB prep** (all idempotent; already applied 2026-07-11 — re-run only on a fresh
+dump). The dump predated V024/V025 and the OWN/ACCT RoleClaim seed:
+
+```bash
+cd patient-care-db
+# 1. Migrations the dump is missing
+docker exec -i wp19-rehearsal mysql -uroot -prehearse19 neurocorp \
+  < migrations/V024__widen_patient_gender_enum.sql
+git show origin/feature/wp-22a-patient-merge-log:migrations/V025__create_patient_merge_log.sql \
+  | docker exec -i wp19-rehearsal mysql -uroot -prehearse19 neurocorp     # (plain path once 22A merges)
+# 2. Current RoleClaim seed (adds OWN/ACCT; needed only for role-based 403 curls)
+docker exec -i wp19-rehearsal mysql -uroot -prehearse19 neurocorp < scripts/seed-role-claims.sql
+# 3. Known SA password for the rehearsal app login (hash from the committed helper):
+cd ../patient-care-api && dotnet run --project tools/SaPasswordHasher -- "rehearse19"
+docker exec wp19-rehearsal mysql -uroot -prehearse19 neurocorp -e \
+  "UPDATE SystemUser SET PasswordHash='<paste PBKDF2$ hash>', PasswordSalt=NULL,
+   MustChangePassword=0, FailedLoginAttempts=0, LockoutUntil=NULL
+   WHERE Email='anibalvelarde+sa@gmail.com';"
+```
+
+**Start the API against the container** (from `patient-care-api`, branch
+`feature/wp-22b-patient-merge`):
+
+```bash
+DATABASE_HOST=localhost DATABASE_PORT=33061 DATABASE_NAME=neurocorp \
+DATABASE_USER=root DATABASE_PASSWORD=rehearse19 ASPNETCORE_ENVIRONMENT=Development \
+dotnet run --project src/Web/Web.csproj --urls "http://localhost:52455"
+# Health probe: curl http://localhost:52455/api/health/checks  → 200, DbChecks Healthy
+```
+
+> **Rehearsal executed 2026-07-11 on this container (BULTRON pair, 359 ← 360):** preview
+> classified MATIAS's synthetic `-SH (LEGACY)` caretaker `retire-synthetic`, no blockers;
+> execute → log #1, **2 sessions repointed (ExecuteUpdate proof: PID 360 → 0, PID 359 2 → 4,
+> total conserved 9,429)**, Patient 360 + SystemUser 10614 + UserRole hard-deleted, MATIAS's
+> synthetic caretaker + identity retired while **MATHIAS's own synthetic survived**, audit
+> columns stamped `LastUpdatedByUserId=1`, `[MERGED: ...]` marker appended after the
+> `[LEGACY-IMPORT: ...]` marker. All §4/§5 checks below passed.
+
 ## Setup — mint a SYSADMIN token
 
 ```bash
-BASE=http://localhost:5245            # deployed: http://neurocorp.k3s:30000
+BASE=http://localhost:52455           # rehearsal (above) · local dev: :5245 · deployed: http://neurocorp.k3s:30000
 TOKEN=$(curl -s -X POST $BASE/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"<sysadmin-user>","password":"<password>"}' | jq -r '.accessToken')
-# NB: the field is .accessToken (NOT .token).
+  -d '{"email":"<sysadmin-email>","password":"<password>"}' | jq -r '.accessToken')
+# NB: the request field is "email" (NOT "username") and the response field is
+# .accessToken (NOT .token).
 ```
 
 Pick a real duplicate pair (see `patient-care-db tools/legacy-import/caretaker-backfill-2024.md`
