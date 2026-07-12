@@ -52,6 +52,17 @@ public class SessionsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateSession([FromBody] SessionEventRequest sessionRequest)
     {
+        // WP-24 (closes WP-17 audit F1): booking a DISCOVERY-specialty session additionally
+        // requires Patients.StartDiscovery (MGR/AM/FD as of hash 7ae3aa5e3274). Imperative, not
+        // an [Authorize] policy: the endpoint is generic and a static policy can't see the
+        // specialty — it must be resolved from the request first. Nothing is created on the
+        // Forbid path.
+        if (await _sessionEventHandler.IsDiscoveryRequestAsync(sessionRequest)
+            && !User.HasPermission(Permissions.PatientsStartDiscovery))
+        {
+            return Forbid();
+        }
+
         var createdSession = await _sessionEventHandler.CreateAsync(sessionRequest);
         return CreatedAtAction(nameof(CreateSession), new { id = createdSession.SessionId }, createdSession);
     }
@@ -74,8 +85,8 @@ public class SessionsController : ControllerBase
     }
 
     // WP-17 (D-5): completed discovery sessions are a read of appointment data — Appointments.View
-    // (AM/FD/MGR). Not FD-hidden; if discovery should be FD-restricted, switch to
-    // Patients.StartDiscovery (AM/MGR).
+    // (AM/FD/MGR). Discovery-START is separately enforced on CreateSession above via
+    // Patients.StartDiscovery, which FD also holds as of hash 7ae3aa5e3274 (WP-24 closed audit F1).
     [HttpGet("patient/{patientId}/discovery")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.AppointmentsView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<DiscoverySessionSummary>))]

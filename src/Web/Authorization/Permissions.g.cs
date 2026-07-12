@@ -7,7 +7,7 @@
 //   (patient-care-super/tools/generate-access-manifest.sh), re-vendor
 //   docs/access-control-matrix.json, then re-run tools/generate-permissions.sh.
 //
-//   Access-control manifest semantic hash: 10ad6ddcd5dd
+//   Access-control manifest semantic hash: 7ae3aa5e3274
 // </auto-generated>
 
 namespace Neurocorp.Api.Web.Authorization;
@@ -49,6 +49,7 @@ public static class Permissions
     public const string PatientsEdit = "Patients.Edit";
     public const string PatientsLinkCaretaker = "Patients.LinkCaretaker";
     public const string PatientsMerge = "Patients.Merge";
+    public const string PatientsRequiresDiscoveryEdit = "Patients.RequiresDiscovery.Edit";
     public const string PatientsSenadisDiscountEdit = "Patients.SenadisDiscount.Edit";
     public const string PatientsStartDiscovery = "Patients.StartDiscovery";
     public const string PatientsView = "Patients.View";

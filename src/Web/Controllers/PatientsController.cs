@@ -169,6 +169,16 @@ public class PatientsController : ControllerBase
             return Forbid();
         }
 
+        // WP-24 (F3/F4): same SENADIS-style gate for the discovery-first waiver flag — changing
+        // it needs Patients.RequiresDiscovery.Edit (MGR/AM by Questionnaire C; FD sets it at
+        // create only). Both gates run before any update applies.
+        if (patientRequest.RequiresDiscovery.HasValue
+            && patientRequest.RequiresDiscovery.Value != patientOnFile.RequiresDiscovery
+            && !User.HasPermission(Permissions.PatientsRequiresDiscoveryEdit))
+        {
+            return Forbid();
+        }
+
         try
         {
             if (!await _patientProfileService.UpdateAsync(id, patientRequest))

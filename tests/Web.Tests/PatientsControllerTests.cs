@@ -388,6 +388,84 @@ public class PatientsControllerTests
         Assert.IsType<NoContentResult>(result);
     }
 
+    // ── WP-24 (F3/F4): requiresDiscovery field-level edit gate on PUT ─────────────────
+    // Changing the stored waiver flag needs Patients.RequiresDiscovery.Edit; omitted/null/
+    // echoed-unchanged values pass so FD clients that round-trip the profile keep working.
+
+    private void SetupPatientOnFileWithDiscovery(int id, bool requiresDiscovery)
+    {
+        _mockPatientProfileService
+            .Setup(s => s.GetByIdAsync(id))
+            .ReturnsAsync(new PatientProfile { PatientId = id, PatientName = "P", RequiresDiscovery = requiresDiscovery });
+        _mockPatientProfileService
+            .Setup(s => s.UpdateAsync(id, It.IsAny<PatientProfileUpdateRequest>()))
+            .ReturnsAsync(true);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_RequiresDiscoveryChanged_WithoutClaim_ReturnsForbid_AndDoesNotUpdate()
+    {
+        SetupPatientOnFileWithDiscovery(7, requiresDiscovery: true);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit)); // FD-like: Edit but not the gate
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { RequiresDiscovery = false });
+
+        Assert.IsType<ForbidResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<PatientProfileUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_RequiresDiscoveryChanged_WithClaim_Delegates()
+    {
+        SetupPatientOnFileWithDiscovery(7, requiresDiscovery: true);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsRequiresDiscoveryEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { RequiresDiscovery = false });
+
+        Assert.IsType<NoContentResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(7, It.Is<PatientProfileUpdateRequest>(r => r.RequiresDiscovery == false)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_RequiresDiscoveryChanged_WithWildcard_Delegates()
+    {
+        SetupPatientOnFileWithDiscovery(7, requiresDiscovery: false);
+        UseCaller((SystemClaims.SystemClaimType, SystemClaims.FullAccessValue)); // SYSADMIN
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { RequiresDiscovery = true });
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_RequiresDiscoveryEchoedUnchanged_WithoutClaim_Passes()
+    {
+        SetupPatientOnFileWithDiscovery(7, requiresDiscovery: true);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { RequiresDiscovery = true }); // echo, not a change
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_RequiresDiscoveryOmitted_WithoutClaim_Passes()
+    {
+        SetupPatientOnFileWithDiscovery(7, requiresDiscovery: false);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { FirstName = "Renamed" }); // null flag = unchanged
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
     [Fact]
     public async Task UpdatePatient_UnknownPatient_Returns400()
     {

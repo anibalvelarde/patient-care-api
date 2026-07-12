@@ -1,6 +1,9 @@
 using System.Net;
 using System.Text;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
+using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Web.Tests.Authorization;
 
@@ -293,6 +296,136 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
 
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
             "echoing the stored value is not a change — the gate keys on present AND differs");
+    }
+
+    // ── WP-24 (F3/F4): requiresDiscovery field-level WRITE gate on PUT /api/patients/{id} ──
+    // Same imperative mechanism as the SENADIS gate: the action rides Patients.Edit, but
+    // CHANGING the stored waiver flag additionally requires Patients.RequiresDiscovery.Edit
+    // [AM,MGR] (hash 7ae3aa5e3274).
+
+    [Theory]
+    [InlineData("FD")]
+    [InlineData("ACCT")]
+    public async Task RequiresDiscoveryFlagChange_RoleWithoutGateClaim_Is403(string role)
+    {
+        var patientId = await CreatePatientAsync(senadis: false); // created with requiresDiscovery: true (default)
+
+        var response = await PutPatientAsync(patientId, TokenFor(role), "{\"requiresDiscovery\": false}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            $"{role} holds Patients.Edit-adjacent access but not Patients.RequiresDiscovery.Edit");
+    }
+
+    [Theory]
+    [InlineData("MGR")]
+    [InlineData("AM")]
+    [InlineData("SYSADMIN")]
+    public async Task RequiresDiscoveryFlagChange_RoleWithGateClaim_IsNotBlocked(string role)
+    {
+        var patientId = await CreatePatientAsync(senadis: false);
+
+        var response = await PutPatientAsync(patientId, TokenFor(role), "{\"requiresDiscovery\": false}");
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            $"{role} may change the requiresDiscovery flag (matrix: MGR/AM + wildcard)");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "the token is valid");
+    }
+
+    [Fact]
+    public async Task RequiresDiscoveryFlagEchoedUnchanged_FD_Passes()
+    {
+        // FD clients that round-trip the whole profile must keep working: present-but-equal
+        // is not a change and must not 403.
+        var patientId = await CreatePatientAsync(senadis: false); // stored flag = true (default)
+
+        var response = await PutPatientAsync(patientId, _factory.MintRoleToken("FD"),
+            "{\"requiresDiscovery\": true, \"phoneNumber\": \"555-0199\"}");
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "echoing the stored value is not a change — the gate keys on present AND differs");
+    }
+
+    // ── WP-24 (audit F1): Patients.StartDiscovery enforced on POST /api/sessions ────────
+    // The endpoint rides Appointments.Book; when the request's RESOLVED specialty is a
+    // discovery type, the caller must additionally hold Patients.StartDiscovery [AM,FD,MGR
+    // as of 7ae3aa5e3274]. Imperative gate (no new [Authorize] policy — the endpoint is
+    // generic and a static policy can't see the specialty), so the 403 fires before any
+    // controller/handler work creates a session. The InMemory host has no seeded lookup
+    // data, so each test seeds its own SpecialtyType row directly into the test DbContext.
+
+    [Fact]
+    public async Task DiscoverySessionCreate_WithoutStartDiscoveryClaim_Is403()
+    {
+        var specialtyId = await SeedSpecialtyAsync(isDiscovery: true);
+        // Appointments.Book alone gets past the endpoint policy but must trip the gate.
+        var token = _factory.MintWithPermissions("Appointments.Book");
+
+        var response = await PostSessionAsync(specialtyId, token);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
+            "a discovery-specialty booking requires Patients.StartDiscovery (WP-17 audit F1)");
+    }
+
+    [Fact]
+    public async Task DiscoverySessionCreate_FdRole_IsNotBlocked()
+    {
+        // FD holds Patients.StartDiscovery in the manifest as of hash 7ae3aa5e3274 (plan-review
+        // ruling 1) — front desk keeps booking new patients' first (discovery) sessions.
+        var specialtyId = await SeedSpecialtyAsync(isDiscovery: true);
+
+        var response = await PostSessionAsync(specialtyId, _factory.MintRoleToken("FD"));
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "FD holds Patients.StartDiscovery (hash 7ae3aa5e3274) — the gate must let it through");
+        response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized, "the token is valid");
+    }
+
+    [Fact]
+    public async Task TreatmentSessionCreate_WithoutStartDiscoveryClaim_IsNotBlockedByGate()
+    {
+        // The gate keys on the resolved specialty being a discovery type — a treatment-specialty
+        // request with only Appointments.Book must NOT 403 (it fails later on validation, not auth).
+        var specialtyId = await SeedSpecialtyAsync(isDiscovery: false);
+        var token = _factory.MintWithPermissions("Appointments.Book");
+
+        var response = await PostSessionAsync(specialtyId, token);
+
+        response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden,
+            "the StartDiscovery gate must only fire for discovery-specialty requests");
+    }
+
+    private async Task<int> SeedSpecialtyAsync(bool isDiscovery)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var unique = Guid.NewGuid().ToString("N")[..6];
+        var specialty = new SpecialtyType
+        {
+            Abbreviation = (isDiscovery ? "Obs-" : "T-") + unique,
+            Name = (isDiscovery ? "Discovery " : "Treatment ") + unique,
+            IsDiscovery = isDiscovery,
+        };
+        db.SpecialtyTypes.Add(specialty);
+        await db.SaveChangesAsync();
+        return specialty.Id;
+    }
+
+    private async Task<HttpResponseMessage> PostSessionAsync(int specialtyTypeId, string token)
+    {
+        var body = $$"""
+            {
+              "sessionDate": "2026-07-20", "sessionTime": "10:00",
+              "patientId": 987654, "therapistId": 987654,
+              "duration": 60, "amount": 50.0,
+              "specialtyTypeId": {{specialtyTypeId}}
+            }
+            """;
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/sessions")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new("Bearer", token);
+        return await _factory.CreateClient().SendAsync(request);
     }
 
     private async Task<int> CreatePatientAsync(bool senadis)

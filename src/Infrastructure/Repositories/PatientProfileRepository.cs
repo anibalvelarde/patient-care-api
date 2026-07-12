@@ -152,6 +152,11 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         {
             patientOnFile.HasSenadisDiscount = patientRequest.HasSenadisDiscount.Value;
         }
+        // WP-24 (F3/F4): null = unchanged; the claim gate ran in the controller before we get here.
+        if (patientRequest.RequiresDiscovery.HasValue)
+        {
+            patientOnFile.RequiresDiscovery = patientRequest.RequiresDiscovery.Value;
+        }
 
         return patientOnFile;
     }
@@ -184,6 +189,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             MedicalRecordNumber = p.MedicalRecordNumber,
             Cedula = p.Cedula,
             HasSenadisDiscount = p.HasSenadisDiscount,
+            RequiresDiscovery = p.RequiresDiscovery,
             Gender = p.Gender,
             DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
             Email = p.User.Email,

@@ -19,6 +19,10 @@ public class Patient : PersonBase
     // WP-23 (F7): statutory SENADIS 20% discount — both session-create paths apply a
     // 20%-of-Amount discount floor when set.
     public bool HasSenadisDiscount { get; set; }
+    // WP-24 (F3/F4): discovery-first waiver — false = exempt from the completed-discovery-
+    // before-treatment rule (e.g. legacy-imported patients). Default TRUE (Questionnaire C),
+    // matching the DB column default (V028).
+    public bool RequiresDiscovery { get; set; } = true;
     public ICollection<PatientCaretaker>? Caretakers { get; set; }
 
     public bool HasTemporaryMrn()
