@@ -22,6 +22,11 @@ public class PatientProfileRequest
     [Required]
     public string LastName { get; set; }
     public string MedicalRecordNumber { get; set; }
+    // WP-25 (F5, Questionnaire D): "Cedula | Passport" is mandatory at create — missing or
+    // blank/whitespace is a 400 at the model-validation layer (was optional in WP-18; blanks
+    // used to insert NULL silently). Legacy-imported NULL rows stay editable via the tolerant
+    // update path in PatientProfileRepository.MapToUpdatedPatient.
+    [Required]
     public string Cedula { get; set; }
     [Required]
     public DateTime DateOfBirth { get; set; }

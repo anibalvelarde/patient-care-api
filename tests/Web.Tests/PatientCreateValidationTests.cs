@@ -27,18 +27,23 @@ public class PatientCreateValidationTests : IClassFixture<AccessControlTestFacto
         return client;
     }
 
-    private static object CreateBody(string? gender, string suffix) => new
+    private static object CreateBody(string? gender, string suffix, string? cedula) => new
     {
         firstName = "B1",
         lastName = $"Regression-{suffix}",
         middleName = "",
         medicalRecordNumber = $"B1-TEST-{suffix}",
-        cedula = "",
+        cedula,
         dateOfBirth = "2015-06-01",
         email = $"b1-{suffix}@neurocorp.test",
         phoneNumber = "555-0100",
         gender,
     };
+
+    // WP-25 (F5): cedula is required at create, and uq_patient_cedula is UNIQUE — every create
+    // body gets its own value (a shared constant would 409 the second successful create).
+    private static object CreateBody(string? gender, string suffix) =>
+        CreateBody(gender, suffix, $"WP25-{suffix}-{Guid.NewGuid().ToString("N")[..8]}");
 
     [Theory]
     [InlineData("Nonbinary")]
@@ -76,6 +81,34 @@ public class PatientCreateValidationTests : IClassFixture<AccessControlTestFacto
         var response = await client.PostAsJsonAsync("/api/patients", CreateBody(gender, suffix));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    // WP-25 (F5, Questionnaire D): "Cedula | Passport" is mandatory at create. Missing (null) or
+    // blank/whitespace must be a 400 at the model-validation layer — never a silent NULL insert.
+    [Fact]
+    public async Task Post_WithMissingCedula_Returns400()
+    {
+        var client = CreateMgrClient();
+
+        var response = await client.PostAsJsonAsync("/api/patients", CreateBody("Male", "ced-missing", cedula: null));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Cedula");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Post_WithBlankCedula_Returns400(string blankCedula)
+    {
+        var client = CreateMgrClient();
+
+        var response = await client.PostAsJsonAsync("/api/patients", CreateBody("Male", $"ced-blank-{blankCedula.Length}", blankCedula));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().Contain("Cedula");
     }
 
     [Fact]

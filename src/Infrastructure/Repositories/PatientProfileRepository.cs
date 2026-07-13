@@ -139,13 +139,18 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         { patientOnFile.DateOfBirth = patientRequest.DateOfBirth; }
         if (!string.IsNullOrEmpty(patientRequest.MedicalRecordNumber))
         { patientOnFile.MedicalRecordNumber = patientRequest.MedicalRecordNumber; }
-        // Cedula supports an explicit erase (intake 2026-06-29-001 item 3): omitted/null = leave
-        // as-is; present but blank = clear to NULL (unique index allows multiple NULLs); else set.
+        // WP-25 (F5) — supersedes intake 2026-06-29-001 item 3 (blank-erase removed).
+        // Omitted/null = leave as-is: this is the legacy-tolerance keystone that keeps the ~866
+        // legacy-imported NULL-cedula patients editable (and the Active toggle working) — do NOT
+        // touch it. Present-but-blank = rejected clear attempt (→ 400 via GlobalExceptionHandler);
+        // non-blank = set (duplicate → 409 on uq_patient_cedula).
         if (patientRequest.Cedula != null)
         {
-            patientOnFile.Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula)
-                ? null
-                : patientRequest.Cedula;
+            if (string.IsNullOrWhiteSpace(patientRequest.Cedula))
+            {
+                throw new ArgumentException("Cedula | Passport cannot be cleared - it is required once on file.");
+            }
+            patientOnFile.Cedula = patientRequest.Cedula;
         }
         // WP-23 (F7): null = unchanged; the claim gate ran in the controller before we get here.
         if (patientRequest.HasSenadisDiscount.HasValue)

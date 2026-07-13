@@ -435,6 +435,7 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
             {
               "firstName": "Wp23", "middleName": "", "lastName": "Gate-{{unique}}",
               "medicalRecordNumber": "WP23-{{unique}}",
+              "cedula": "CED-{{unique}}",
               "dateOfBirth": "2015-01-01T00:00:00", "email": "wp23-{{unique}}@neurocorp.test",
               "phoneNumber": "555-0100", "gender": "Other",
               "hasSenadisDiscount": {{(senadis ? "true" : "false")}}
