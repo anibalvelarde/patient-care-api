@@ -189,11 +189,12 @@ public class PatientProfileServiceTests
         mockPatientRepo.Verify(r => r.UpdateAsync(It.IsAny<Patient>()), Times.Never);
     }
 
+    // WP-25 (F5): blank/missing cedula is now rejected upstream by [Required] model validation,
+    // so the old blank→NULL theory cases are gone; MapToNewPatient keeps the normalization purely
+    // as defense-in-depth. This test asserts the happy path: the value flows to the new entity.
     [Theory]
     [InlineData("001-1234567-8", "001-1234567-8")] // provided value flows to the new entity
-    [InlineData("", null)]                          // blank normalized to null (avoids unique-constraint clash)
-    [InlineData("   ", null)]                        // whitespace normalized to null
-    public async Task CreateAsync_MapsCedula_NormalizingBlankToNull(string requestCedula, string? expectedCedula)
+    public async Task CreateAsync_MapsCedula_ValueFlowsToNewPatient(string requestCedula, string? expectedCedula)
     {
         // Arrange
         var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();

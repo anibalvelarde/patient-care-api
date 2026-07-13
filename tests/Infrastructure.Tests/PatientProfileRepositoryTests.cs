@@ -115,13 +115,14 @@ public class PatientProfileRepositoryTests
         }
     }
 
-    // Regression (intake 2026-06-29-001 item 3): a present-but-blank Cedula in the update request
-    // is an explicit "erase" and must clear the column to NULL. Previously the blank was silently
-    // ignored (same non-empty⇒assign pattern as MRN), so a Cedula could never be removed.
+    // WP-25 (F5) — supersedes intake 2026-06-29-001 item 3 (blank-erase removed): Cedula |
+    // Passport is required once on file, so a present-but-blank value is now a rejected clear
+    // attempt: ArgumentException (→ 400 via GlobalExceptionHandler) and the stored value must
+    // remain untouched. Omitted/null still means "leave as-is" (legacy tolerance, next test).
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task UpdateAsync_BlankCedula_ClearsToNull(string blank)
+    public async Task UpdateAsync_BlankCedula_Throws(string blank)
     {
         // Arrange — patient already has a Cedula on file
         var options = CreateInMemoryOptions($"PatientCedula_Clear_{blank.Length}");
@@ -150,19 +151,17 @@ public class PatientProfileRepositoryTests
                 Cedula = blank
             };
 
-            // Act
-            var result = await repository.UpdateAsync(1, 1, updateRequest);
-
-            // Assert — projection reflects the erase
-            Assert.Null(result.Cedula);
+            // Act + Assert — the clear attempt is rejected before anything is saved
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() => repository.UpdateAsync(1, 1, updateRequest));
+            Assert.Contains("cannot be cleared", ex.Message);
         }
 
-        // Assert — NULL persisted (not the old value, not the blank string)
+        // Assert — the stored value is unchanged (not NULL, not the blank string)
         using (var context = new ApplicationDbContext(options))
         {
             var patient = await context.Patients.FindAsync(1);
             Assert.NotNull(patient);
-            Assert.Null(patient.Cedula);
+            Assert.Equal("001-1234567-8", patient.Cedula);
         }
     }
 
