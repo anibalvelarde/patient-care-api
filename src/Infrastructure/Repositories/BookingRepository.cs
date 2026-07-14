@@ -164,7 +164,7 @@ public class BookingRepository : IBookingRepository
 
         // B3: surface the primary caretaker's contact info (first link as fallback) —
         // keep in step with SessionEventRepository.ExtractSessionEvent.
-        var caretakerUser = ts.Patient!.Caretakers?
+        var caretakerUser = ts.Patient!.Caretakers
             .OrderByDescending(pc => pc.PrimaryCaretaker)
             .Select(pc => pc.Caretaker?.User)
             .FirstOrDefault(u => u != null);

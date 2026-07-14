@@ -60,4 +60,5 @@ dotnet run --project src/Web/Web.csproj   # starts on http://localhost:5245
 - **Naming**: PascalCase for C# types/members; controllers named `{Resource}Controller`
 - **Database**: MySQL via Pomelo EF Core provider; connection built from env vars (`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD`)
 - **Testing**: xUnit + Moq + FluentAssertions; test projects mirror `src/` structure
+- **Warnings policy (A1 ratchet)**: `Directory.Build.props` sets `TreatWarningsAsErrors` for **Release** builds — a Release build (incl. the Docker image build and CI) fails on any compiler warning. Fix the root cause, don't suppress; if a third-party/codegen warning is truly unavoidable, use a targeted `<NoWarn>` with a comment. Incremental builds can hide existing warnings — check with `dotnet build -c Release --no-incremental` when touching shared types.
 

@@ -1,0 +1,10 @@
+<Project>
+  <!-- A1 warnings ratchet (intake 2026-07-13-001, Q-A1 = Ratchet): Release builds fail on any
+       compiler warning, so regressions can't accumulate silently — the Docker image build and CI
+       both compile Release, which is the guard rail. Debug stays warn-only for the dev loop.
+       Escape hatch for unavoidable third-party/codegen noise: a targeted <NoWarn> with a comment
+       explaining why, never a blanket disable. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

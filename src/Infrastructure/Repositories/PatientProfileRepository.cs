@@ -19,7 +19,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Patients
             .Where(p => p.User != null)
             .Include(p => p.User)
-            .Include(p => p.Caretakers!)
+            .Include(p => p.Caretakers)
                 .ThenInclude(pc => pc.Caretaker)
                     .ThenInclude(c => c!.User)
             .Select(p => ExtractPatientProfile(p)).ToListAsync();
@@ -32,7 +32,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         var result = await _dbContext.Patients
         .Where(p => p.Id == id)
         .Include(p => p.User)
-        .Include(p => p.Caretakers!)
+        .Include(p => p.Caretakers)
             .ThenInclude(pc => pc.Caretaker)
                 .ThenInclude(c => c!.User)
         .Select(p => ExtractPatientProfile(p))
@@ -200,7 +200,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             Email = p.User.Email,
             PhoneNumber = p.User.PhoneNumber,
             CreatedTimestamp = p.User.CreatedTimestamp,
-            Caretakers = (p.Caretakers ?? new List<PatientCaretaker>()).Select(pc => new PatientCaretakerSummary
+            Caretakers = p.Caretakers.Select(pc => new PatientCaretakerSummary
             {
                 CaretakerId = pc.CaretakerId,
                 CaretakerName = pc.Caretaker?.User != null
