@@ -6,6 +6,7 @@ public class Patient : PersonBase
 {
     public Patient()
     {
+        this.Caretakers = [];
     }
 
     public DateTime? DateOfBirth { get; set; }
@@ -23,7 +24,7 @@ public class Patient : PersonBase
     // before-treatment rule (e.g. legacy-imported patients). Default TRUE (Questionnaire C),
     // matching the DB column default (V028).
     public bool RequiresDiscovery { get; set; } = true;
-    public ICollection<PatientCaretaker>? Caretakers { get; set; }
+    public ICollection<PatientCaretaker> Caretakers { get; set; }
 
     public bool HasTemporaryMrn()
     {

@@ -210,7 +210,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         var statusName = ts.AppointmentStatus?.Name ?? "Completed";
 
         // B3: surface the primary caretaker's contact info (first link as fallback).
-        var caretakerUser = ts.Patient!.Caretakers?
+        var caretakerUser = ts.Patient!.Caretakers
             .OrderByDescending(pc => pc.PrimaryCaretaker)
             .Select(pc => pc.Caretaker?.User)
             .FirstOrDefault(u => u != null);
