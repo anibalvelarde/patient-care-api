@@ -15,4 +15,7 @@ public interface IPatientProfileService : IService<PatientProfile>
     Task<IEnumerable<PatientCaretakerSummary>> GetCaretakersForPatientAsync(int patientId);
     // WP-21 (F1): backs the Patients → Session History tab's paged patient list.
     Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize);
+    // WP-30 (U2): paged main list + typeahead lookup (see IPatientProfileRepository).
+    Task<PagedResult<PatientProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize);
+    Task<IReadOnlyList<PatientLookupItem>> LookupAsync(string query, int maxResults);
 }

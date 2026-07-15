@@ -48,6 +48,21 @@ public class PatientProfileService : IPatientProfileService
         return await _repository.GetAllAsync();
     }
 
+    // WP-30 (U2): paged main list. Parity with GetAllAsync — no HasCompletedDiscovery stamp
+    // (the list view never used it; GetByIdAsync/GetByIdsAsync keep stamping for detail flows).
+    public async Task<PagedResult<PatientProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize)
+    {
+        _logger.LogInformation("Getting paged patient profiles (search: {Search}, isActive: {IsActive}, page: {Page}, pageSize: {PageSize}).",
+            search, isActive, page, pageSize);
+        return await _repository.GetPagedAsync(search, isActive, page, pageSize);
+    }
+
+    public async Task<IReadOnlyList<PatientLookupItem>> LookupAsync(string query, int maxResults)
+    {
+        _logger.LogInformation("Patient typeahead lookup (query: {Query}, cap: {Cap}).", query, maxResults);
+        return await _repository.LookupAsync(query, maxResults);
+    }
+
     public async Task<PatientProfile?> GetByIdAsync(int id)
     {
         _logger.LogInformation("Getting patient profile by ID: {Id}", id);

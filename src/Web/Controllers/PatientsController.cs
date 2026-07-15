@@ -35,15 +35,41 @@ public class PatientsController : ControllerBase
         _logger = logger;
     }
 
+    // WP-30 (U2): paged-by-default. ⚠ BREAKING (was bare PatientProfile[]) — deploy with the
+    // WP-30C UI as one event.
     [HttpGet]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientProfile>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResult<PatientProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetAllPatients()
+    public async Task<IActionResult> GetPatients(
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30)
     {
-        var patients = await _patientProfileService.GetAllAsync();
-        return Ok(patients);
+        var (safePage, safeSize) = PagingParams.Clamp(page, pageSize, defaultPageSize: 30);
+        var result = await _patientProfileService.GetPagedAsync(search, isActive, safePage, safeSize);
+        return Ok(result);
     }
+
+    // WP-30 (U2): typeahead for pickers — capped at 20 (gate G1), never the full census.
+    // Rides Patients.View like the list: no matrix change.
+    [HttpGet("lookup")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<PatientLookupItem>))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> LookupPatients([FromQuery] string? q = null)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: "Query parameter 'q' is required (min length 1).", title: "Bad Request");
+        }
+        var items = await _patientProfileService.LookupAsync(q, LookupResultCap);
+        return Ok(items);
+    }
+
+    private const int LookupResultCap = 20;
 
     [HttpGet("{id:int}")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
@@ -102,7 +128,7 @@ public class PatientsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 30)
     {
-        var (safePage, safeSize) = ClampPaging(page, pageSize, defaultPageSize: 30);
+        var (safePage, safeSize) = PagingParams.Clamp(page, pageSize, defaultPageSize: 30);
         var result = await _patientProfileService.GetSessionHistoryAsync(search, safePage, safeSize);
         return Ok(result);
     }
@@ -121,17 +147,10 @@ public class PatientsController : ControllerBase
         [FromQuery] bool? isDiscovery = null,
         [FromQuery] string? status = null)
     {
-        var (safePage, safeSize) = ClampPaging(page, pageSize, defaultPageSize: 25);
+        var (safePage, safeSize) = PagingParams.Clamp(page, pageSize, defaultPageSize: 25);
         var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, safePage, safeSize, isDiscovery, status);
         return Ok(sessions);
     }
-
-    private const int MaxPageSize = 100;
-
-    // Lenient clamping (silent, not 400) matches the API's existing query-param style; the
-    // pageSize ceiling keeps "?pageSize=100000" from re-creating the unpaged endpoint.
-    private static (int Page, int PageSize) ClampPaging(int page, int pageSize, int defaultPageSize) =>
-        (Math.Max(1, page), pageSize < 1 ? defaultPageSize : Math.Min(pageSize, MaxPageSize));
 
     [HttpPost]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsEdit)]

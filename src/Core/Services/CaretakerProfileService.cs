@@ -1,5 +1,6 @@
 
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -43,6 +44,20 @@ public class CaretakerProfileService : ICaretakerProfileService
     {
         _logger.LogInformation("Getting caretaker profile by ID: {id}", id);
         return await _repository.GetByIdAsync(id);
+    }
+
+    // WP-30 (U2): paged main list + typeahead lookup — straight passthroughs.
+    public async Task<PagedResult<CaretakerProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize)
+    {
+        _logger.LogInformation("Getting paged caretaker profiles (search: {Search}, isActive: {IsActive}, page: {Page}, pageSize: {PageSize}).",
+            search, isActive, page, pageSize);
+        return await _repository.GetPagedAsync(search, isActive, page, pageSize);
+    }
+
+    public async Task<IReadOnlyList<CaretakerLookupItem>> LookupAsync(string query, int maxResults)
+    {
+        _logger.LogInformation("Caretaker typeahead lookup (query: {Query}, cap: {Cap}).", query, maxResults);
+        return await _repository.LookupAsync(query, maxResults);
     }
 
     public async Task<CaretakerProfile> CreateAsync(CaretakerProfile caretaker)

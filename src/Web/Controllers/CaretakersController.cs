@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
@@ -30,17 +31,44 @@ public class CaretakersController : ControllerBase
         _statementService = statementService;
     }
 
+    // WP-30 (U2): paged-by-default. ⚠ BREAKING (was bare CaretakerProfile[]) — deploy with the
+    // WP-30C UI as one event.
     [HttpGet]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<CaretakerProfile>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResult<CaretakerProfile>))]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetAllCaretakers()
+    public async Task<IActionResult> GetCaretakers(
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30)
     {
-        var Caretakers = await _caretakerProfileService.GetAllAsync();
-        return Ok(Caretakers);
+        var (safePage, safeSize) = PagingParams.Clamp(page, pageSize, defaultPageSize: 30);
+        var result = await _caretakerProfileService.GetPagedAsync(search, isActive, safePage, safeSize);
+        return Ok(result);
     }
 
-    [HttpGet("{id}")]
+    // WP-30 (U2): typeahead for pickers — capped at 20 (gate G1), never the full census.
+    // Rides Caretakers.View like the list: no matrix change. (Route note: the literal "lookup"
+    // segment outranks the {id} template in ASP.NET Core route precedence.)
+    [HttpGet("lookup")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IEnumerable<CaretakerLookupItem>))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> LookupCaretakers([FromQuery] string? q = null)
+    {
+        if (string.IsNullOrWhiteSpace(q))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: "Query parameter 'q' is required (min length 1).", title: "Bad Request");
+        }
+        var items = await _caretakerProfileService.LookupAsync(q, LookupResultCap);
+        return Ok(items);
+    }
+
+    private const int LookupResultCap = 20;
+
+    [HttpGet("{id:int}")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersView)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(CaretakerProfile))]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
