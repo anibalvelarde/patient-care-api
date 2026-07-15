@@ -7,6 +7,10 @@ public interface IHandleSessionEvent : IService<SessionEvent>
 {
     public Task<IEnumerable<SessionEvent>> GetAllByTargetDateAsync(DateOnly targetDate);
     public Task<IEnumerable<SessionEvent>> GetAllPastDueAsync();
+    // WP-29 (U3): party-scoped past-due — filtered in SQL instead of fetching everything and
+    // filtering in the controller.
+    public Task<IEnumerable<SessionEvent>> GetPastDueByPatientAsync(int patientId);
+    public Task<IEnumerable<SessionEvent>> GetPastDueByTherapistAsync(int therapistId);
     public Task<IEnumerable<PatientPastDueInfo>> GetAllPatientsPastDueAsync();
     public Task<SessionEvent> CreateAsync(SessionEventRequest request);
     // WP-24 (audit F1): true when the request's resolved specialty is a discovery type — backs

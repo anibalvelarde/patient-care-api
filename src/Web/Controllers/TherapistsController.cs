@@ -121,10 +121,8 @@ public class TherapistsController : ControllerBase
         var therapist = await _therapistProfileService.GetByIdAsync(therapistId);
         if (therapist is not null)
         {
-            var pastDueSessions = await _sessionEventHandler.GetAllPastDueAsync();
-            var patientPastDueSessions = pastDueSessions
-                .Where(s => s.TherapistId.Equals(therapistId))
-                .Select(s => s);
+            // WP-29: scoped fetch — the therapist filter runs in SQL, not over the full table.
+            var patientPastDueSessions = await _sessionEventHandler.GetPastDueByTherapistAsync(therapistId);
             var totalPastDueAmount = patientPastDueSessions.Sum(s => s.Amount - s.Discount);
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
             _logger.LogInformation(

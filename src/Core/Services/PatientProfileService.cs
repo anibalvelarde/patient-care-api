@@ -59,6 +59,24 @@ public class PatientProfileService : IPatientProfileService
         return profile;
     }
 
+    // WP-29 (U3): batched GetByIdAsync — same data (profile + HasCompletedDiscovery stamp),
+    // two round trips total instead of two per patient.
+    public async Task<IReadOnlyList<PatientProfile>> GetByIdsAsync(IReadOnlyCollection<int> patientIds)
+    {
+        _logger.LogInformation("Getting {Count} patient profiles by ids (batched).", patientIds.Count);
+        var profiles = await _repository.GetByIdsAsync(patientIds);
+        if (profiles.Count == 0) return profiles;
+
+        var withDiscovery = (await _therapySessionRepo
+            .GetPatientIdsWithCompletedDiscoveryAsync(profiles.Select(p => p.PatientId).ToList()))
+            .ToHashSet();
+        foreach (var profile in profiles)
+        {
+            profile.HasCompletedDiscovery = withDiscovery.Contains(profile.PatientId);
+        }
+        return profiles;
+    }
+
     public async Task<PatientProfile> CreateAsync(PatientProfile patient)
     {
         _logger.LogError("Operation Not Allowed: Creating new patient profile.");

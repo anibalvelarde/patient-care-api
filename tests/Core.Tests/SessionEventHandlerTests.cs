@@ -59,17 +59,22 @@ public class SessionEventHandlerTests
         _mockRepository
             .Setup(r => r.GetAllPastDueAsync())
             .ReturnsAsync(pastDueSessions);
+        // WP-29: the handler batches profile lookups — one GetByIdsAsync call, never per-id.
         _mockPatientService
-            .Setup(s => s.GetByIdAsync(1))
-            .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "Patient One" });
-        _mockPatientService
-            .Setup(s => s.GetByIdAsync(2))
-            .ReturnsAsync(new PatientProfile { PatientId = 2, PatientName = "Patient Two" });
+            .Setup(s => s.GetByIdsAsync(It.IsAny<IReadOnlyCollection<int>>()))
+            .ReturnsAsync(new List<PatientProfile>
+            {
+                new() { PatientId = 1, PatientName = "Patient One" },
+                new() { PatientId = 2, PatientName = "Patient Two" },
+            });
 
         // Act
         var result = (await _sut.GetAllPatientsPastDueAsync()).ToList();
 
         // Assert
+        _mockPatientService.Verify(s => s.GetByIdsAsync(
+            It.Is<IReadOnlyCollection<int>>(ids => ids.Count == 2 && ids.Contains(1) && ids.Contains(2))), Times.Once);
+        _mockPatientService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
         Assert.Equal(2, result.Count);
 
         var patient1 = result.First(r => r.Party is PatientProfile p && p.PatientId == 1);
@@ -96,14 +101,55 @@ public class SessionEventHandlerTests
             .Setup(r => r.GetAllPastDueAsync())
             .ReturnsAsync(pastDueSessions);
         _mockPatientService
-            .Setup(s => s.GetByIdAsync(99))
-            .ReturnsAsync((PatientProfile?)null);
+            .Setup(s => s.GetByIdsAsync(It.IsAny<IReadOnlyCollection<int>>()))
+            .ReturnsAsync(new List<PatientProfile>());
 
         // Act
         var result = (await _sut.GetAllPatientsPastDueAsync()).ToList();
 
         // Assert
         Assert.Empty(result);
+    }
+
+    // ── WP-29 (U3): party-scoped past-due + the exact boundary filter ─────────────────
+
+    [Fact]
+    public async Task GetPastDueByPatientAsync_UsesScopedRepositoryCall_AndFiltersExactly()
+    {
+        // The repository's SQL cutoff is date-only (a superset): a boundary row can come back
+        // with IsPastDue == false and must be dropped by the handler's exact filter.
+        var candidates = new List<SessionEvent>
+        {
+            new() { SessionId = 1, PatientId = 7, SessionDate = new DateOnly(2026, 1, 10), IsPastDue = true },
+            new() { SessionId = 2, PatientId = 7, SessionDate = new DateOnly(2026, 6, 8), IsPastDue = false }, // boundary row
+            new() { SessionId = 3, PatientId = 7, SessionDate = new DateOnly(2026, 3, 1), IsPastDue = true },
+        };
+        _mockRepository
+            .Setup(r => r.GetAllPastDueAsync(7, null))
+            .ReturnsAsync(candidates);
+
+        var result = (await _sut.GetPastDueByPatientAsync(7)).ToList();
+
+        // Exact filter applied, newest first — identical to the pre-WP-29 output shape.
+        Assert.Equal(new[] { 3, 1 }, result.Select(s => s.SessionId).ToArray());
+        _mockRepository.Verify(r => r.GetAllPastDueAsync(7, null), Times.Once);
+        _mockRepository.Verify(r => r.GetAllPastDueAsync(), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetPastDueByTherapistAsync_UsesScopedRepositoryCall()
+    {
+        _mockRepository
+            .Setup(r => r.GetAllPastDueAsync(null, 4))
+            .ReturnsAsync(new List<SessionEvent>
+            {
+                new() { SessionId = 9, TherapistId = 4, SessionDate = new DateOnly(2026, 2, 2), IsPastDue = true },
+            });
+
+        var result = (await _sut.GetPastDueByTherapistAsync(4)).ToList();
+
+        Assert.Equal(9, Assert.Single(result).SessionId);
+        _mockRepository.Verify(r => r.GetAllPastDueAsync(null, 4), Times.Once);
     }
 
     [Fact]

@@ -5,7 +5,8 @@ namespace Neurocorp.Api.Core.Entities;
 
 public class TherapySession : AuditableEntityBase
 {
-    private const int DAYS_LATE_LIMIT = 35;
+    // WP-29: public so SQL-side past-due candidate filters reference the same limit.
+    public const int DAYS_LATE_LIMIT = 35;
 
     public TherapySession()
     {

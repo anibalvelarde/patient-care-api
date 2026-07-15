@@ -6,6 +6,8 @@ namespace Neurocorp.Api.Core.Interfaces.Repositories;
 public interface IPatientProfileRepository : IRepository<PatientProfile>
 {
     public Task<PatientProfile> UpdateAsync(int patientId, int userId, PatientProfileUpdateRequest updateRequest);
+    // WP-29 (U3): batched profile fetch — one query for N ids instead of N GetByIdAsync calls.
+    public Task<IReadOnlyList<PatientProfile>> GetByIdsAsync(IReadOnlyCollection<int> patientIds);
     // WP-21 (F1): paged patient summaries ordered most-recent-session first; optional
     // case-insensitive search on first/last name and MRN.
     public Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize);

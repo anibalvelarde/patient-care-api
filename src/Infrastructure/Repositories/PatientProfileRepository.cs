@@ -40,6 +40,21 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         return result.FirstOrDefault();
     }
 
+    // WP-29 (U3): batched variant of GetByIdAsync — same includes/projection, one round trip.
+    public async Task<IReadOnlyList<PatientProfile>> GetByIdsAsync(IReadOnlyCollection<int> patientIds)
+    {
+        if (patientIds.Count == 0) return [];
+
+        return await _dbContext.Patients
+            .Where(p => patientIds.Contains(p.Id))
+            .Include(p => p.User)
+            .Include(p => p.Caretakers)
+                .ThenInclude(pc => pc.Caretaker)
+                    .ThenInclude(c => c!.User)
+            .Select(p => ExtractPatientProfile(p))
+            .ToListAsync();
+    }
+
     public override async Task<PatientProfile> AddAsync(PatientProfile entity)
     {
         return await Task.FromException<PatientProfile>(new NotImplementedException());

@@ -230,10 +230,8 @@ public class PatientsController : ControllerBase
         var patient = await _patientProfileService.GetByIdAsync(patientId);
         if (patient is not null)
         {
-            var pastDueSessions = await _sessionEventHandler.GetAllPastDueAsync();
-            var patientPastDueSessions = pastDueSessions
-                .Where(s => s.PatientId.Equals(patientId))
-                .Select(s => s);
+            // WP-29: scoped fetch — the patient filter runs in SQL, not over the full table.
+            var patientPastDueSessions = await _sessionEventHandler.GetPastDueByPatientAsync(patientId);
             var totalPastDueAmount = patientPastDueSessions.Sum(s => s.Amount - s.Discount);
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
             _logger.LogInformation(

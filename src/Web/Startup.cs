@@ -182,6 +182,10 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
         // not the response — so we intentionally do not use the developer exception page.
         app.UseExceptionHandler();
 
+        // WP-29: request-level timing (method, path, status, ms) for every non-health request.
+        // Early in the pipeline so the measurement covers auth + MVC + data access.
+        app.UseMiddleware<RequestTimingMiddleware>();
+
         if (env.IsDevelopment())
         {
             app.UseSwagger();

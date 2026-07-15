@@ -54,11 +54,31 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return result;
     }
 
-    public async Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync()
+    public Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync()
+        => GetAllPastDueAsync(patientId: null, therapistId: null);
+
+    public async Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync(int? patientId, int? therapistId)
     {
-        var result = await _dbContext.TherapySessions
+        // WP-29 (U3): the past-due predicate runs in SQL instead of materializing the whole
+        // table. Date filter is date-only (SessionDate <= today − 35d) — a strict superset of
+        // the exact date+time GetPastDue() cutoff, so boundary rows can arrive with
+        // IsPastDue == false; callers (SessionEventHandler) apply the exact filter. The money
+        // predicate (Amount − Discount − AmountPaid > 0) matches TherapySession.AmountDue()
+        // exactly. Includes and the client-side projection now run over dozens of rows, not 11k.
+        var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-TherapySession.DAYS_LATE_LIMIT));
+
+        var query = _dbContext.TherapySessions
             .Where(ts => (ts.Patient != null) &&
-                         (ts.Therapist != null))
+                         (ts.Therapist != null) &&
+                         (ts.Amount - ts.DiscountAmount - ts.AmountPaid) > 0 &&
+                         ts.SessionDate <= cutoff);
+
+        if (patientId.HasValue)
+            query = query.Where(ts => ts.PatientId == patientId.Value);
+        if (therapistId.HasValue)
+            query = query.Where(ts => ts.TherapistId == therapistId.Value);
+
+        var result = await query
             .Include(ts => ts.Patient)
                 .ThenInclude(p => p!.User)
             .Include(ts => ts.Patient)

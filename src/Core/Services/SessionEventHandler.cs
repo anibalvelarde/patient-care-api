@@ -66,23 +66,35 @@ public class SessionEventHandler : IHandleSessionEvent
         _logger.LogInformation("Started to fetch Sessions for past-due events");
         var stopwatch = Stopwatch.StartNew();
 
-        // Starting to fetch
-        stopwatch.Restart();
+        // WP-29: the repository filters candidates in SQL (money owed + date-only cutoff).
         var pastDueEvents = (await _repository.GetAllPastDueAsync()) ?? new List<SessionEvent>();
-        _logger.LogInformation("Fetched past-due events from repository in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+        var sortedPastDueEvents = SelectAndSortPastDue(pastDueEvents);
 
-        // Selecting and sorting past-due events
-        stopwatch.Restart();
-        var sortedPastDueEvents = pastDueEvents
+        _logger.LogInformation("Returning {Count} past-due events in {ElapsedMilliseconds} ms",
+            sortedPastDueEvents.Count, stopwatch.ElapsedMilliseconds);
+        return sortedPastDueEvents;
+    }
+
+    public async Task<IEnumerable<SessionEvent>> GetPastDueByPatientAsync(int patientId)
+    {
+        var candidates = (await _repository.GetAllPastDueAsync(patientId, therapistId: null)) ?? new List<SessionEvent>();
+        return SelectAndSortPastDue(candidates);
+    }
+
+    public async Task<IEnumerable<SessionEvent>> GetPastDueByTherapistAsync(int therapistId)
+    {
+        var candidates = (await _repository.GetAllPastDueAsync(patientId: null, therapistId: therapistId)) ?? new List<SessionEvent>();
+        return SelectAndSortPastDue(candidates);
+    }
+
+    // The exact past-due filter: the repository's SQL cutoff is date-only (a superset), so
+    // boundary rows arrive with IsPastDue == false and are dropped here — output stays
+    // identical to the pre-WP-29 full-table scan.
+    private static List<SessionEvent> SelectAndSortPastDue(IEnumerable<SessionEvent> candidates)
+        => candidates
             .Where(t => t.IsPastDue)
             .OrderByDescending(e => e.SessionDate)
             .ToList();
-        _logger.LogInformation("Selected and sorted past-due events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
-
-        // Returning past-due event list to the caller
-        _logger.LogInformation("Returning the list to the caller with {Count} past-due events", sortedPastDueEvents.Count);
-        return sortedPastDueEvents;
-    }
 
     public async Task<IEnumerable<PatientPastDueInfo>> GetAllPatientsPastDueAsync()
     {
@@ -90,13 +102,23 @@ public class SessionEventHandler : IHandleSessionEvent
         var stopwatch = Stopwatch.StartNew();
 
         var pastDueSessions = await GetAllPastDueAsync();
-        var groupedByPatient = pastDueSessions.GroupBy(s => s.PatientId);
+        var groupedByPatient = pastDueSessions.GroupBy(s => s.PatientId).ToList();
+        if (groupedByPatient.Count == 0)
+        {
+            _logger.LogInformation("No past-due sessions found.");
+            return [];
+        }
+
+        // WP-29: one batched profile fetch instead of GetByIdAsync per past-due patient.
+        // Group order (most recent past-due session first) is preserved by iterating the
+        // groups, not the batch result.
+        var profilesById = (await _patientService.GetByIdsAsync(groupedByPatient.Select(g => g.Key).ToList()))
+            .ToDictionary(p => p.PatientId);
 
         var results = new List<PatientPastDueInfo>();
         foreach (var group in groupedByPatient)
         {
-            var patient = await _patientService.GetByIdAsync(group.Key);
-            if (patient is null) continue;
+            if (!profilesById.TryGetValue(group.Key, out var patient)) continue;
 
             var sessions = group.ToList();
             results.Add(new PatientPastDueInfo
