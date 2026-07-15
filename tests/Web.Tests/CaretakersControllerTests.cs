@@ -1,6 +1,8 @@
 using Moq;
 using Xunit;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Controllers;
@@ -25,24 +27,79 @@ public class CaretakersControllerTests
         _controller = new CaretakersController(fakeLogger, _mockService.Object, mockPaymentService, mockStatementService);
     }
 
+    // WP-30 (U2): GET /api/caretakers is paged-by-default (BREAKING — was a bare array).
     [Fact]
-    public async Task GetAllCaretakers_ReturnsOkResult_WithCaretakers()
+    public async Task GetCaretakers_ReturnsOkResult_WithPagedEnvelope()
     {
         // Arrange
-        var mockCaretakers = new List<CaretakerProfile>
+        var paged = new PagedResult<CaretakerProfile>
         {
-            new() { /* properties */ },
-            new() { /* properties */ }
+            Items = new List<CaretakerProfile> { new(), new() },
+            Page = 1,
+            PageSize = 30,
+            TotalCount = 1089,
         };
-        _mockService.Setup(service => service.GetAllAsync()).ReturnsAsync(mockCaretakers);
+        _mockService
+            .Setup(service => service.GetPagedAsync(null, null, 1, 30))
+            .ReturnsAsync(paged);
 
         // Act
-        var result = await _controller.GetAllCaretakers();
+        var result = await _controller.GetCaretakers();
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
-        var returnedCaretakers = Assert.IsType<List<CaretakerProfile>>(okResult.Value);
-        Assert.Equal(mockCaretakers.Count, returnedCaretakers.Count);
+        var envelope = Assert.IsType<PagedResult<CaretakerProfile>>(okResult.Value);
+        Assert.Equal(1089, envelope.TotalCount);
+        Assert.Equal(2, envelope.Items.Count);
+    }
+
+    // WP-30: shared PagingParams clamp — same lenient behavior as the patients side.
+    [Theory]
+    [InlineData(0, 0, 1, 30)]
+    [InlineData(-5, 100000, 1, 100)]
+    [InlineData(2, 40, 2, 40)]
+    public async Task GetCaretakers_ClampsPagingParams(int page, int pageSize, int expectedPage, int expectedSize)
+    {
+        _mockService
+            .Setup(s => s.GetPagedAsync(null, null, expectedPage, expectedSize))
+            .ReturnsAsync(new PagedResult<CaretakerProfile>())
+            .Verifiable();
+
+        var result = await _controller.GetCaretakers(page: page, pageSize: pageSize);
+
+        Assert.IsType<OkObjectResult>(result);
+        _mockService.Verify();
+    }
+
+    // WP-30: typeahead — q required (min length 1), cap 20 server-side.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task LookupCaretakers_MissingOrBlankQuery_Returns400(string? q)
+    {
+        var result = await _controller.LookupCaretakers(q);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, objectResult.StatusCode);
+        _mockService.Verify(s => s.LookupAsync(It.IsAny<string>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LookupCaretakers_ValidQuery_ReturnsItems_WithCap20()
+    {
+        var items = new List<CaretakerLookupItem>
+        {
+            new() { CaretakerId = 1, CaretakerName = "Gomez, Ana" },
+        };
+        _mockService.Setup(s => s.LookupAsync("gom", 20)).ReturnsAsync(items).Verifiable();
+
+        var result = await _controller.LookupCaretakers("gom");
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returned = Assert.IsAssignableFrom<IReadOnlyList<CaretakerLookupItem>>(okResult.Value);
+        Assert.Single(returned);
+        _mockService.Verify();
     }
 
     [Fact]

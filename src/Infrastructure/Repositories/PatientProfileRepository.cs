@@ -128,6 +128,82 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         };
     }
 
+    // WP-30 (U2): paged main list. Count and page-id selection run include-free (WP-21 lesson —
+    // the Caretakers include join-amplifies); only the 30-row page hydrates through the batched
+    // includes of GetByIdsAsync, then reorders to the page's name order.
+    public async Task<PagedResult<PatientProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize)
+    {
+        var filtered = ApplyListFilters(search, isActive);
+        var totalCount = await filtered.CountAsync();
+
+        var pageIds = await filtered
+            .OrderBy(p => p.User!.LastName)
+            .ThenBy(p => p.User!.FirstName)
+            .ThenBy(p => p.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        var profilesById = (await GetByIdsAsync(pageIds)).ToDictionary(p => p.PatientId);
+        var items = pageIds.Where(profilesById.ContainsKey).Select(id => profilesById[id]).ToList();
+
+        return new PagedResult<PatientProfile>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    // WP-30 (U2): typeahead — slim include-free projection, capped by the caller (gate G1: 20).
+    public async Task<IReadOnlyList<PatientLookupItem>> LookupAsync(string query, int maxResults)
+    {
+        var rows = await ApplyListFilters(query, isActive: null)
+            .OrderBy(p => p.User!.LastName)
+            .ThenBy(p => p.User!.FirstName)
+            .ThenBy(p => p.Id)
+            .Take(maxResults)
+            .Select(p => new
+            {
+                p.Id,
+                p.User!.FirstName,
+                p.User!.LastName,
+                p.User!.MiddleName,
+                p.MedicalRecordNumber,
+            })
+            .ToListAsync();
+
+        return rows.Select(r => new PatientLookupItem
+        {
+            PatientId = r.Id,
+            PatientName = $"{r.LastName}, {r.FirstName} {r.MiddleName}".Trim(),
+            MedicalRecordNumber = r.MedicalRecordNumber,
+        }).ToList();
+    }
+
+    // Search fields per gate G2: name + MRN + cedula. Explicit ToLower(): MySQL columns are
+    // already _ci-collated; this keeps the InMemory provider behaving identically (WP-21 pattern).
+    private IQueryable<Patient> ApplyListFilters(string? search, bool? isActive)
+    {
+        var patients = _dbContext.Patients.Where(p => p.User != null);
+        if (isActive.HasValue)
+        {
+            patients = patients.Where(p => p.User!.ActiveStatus == isActive.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            patients = patients.Where(p =>
+                p.User!.FirstName.ToLower().Contains(term) ||
+                p.User!.LastName.ToLower().Contains(term) ||
+                (p.MedicalRecordNumber != null && p.MedicalRecordNumber.ToLower().Contains(term)) ||
+                (p.Cedula != null && p.Cedula.ToLower().Contains(term)));
+        }
+        return patients;
+    }
+
     public async Task<PatientProfile> UpdateAsync(int patientId, int userId, PatientProfileUpdateRequest updateRequest)
     {
         // fetch the entities & ensure they are valid...

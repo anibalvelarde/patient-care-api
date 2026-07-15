@@ -11,4 +11,9 @@ public interface IPatientProfileRepository : IRepository<PatientProfile>
     // WP-21 (F1): paged patient summaries ordered most-recent-session first; optional
     // case-insensitive search on first/last name and MRN.
     public Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize);
+    // WP-30 (U2): paged main list — search over name/MRN/cedula, optional isActive filter,
+    // ordered by name (tiebreak id). Count runs include-free; the page hydrates via GetByIdsAsync.
+    public Task<PagedResult<PatientProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize);
+    // WP-30 (U2): typeahead — same search fields, capped, slim include-free projection.
+    public Task<IReadOnlyList<PatientLookupItem>> LookupAsync(string query, int maxResults);
 }

@@ -38,24 +38,84 @@ public class PatientsControllerTests
         _controller = new PatientsController(fakeLogger, _mockPatientProfileService.Object, _mockSessionEventHandler.Object, _mockSessionEventRepository.Object, _mockPatientMergeService.Object);
     }
 
+    // WP-30 (U2): GET /api/patients is paged-by-default (BREAKING — was a bare array).
     [Fact]
-    public async Task GetAllPatients_ReturnsOkResult_WithPatients()
+    public async Task GetPatients_ReturnsOkResult_WithPagedEnvelope()
     {
         // Arrange
-        var mockPatients = new List<PatientProfile>
+        var paged = new PagedResult<PatientProfile>
         {
-            new() { /* properties */ },
-            new() { /* properties */ }
+            Items = new List<PatientProfile> { new(), new() },
+            Page = 1,
+            PageSize = 30,
+            TotalCount = 869,
         };
-        _mockPatientProfileService.Setup(service => service.GetAllAsync()).ReturnsAsync(mockPatients);
+        _mockPatientProfileService
+            .Setup(service => service.GetPagedAsync("ana", true, 1, 30))
+            .ReturnsAsync(paged);
 
         // Act
-        var result = await _controller.GetAllPatients();
+        var result = await _controller.GetPatients(search: "ana", isActive: true, page: 1, pageSize: 30);
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
-        var returnedPatients = Assert.IsType<List<PatientProfile>>(okResult.Value);
-        Assert.Equal(mockPatients.Count, returnedPatients.Count);
+        var envelope = Assert.IsType<PagedResult<PatientProfile>>(okResult.Value);
+        Assert.Equal(869, envelope.TotalCount);
+        Assert.Equal(2, envelope.Items.Count);
+    }
+
+    // WP-30: lenient clamping via the shared PagingParams helper — bad paging never 400s,
+    // and an oversized pageSize can't re-create the unpaged endpoint.
+    [Theory]
+    [InlineData(0, 0, 1, 30)]        // zero/negative fall back to defaults
+    [InlineData(-5, 100000, 1, 100)] // pageSize ceiling = 100
+    [InlineData(3, 50, 3, 50)]       // sane values pass through
+    public async Task GetPatients_ClampsPagingParams(int page, int pageSize, int expectedPage, int expectedSize)
+    {
+        _mockPatientProfileService
+            .Setup(s => s.GetPagedAsync(null, null, expectedPage, expectedSize))
+            .ReturnsAsync(new PagedResult<PatientProfile>())
+            .Verifiable();
+
+        var result = await _controller.GetPatients(page: page, pageSize: pageSize);
+
+        Assert.IsType<OkObjectResult>(result);
+        _mockPatientProfileService.Verify();
+    }
+
+    // WP-30: typeahead — q is required (min length 1), results capped at 20 server-side.
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task LookupPatients_MissingOrBlankQuery_Returns400(string? q)
+    {
+        var result = await _controller.LookupPatients(q);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status400BadRequest, objectResult.StatusCode);
+        _mockPatientProfileService.Verify(
+            s => s.LookupAsync(It.IsAny<string>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LookupPatients_ValidQuery_ReturnsItems_WithCap20()
+    {
+        var items = new List<PatientLookupItem>
+        {
+            new() { PatientId = 1, PatientName = "Anderson, Amy", MedicalRecordNumber = "L24-0001" },
+        };
+        _mockPatientProfileService
+            .Setup(s => s.LookupAsync("and", 20))
+            .ReturnsAsync(items)
+            .Verifiable();
+
+        var result = await _controller.LookupPatients("and");
+
+        var okResult = Assert.IsType<OkObjectResult>(result);
+        var returned = Assert.IsAssignableFrom<IReadOnlyList<PatientLookupItem>>(okResult.Value);
+        Assert.Single(returned);
+        _mockPatientProfileService.Verify();
     }
 
     // ── WP-21 (F1): paged session-history endpoints ──────────────────────────────────

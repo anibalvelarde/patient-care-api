@@ -1,4 +1,5 @@
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
@@ -47,6 +48,86 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
     public override async Task<CaretakerProfile> UpdateAsync(CaretakerProfile entity)
     {
         return await Task.FromException<CaretakerProfile>(new NotImplementedException());
+    }
+
+    // WP-30 (U2): paged main list. Count and page-id selection run include-free (the Patients
+    // include join-amplifies); only the page hydrates through includes, then reorders.
+    public async Task<PagedResult<CaretakerProfile>> GetPagedAsync(string? search, bool? isActive, int page, int pageSize)
+    {
+        var filtered = ApplyListFilters(search, isActive);
+        var totalCount = await filtered.CountAsync();
+
+        var pageIds = await filtered
+            .OrderBy(c => c.User!.LastName)
+            .ThenBy(c => c.User!.FirstName)
+            .ThenBy(c => c.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        var profiles = await _dbContext.Caretakers
+            .Where(c => pageIds.Contains(c.Id))
+            .Include(c => c.User)
+            .Include(c => c.Patients)
+                .ThenInclude(pc => pc.Patient)
+                    .ThenInclude(p => p!.User)
+            .Select(c => ExtractCaretakerProfile(c))
+            .ToListAsync();
+        var profilesById = profiles.ToDictionary(c => c.CaretakerId);
+        var items = pageIds.Where(profilesById.ContainsKey).Select(id => profilesById[id]).ToList();
+
+        return new PagedResult<CaretakerProfile>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    // WP-30 (U2): typeahead — slim include-free projection, capped by the caller (gate G1: 20).
+    public async Task<IReadOnlyList<CaretakerLookupItem>> LookupAsync(string query, int maxResults)
+    {
+        var rows = await ApplyListFilters(query, isActive: null)
+            .OrderBy(c => c.User!.LastName)
+            .ThenBy(c => c.User!.FirstName)
+            .ThenBy(c => c.Id)
+            .Take(maxResults)
+            .Select(c => new
+            {
+                c.Id,
+                c.User!.FirstName,
+                c.User!.LastName,
+                c.User!.MiddleName,
+            })
+            .ToListAsync();
+
+        return rows.Select(r => new CaretakerLookupItem
+        {
+            CaretakerId = r.Id,
+            CaretakerName = $"{r.LastName}, {r.FirstName} {r.MiddleName}".Trim(),
+        }).ToList();
+    }
+
+    // Search fields per gate G2: name + email. Explicit ToLower() keeps the InMemory test
+    // provider aligned with MySQL's _ci collation (WP-21 pattern).
+    private IQueryable<Caretaker> ApplyListFilters(string? search, bool? isActive)
+    {
+        var caretakers = _dbContext.Caretakers.Where(c => c.User != null);
+        if (isActive.HasValue)
+        {
+            caretakers = caretakers.Where(c => c.User!.ActiveStatus == isActive.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            caretakers = caretakers.Where(c =>
+                c.User!.FirstName.ToLower().Contains(term) ||
+                c.User!.LastName.ToLower().Contains(term) ||
+                (c.User!.Email != null && c.User!.Email.ToLower().Contains(term)));
+        }
+        return caretakers;
     }
 
     public async Task<CaretakerProfile> UpdateAsync(int caretakerId, int userId, CaretakerProfileUpdateRequest updateRequest)
