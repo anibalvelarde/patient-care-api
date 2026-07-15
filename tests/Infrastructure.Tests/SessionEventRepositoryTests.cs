@@ -230,6 +230,142 @@ public class SessionEventRepositoryTests
         }
     }
 
+    // ── WP-29 (U3): GetAllPastDueAsync must filter in SQL, not materialize the table ──────
+    //
+    // The repository returns past-due CANDIDATES (money owed + session date at/before the
+    // date-only cutoff — a strict superset of the exact date+time GetPastDue predicate);
+    // SessionEventHandler applies the exact IsPastDue filter on the small remainder.
+
+    private static TherapySession MoneySession(int id, Patient patient, Therapist therapist,
+        DateOnly date, decimal amount, decimal discount, decimal paid) => new()
+    {
+        Id = id,
+        Patient = patient,
+        Therapist = therapist,
+        SessionDate = date,
+        SessionTime = new TimeOnly(9, 0),
+        Amount = amount,
+        DiscountAmount = discount,
+        AmountPaid = paid,
+    };
+
+    [Fact]
+    public async Task GetAllPastDueAsync_ReturnsOnlyOwedAndOldCandidates()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp29Candidates")
+            .Options;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var oldDate = today.AddDays(-90);
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+            var patient = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } };
+            var therapist = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } };
+
+            context.TherapySessions.AddRange(
+                MoneySession(1, patient, therapist, oldDate, amount: 100, discount: 0, paid: 0),    // owed + old -> candidate
+                MoneySession(2, patient, therapist, oldDate, amount: 100, discount: 20, paid: 80),  // fully settled -> excluded
+                MoneySession(3, patient, therapist, today, amount: 100, discount: 0, paid: 0),      // owed but recent -> excluded
+                MoneySession(4, patient, therapist, oldDate, amount: 100, discount: 100, paid: 0)); // discounted to zero -> excluded
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new SessionEventRepository(context);
+
+            var result = await repository.GetAllPastDueAsync();
+
+            var candidate = Assert.Single(result);
+            Assert.Equal(1, candidate.SessionId);
+            Assert.True(candidate.IsPastDue);
+        }
+    }
+
+    [Fact]
+    public async Task GetAllPastDueAsync_FiltersByPatientOrTherapist()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp29PartyFilters")
+            .Options;
+
+        var oldDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-90);
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+            var patient1 = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } };
+            var patient2 = new Patient { Id = 2, User = new User { FirstName = "Alice", LastName = "Wonder" } };
+            var therapist1 = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } };
+            var therapist2 = new Therapist { Id = 2, User = new User { FirstName = "Bob", LastName = "Builder" } };
+
+            var s1 = MoneySession(1, patient1, therapist1, oldDate, amount: 100, discount: 0, paid: 0);
+            s1.PatientId = 1; s1.TherapistId = 1;
+            var s2 = MoneySession(2, patient2, therapist1, oldDate, amount: 200, discount: 0, paid: 0);
+            s2.PatientId = 2; s2.TherapistId = 1;
+            var s3 = MoneySession(3, patient2, therapist2, oldDate, amount: 300, discount: 0, paid: 0);
+            s3.PatientId = 2; s3.TherapistId = 2;
+            context.TherapySessions.AddRange(s1, s2, s3);
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new SessionEventRepository(context);
+
+            var forPatient2 = await repository.GetAllPastDueAsync(patientId: 2, therapistId: null);
+            Assert.Equal(new[] { 2, 3 }, forPatient2.Select(se => se.SessionId).OrderBy(id => id).ToArray());
+
+            var forTherapist1 = await repository.GetAllPastDueAsync(patientId: null, therapistId: 1);
+            Assert.Equal(new[] { 1, 2 }, forTherapist1.Select(se => se.SessionId).OrderBy(id => id).ToArray());
+        }
+    }
+
+    // WP-29 (U3): the slim owing-rows query behind pending-summary/report — allocation sum via
+    // correlated subquery, owing-only filter in SQL.
+    [Fact]
+    public async Task GetOwedProviderSessionRowsAsync_SumsAllocations_AndKeepsOnlyOwingRows()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp29OwedRows")
+            .Options;
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+            context.TherapySessions.AddRange(
+                new TherapySession { Id = 1, TherapistId = 42, PatientId = 1, SessionDate = new DateOnly(2026, 4, 2), SessionTime = new TimeOnly(9, 0), Amount = 200m, ProviderAmount = 80m, AppointmentStatusId = 4 },
+                new TherapySession { Id = 2, TherapistId = 42, PatientId = 2, SessionDate = new DateOnly(2026, 4, 10), SessionTime = new TimeOnly(9, 0), Amount = 120m, ProviderAmount = 60m, AppointmentStatusId = 4 },
+                new TherapySession { Id = 3, TherapistId = 43, PatientId = 3, SessionDate = new DateOnly(2026, 4, 5), SessionTime = new TimeOnly(9, 0), Amount = 100m, ProviderAmount = 50m, AppointmentStatusId = 4 },
+                // Not "Completed" -> excluded regardless of money.
+                new TherapySession { Id = 4, TherapistId = 42, PatientId = 1, SessionDate = new DateOnly(2026, 4, 6), SessionTime = new TimeOnly(9, 0), Amount = 100m, ProviderAmount = 50m, AppointmentStatusId = 8 });
+            context.SessionServicePayments.AddRange(
+                new SessionServicePayment { Id = 1, ServicePaymentId = 99, TherapySessionId = 2, AmountApplied = 20m },  // partial -> 40 remains
+                new SessionServicePayment { Id = 2, ServicePaymentId = 99, TherapySessionId = 3, AmountApplied = 30m },
+                new SessionServicePayment { Id = 3, ServicePaymentId = 98, TherapySessionId = 3, AmountApplied = 20m }); // 30+20 -> fully paid, excluded
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new TherapySessionRepository(context);
+
+            var rows = await repository.GetOwedProviderSessionRowsAsync(
+                new DateOnly(2026, 4, 1), new DateOnly(2026, 4, 30), new[] { 4 });
+
+            Assert.Equal(2, rows.Count);
+            var unpaid = rows.Single(r => r.SessionId == 1);
+            Assert.Equal(0m, unpaid.Applied);
+            Assert.Equal(80m, unpaid.ProviderAmount);
+            var partial = rows.Single(r => r.SessionId == 2);
+            Assert.Equal(20m, partial.Applied);
+            Assert.Equal(40m, partial.ProviderAmount - partial.Applied);
+        }
+    }
+
     // B3 (2026-07-07 punch list): Session Details must carry the primary caretaker's
     // name/phone/email so the Proposed > Session Details panel can display them.
     [Fact]

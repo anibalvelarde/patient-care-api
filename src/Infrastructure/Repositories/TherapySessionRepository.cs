@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
@@ -39,6 +40,22 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
                 && s.AppointmentStatusId == 4
                 && s.SpecialtyType != null
                 && s.SpecialtyType.IsDiscovery);
+    }
+
+    // WP-29 (U3): batched HasCompletedDiscoveryAsync — one grouped query for N patients.
+    // Predicate mirrors HasCompletedDiscoveryAsync above; keep the two in step.
+    public async Task<IReadOnlyList<int>> GetPatientIdsWithCompletedDiscoveryAsync(IReadOnlyCollection<int> patientIds)
+    {
+        if (patientIds.Count == 0) return [];
+
+        return await _dbContext.TherapySessions
+            .Where(s => patientIds.Contains(s.PatientId)
+                && s.AppointmentStatusId == 4
+                && s.SpecialtyType != null
+                && s.SpecialtyType.IsDiscovery)
+            .Select(s => s.PatientId)
+            .Distinct()
+            .ToListAsync();
     }
 
     public async Task<TherapySession?> GetByIdWithSpecialtyAsync(int id)
@@ -86,6 +103,34 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
                 && statusIdList.Contains(s.AppointmentStatusId))
             .OrderBy(s => s.SessionDate)
             .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
+
+    // WP-29 (U3): slim money rows for the pending-payroll summary/report — no includes, and the
+    // allocation sum is a correlated scalar subquery (translates to SQL on every provider incl.
+    // InMemory — same precedent as PatientProfileRepository.GetSessionHistoryAsync). The owing
+    // filter runs in SQL so only rows that still owe the therapist are materialized.
+    public async Task<IReadOnlyList<OwedProviderSessionRow>> GetOwedProviderSessionRowsAsync(
+        DateOnly from, DateOnly to, IEnumerable<int> statusIds)
+    {
+        var statusIdList = statusIds.ToList();
+        return await _dbContext.TherapySessions
+            .Where(s => s.SessionDate >= from
+                && s.SessionDate <= to
+                && statusIdList.Contains(s.AppointmentStatusId))
+            .Select(s => new OwedProviderSessionRow
+            {
+                SessionId = s.Id,
+                TherapistId = s.TherapistId,
+                PatientId = s.PatientId,
+                SessionDate = s.SessionDate,
+                Amount = s.Amount,
+                ProviderAmount = s.ProviderAmount,
+                Applied = _dbContext.SessionServicePayments
+                    .Where(a => a.TherapySessionId == s.Id)
+                    .Sum(a => (decimal?)a.AmountApplied) ?? 0m,
+            })
+            .Where(r => r.ProviderAmount - r.Applied > 0)
             .ToListAsync();
     }
 

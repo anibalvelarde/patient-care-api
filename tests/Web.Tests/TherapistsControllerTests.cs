@@ -94,11 +94,11 @@ public class TherapistsControllerTests
         _mockService
             .Setup(s => s.GetByIdAsync(targetTherapistId))
             .ReturnsAsync(Mock.Of<TherapistProfile>(tp => tp.TherapistId == targetTherapistId));
+        // WP-29: the controller asks for the therapist-scoped set — the handler owns the filter.
         _mockSessionEventHandler
-            .Setup(x => x.GetAllPastDueAsync())
+            .Setup(x => x.GetPastDueByTherapistAsync(targetTherapistId))
             .ReturnsAsync( [
                 new SessionEvent() {SessionId =1, TherapistId = 1},
-                new SessionEvent() {SessionId = 2, TherapistId = 2},
                 new SessionEvent() {SessionId = 3, TherapistId = 1}]);
 
         // Act
@@ -128,12 +128,10 @@ public class TherapistsControllerTests
         _mockService
             .Setup(s => s.GetByIdAsync(targetTherapistId))
             .ReturnsAsync(Mock.Of<TherapistProfile>(tp => tp.TherapistId == targetTherapistId));
+        // WP-29: therapist 3 has no past-due sessions — the scoped call returns empty.
         _mockSessionEventHandler
-            .Setup(x => x.GetAllPastDueAsync())
-            .ReturnsAsync( [
-                new SessionEvent() {SessionId =1, TherapistId = 1},
-                new SessionEvent() {SessionId = 2, TherapistId = 2},
-                new SessionEvent() {SessionId = 3, TherapistId = 1}]);
+            .Setup(x => x.GetPastDueByTherapistAsync(targetTherapistId))
+            .ReturnsAsync([]);
 
         // Act
         var result = await _controller.GetPastDueSessions(targetTherapistId);

@@ -281,17 +281,26 @@ public class ServicePaymentService : IServicePaymentService
 
         _logger.LogInformation("Building pending payroll summary for {From}..{To}", periodStart, periodEnd);
 
-        var therapists = await _therapistProfileService.GetAllAsync();
-
+        // WP-29 (U3): ONE slim SQL query (owing rows only, allocation sum as a correlated
+        // subquery) grouped in memory — replaces the 2-round-trips-per-therapist loop. Same
+        // population as before: completed sessions of ACTIVE therapists with remaining
+        // ProviderAmount > 0.
         var summary = new PendingPayrollSummary();
-        foreach (var t in therapists.Where(t => t.IsActive))
-        {
-            var unpaid = (await GetUnpaidProviderSessionsAsync(t.TherapistId, periodStart, periodEnd)).ToList();
-            if (unpaid.Count == 0) continue;
+        var completedId = await ResolveCompletedStatusIdAsync();
+        if (completedId == null) return summary;
 
+        var therapists = await _therapistProfileService.GetAllAsync();
+        var activeTherapistIds = therapists.Where(t => t.IsActive).Select(t => t.TherapistId).ToHashSet();
+
+        var rows = await _sessionRepo.GetOwedProviderSessionRowsAsync(periodStart, periodEnd, new[] { completedId.Value });
+
+        foreach (var group in rows
+            .Where(r => activeTherapistIds.Contains(r.TherapistId))
+            .GroupBy(r => r.TherapistId))
+        {
             summary.TherapistCount++;
-            summary.SessionCount += unpaid.Count;
-            summary.TotalPending += unpaid.Sum(s => s.RemainingProviderAmount);
+            summary.SessionCount += group.Count();
+            summary.TotalPending += group.Sum(r => r.ProviderAmount - r.Applied);
         }
 
         return summary;
@@ -313,40 +322,30 @@ public class ServicePaymentService : IServicePaymentService
         var completedId = await ResolveCompletedStatusIdAsync();
         if (completedId == null) return report;
 
+        // WP-29 (U3): same single slim query as GetPendingPayrollSummaryAsync (the repository
+        // already keeps only the sessions that still owe — the same population as the tile),
+        // grouped in memory. Rows keep the profile's TherapistName exactly as before.
         var therapists = await _therapistProfileService.GetAllAsync();
-        foreach (var t in therapists.Where(t => t.IsActive))
+        var activeById = therapists.Where(t => t.IsActive).ToDictionary(t => t.TherapistId);
+
+        var rows = await _sessionRepo.GetOwedProviderSessionRowsAsync(periodStart, periodEnd, new[] { completedId.Value });
+
+        foreach (var group in rows.GroupBy(r => r.TherapistId))
         {
-            var sessions = await _sessionRepo.GetByTherapistIdAndDateRangeAsync(
-                t.TherapistId, periodStart, periodEnd, new[] { completedId.Value });
-            if (sessions.Count == 0) continue;
+            if (!activeById.TryGetValue(group.Key, out var therapist)) continue;
 
-            var allocations = await _sessionServicePaymentRepo.GetBySessionIdsAsync(sessions.Select(s => s.Id).ToList());
-            var appliedBySession = allocations
-                .GroupBy(a => a.TherapySessionId)
-                .ToDictionary(g => g.Key, g => g.Sum(a => a.AmountApplied));
-
-            // Keep only the sessions that still owe the therapist — the same population as the tile.
-            var owing = sessions
-                .Select(s => new
-                {
-                    Session = s,
-                    Remaining = s.ProviderAmount - (appliedBySession.TryGetValue(s.Id, out var sum) ? sum : 0m),
-                })
-                .Where(x => x.Remaining > 0)
-                .ToList();
-            if (owing.Count == 0) continue;
-
-            var grossBilled = owing.Sum(x => x.Session.Amount);
-            var amountOwed = owing.Sum(x => x.Remaining);
+            var owing = group.ToList();
+            var grossBilled = owing.Sum(x => x.Amount);
+            var amountOwed = owing.Sum(x => x.ProviderAmount - x.Applied);
 
             report.Rows.Add(new PendingPayReportRow
             {
-                TherapistId = t.TherapistId,
-                TherapistName = t.TherapistName,
+                TherapistId = therapist.TherapistId,
+                TherapistName = therapist.TherapistName,
                 SessionCount = owing.Count,
-                FirstSessionDate = owing.Min(x => x.Session.SessionDate).ToString("yyyy-MM-dd"),
-                LastSessionDate = owing.Max(x => x.Session.SessionDate).ToString("yyyy-MM-dd"),
-                DistinctPatientCount = owing.Select(x => x.Session.PatientId).Distinct().Count(),
+                FirstSessionDate = owing.Min(x => x.SessionDate).ToString("yyyy-MM-dd"),
+                LastSessionDate = owing.Max(x => x.SessionDate).ToString("yyyy-MM-dd"),
+                DistinctPatientCount = owing.Select(x => x.PatientId).Distinct().Count(),
                 GrossBilled = grossBilled,
                 AmountOwed = amountOwed,
                 OwedPctOfGross = grossBilled > 0 ? Math.Round(amountOwed / grossBilled * 100m, 1) : 0m,

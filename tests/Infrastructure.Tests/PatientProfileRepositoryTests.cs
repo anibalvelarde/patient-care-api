@@ -16,6 +16,35 @@ public class PatientProfileRepositoryTests
             .Options;
     }
 
+    // WP-29 (U3): batched GetByIdsAsync — same projection as GetByIdAsync, one round trip.
+    [Fact]
+    public async Task GetByIdsAsync_ReturnsMatchingProfiles_AndEmptyForEmptyInput()
+    {
+        var options = CreateInMemoryOptions("Wp29GetByIds");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Patients.AddRange(
+                new Patient { Id = 1, MedicalRecordNumber = "MRN-001", User = new User { Id = 1, FirstName = "John", LastName = "Doe" } },
+                new Patient { Id = 2, MedicalRecordNumber = "MRN-002", User = new User { Id = 2, FirstName = "Alice", LastName = "Wonder" } },
+                new Patient { Id = 3, MedicalRecordNumber = "MRN-003", User = new User { Id = 3, FirstName = "Bob", LastName = "Builder" } });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new PatientProfileRepository(context);
+
+            var result = await repository.GetByIdsAsync(new[] { 1, 3, 99 });
+
+            Assert.Equal(2, result.Count);
+            Assert.Contains(result, p => p.PatientId == 1 && p.PatientName == "Doe, John");
+            Assert.Contains(result, p => p.PatientId == 3 && p.PatientName == "Builder, Bob");
+
+            Assert.Empty(await repository.GetByIdsAsync(System.Array.Empty<int>()));
+        }
+    }
+
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]

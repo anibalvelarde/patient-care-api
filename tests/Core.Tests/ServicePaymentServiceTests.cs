@@ -54,6 +54,23 @@ public class ServicePaymentServiceTests
             .Setup(r => r.GetByTherapistIdAndDateRangeAsync(It.IsAny<int>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<IEnumerable<int>>()))
             .ReturnsAsync((int therapistId, DateOnly _, DateOnly _, IEnumerable<int> _) =>
                 sessions.Where(s => s.TherapistId == therapistId).ToList());
+        // WP-29: pending-summary/report fetch one slim owing-rows set for all therapists —
+        // the mock mirrors the repository's semantics (allocation sum + owing-only filter).
+        sessionRepo
+            .Setup(r => r.GetOwedProviderSessionRowsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(() => sessions
+                .Select(s => new OwedProviderSessionRow
+                {
+                    SessionId = s.Id,
+                    TherapistId = s.TherapistId,
+                    PatientId = s.PatientId,
+                    SessionDate = s.SessionDate,
+                    Amount = s.Amount,
+                    ProviderAmount = s.ProviderAmount,
+                    Applied = allocations.Where(a => a.TherapySessionId == s.Id).Sum(a => a.AmountApplied),
+                })
+                .Where(r => r.ProviderAmount - r.Applied > 0)
+                .ToList());
         sessionRepo
             .Setup(r => r.GetByIdAsync(It.IsAny<int>()))
             .ReturnsAsync((int id) => sessions.FirstOrDefault(s => s.Id == id));
