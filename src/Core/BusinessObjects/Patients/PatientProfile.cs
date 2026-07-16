@@ -2,7 +2,7 @@ using Neurocorp.Api.Core.BusinessObjects.Common;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Patients;
 
-public class PatientProfile : IProfile
+public class PatientProfile : IProfile, IHasAudit
 {
     public PatientProfile()
     {
@@ -26,6 +26,8 @@ public class PatientProfile : IProfile
     // Patients.RequiresDiscovery.Edit.
     public bool RequiresDiscovery { get; set; }
     public bool? HasCompletedDiscovery { get; set; }
+    // WP-31 (U1): additive audit block for the row ⓘ popover.
+    public AuditInfo? Audit { get; set; }
     public List<PatientCaretakerSummary> Caretakers { get; set; } = new();
 
     int IProfile.Id => this.PatientId;

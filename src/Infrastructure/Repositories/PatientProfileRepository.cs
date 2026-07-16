@@ -291,6 +291,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             Email = p.User.Email,
             PhoneNumber = p.User.PhoneNumber,
             CreatedTimestamp = p.User.CreatedTimestamp,
+            // WP-31 (U1): audit from the patient+user aggregate; updater name resolved in the service.
+            Audit = AuditInfo.FromPersonAggregate(p, p.User),
             Caretakers = p.Caretakers.Select(pc => new PatientCaretakerSummary
             {
                 CaretakerId = pc.CaretakerId,

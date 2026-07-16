@@ -1,8 +1,9 @@
 using System.Text.Json.Serialization;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
-public class SessionEvent
+public class SessionEvent : IHasAudit
 {
     public SessionEvent()
     {
@@ -48,4 +49,8 @@ public class SessionEvent
     // entirely from the JSON so FD never receives the figure (not just a zeroed value).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? ProviderAmount { get; set; }
+
+    // WP-31 (U1): additive audit block for the Session Details ⓘ popover. Populated by BOTH
+    // SessionEvent mappers (ExtractSessionEvent + MapToSessionEvent — the two-mapper contract).
+    public AuditInfo? Audit { get; set; }
 }

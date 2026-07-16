@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
@@ -19,8 +20,11 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
     private readonly ITherapistSpecialtyRepository _therapistSpecialtyRepository;
     private readonly IPatientCaretakerRepository _patientCaretakerRepository;
+    private readonly IUserNameResolver? _userNameResolver;
 
-    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo, IPatientCaretakerRepository patientCaretakerRepo)
+    public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo, IPatientCaretakerRepository patientCaretakerRepo,
+        // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
+        IUserNameResolver? userNameResolver = null)
     {
         _logger = logger;
         _repository = repo;
@@ -30,6 +34,17 @@ public class SessionEventHandler : IHandleSessionEvent
         _specialtyTypeRepository = specialtyTypeRepo;
         _therapistSpecialtyRepository = therapistSpecialtyRepo;
         _patientCaretakerRepository = patientCaretakerRepo;
+        _userNameResolver = userNameResolver;
+    }
+
+    // WP-31 (U1): resolve audit updater names on the session-detail / appointments-by-date paths
+    // (the popover surfaces). No-op when the resolver is absent or nothing carries audit.
+    private async Task EnrichAuditAsync(IEnumerable<IHasAudit> items)
+    {
+        if (_userNameResolver != null)
+        {
+            await AuditEnrichment.ResolveNamesAsync(items, _userNameResolver);
+        }
     }
 
     public async Task<IEnumerable<SessionEvent>> GetAllAsync()
@@ -54,6 +69,9 @@ public class SessionEventHandler : IHandleSessionEvent
             .OrderBy(e => e.Patient)
             .ToList();
         _logger.LogInformation("Selected and sorted events in {ElapsedMilliseconds} ms", stopwatch.ElapsedMilliseconds);
+
+        // WP-31 (U1): resolve audit updater names for the row popover (batched, single query).
+        await EnrichAuditAsync(sortedEvents);
 
         // Returning the list to the caller
         _logger.LogInformation("Returning the list to the caller with {Count} events", sortedEvents.Count);
@@ -138,7 +156,13 @@ public class SessionEventHandler : IHandleSessionEvent
 
     public async Task<SessionEvent?> GetByIdAsync(int id)
     {
-        return await _repository.GetByIdAsync(id);
+        var sessionEvent = await _repository.GetByIdAsync(id);
+        if (sessionEvent != null)
+        {
+            // WP-31 (U1): the Session Details popover reads updatedBy from this path.
+            await EnrichAuditAsync(new[] { sessionEvent });
+        }
+        return sessionEvent;
     }
 
     public async Task<SessionEvent> CreateAsync(SessionEvent entity)
