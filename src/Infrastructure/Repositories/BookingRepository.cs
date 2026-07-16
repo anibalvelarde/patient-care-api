@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Neurocorp.Api.Core.BusinessObjects.Lookups;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -198,6 +199,9 @@ public class BookingRepository : IBookingRepository
             CaretakerName = caretakerUser?.GetFullName(),
             CaretakerPhone = caretakerUser?.PhoneNumber,
             CaretakerEmail = caretakerUser?.Email,
+            // WP-31 (U1): audit from the session's own trio; updater name resolved in the handler.
+            // KEEP IN STEP with SessionEventRepository.ExtractSessionEvent (the two-mapper contract).
+            Audit = AuditInfo.FromEntity(ts),
         };
     }
 }

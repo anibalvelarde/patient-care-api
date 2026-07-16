@@ -72,6 +72,9 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ITherapistSpecialtyRepository, TherapistSpecialtyRepository>();
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
         services.AddScoped<IAuthRepository, AuthRepository>();
+
+        // WP-31 (U1): batched audit updater-name resolution (shared by patient/caretaker/session flows).
+        services.AddScoped<Core.Interfaces.Services.IUserNameResolver, Services.UserNameResolver>();
         return services;
     }
 }

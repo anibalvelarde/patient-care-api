@@ -15,6 +15,7 @@ public class CaretakerProfileService : ICaretakerProfileService
     private readonly ICaretakerRepository _caretakerRepo;
     private readonly IUserRoleRepository _userRoleRepo;
     private readonly IPatientCaretakerRepository _patientCaretakerRepo;
+    private readonly IUserNameResolver? _userNameResolver;
     private readonly ILogger<CaretakerProfileService> _logger;
 
     public CaretakerProfileService(
@@ -23,7 +24,9 @@ public class CaretakerProfileService : ICaretakerProfileService
         ICaretakerRepository caretakerRepo,
         IUserRepository userRepo,
         IUserRoleRepository userRoleRepo,
-        IPatientCaretakerRepository patientCaretakerRepo)
+        IPatientCaretakerRepository patientCaretakerRepo,
+        // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
+        IUserNameResolver? userNameResolver = null)
     {
         _logger = logger;
         _repository = repo;
@@ -31,19 +34,36 @@ public class CaretakerProfileService : ICaretakerProfileService
         _caretakerRepo = caretakerRepo;
         _userRoleRepo = userRoleRepo;
         _patientCaretakerRepo = patientCaretakerRepo;
+        _userNameResolver = userNameResolver;
         _repository = repo;
+    }
+
+    // WP-31 (U1): resolve audit updater names for a materialized batch (no-op when unresolved/absent).
+    private async Task EnrichAuditAsync(IEnumerable<IHasAudit> items)
+    {
+        if (_userNameResolver != null)
+        {
+            await AuditEnrichment.ResolveNamesAsync(items, _userNameResolver);
+        }
     }
 
     public async Task<IEnumerable<CaretakerProfile>> GetAllAsync()
     {
         _logger.LogInformation("Getting all caretaker profiles");
-        return await _repository.GetAllAsync();
+        var profiles = await _repository.GetAllAsync();
+        await EnrichAuditAsync(profiles);
+        return profiles;
     }
 
     public async Task<CaretakerProfile?> GetByIdAsync(int id)
     {
         _logger.LogInformation("Getting caretaker profile by ID: {id}", id);
-        return await _repository.GetByIdAsync(id);
+        var profile = await _repository.GetByIdAsync(id);
+        if (profile != null)
+        {
+            await EnrichAuditAsync(new[] { profile });
+        }
+        return profile;
     }
 
     // WP-30 (U2): paged main list + typeahead lookup — straight passthroughs.
@@ -51,7 +71,9 @@ public class CaretakerProfileService : ICaretakerProfileService
     {
         _logger.LogInformation("Getting paged caretaker profiles (search: {Search}, isActive: {IsActive}, page: {Page}, pageSize: {PageSize}).",
             search, isActive, page, pageSize);
-        return await _repository.GetPagedAsync(search, isActive, page, pageSize);
+        var result = await _repository.GetPagedAsync(search, isActive, page, pageSize);
+        await EnrichAuditAsync(result.Items);
+        return result;
     }
 
     public async Task<IReadOnlyList<CaretakerLookupItem>> LookupAsync(string query, int maxResults)

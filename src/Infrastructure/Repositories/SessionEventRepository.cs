@@ -265,6 +265,9 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             CaretakerPhone = caretakerUser?.PhoneNumber,
             CaretakerEmail = caretakerUser?.Email,
             ProviderAmount = ts.ProviderAmount,
+            // WP-31 (U1): audit from the session's own trio; updater name resolved in the handler.
+            // KEEP IN STEP with BookingRepository.MapToSessionEvent (the two-mapper contract).
+            Audit = AuditInfo.FromEntity(ts),
         };
     }
 }

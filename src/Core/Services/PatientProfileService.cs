@@ -20,6 +20,7 @@ public class PatientProfileService : IPatientProfileService
     private readonly IPatientCaretakerRepository _patientCaretakerRepo;
     private readonly ITherapySessionRepository _therapySessionRepo;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IUserNameResolver? _userNameResolver;
     private readonly ILogger<PatientProfileService> _logger;
 
     public PatientProfileService(
@@ -30,7 +31,9 @@ public class PatientProfileService : IPatientProfileService
         IUserRoleRepository userRoleRepo,
         IPatientCaretakerRepository patientCaretakerRepo,
         ITherapySessionRepository therapySessionRepo,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
+        IUserNameResolver? userNameResolver = null)
     {
         _repository = patientProfileRepository;
         _patientRepo = patientRepository;
@@ -39,13 +42,25 @@ public class PatientProfileService : IPatientProfileService
         _patientCaretakerRepo = patientCaretakerRepo;
         _therapySessionRepo = therapySessionRepo;
         _unitOfWork = unitOfWork;
+        _userNameResolver = userNameResolver;
         _logger = logger;
+    }
+
+    // WP-31 (U1): resolve audit updater names for a materialized batch (no-op when unresolved/absent).
+    private async Task EnrichAuditAsync(IEnumerable<IHasAudit> items)
+    {
+        if (_userNameResolver != null)
+        {
+            await AuditEnrichment.ResolveNamesAsync(items, _userNameResolver);
+        }
     }
 
     public async Task<IEnumerable<PatientProfile>> GetAllAsync()
     {
         _logger.LogInformation("Getting all patient profiles.");
-        return await _repository.GetAllAsync();
+        var profiles = await _repository.GetAllAsync();
+        await EnrichAuditAsync(profiles);
+        return profiles;
     }
 
     // WP-30 (U2): paged main list. Parity with GetAllAsync — no HasCompletedDiscovery stamp
@@ -54,7 +69,9 @@ public class PatientProfileService : IPatientProfileService
     {
         _logger.LogInformation("Getting paged patient profiles (search: {Search}, isActive: {IsActive}, page: {Page}, pageSize: {PageSize}).",
             search, isActive, page, pageSize);
-        return await _repository.GetPagedAsync(search, isActive, page, pageSize);
+        var result = await _repository.GetPagedAsync(search, isActive, page, pageSize);
+        await EnrichAuditAsync(result.Items);
+        return result;
     }
 
     public async Task<IReadOnlyList<PatientLookupItem>> LookupAsync(string query, int maxResults)
@@ -70,6 +87,7 @@ public class PatientProfileService : IPatientProfileService
         if (profile != null)
         {
             profile.HasCompletedDiscovery = await _therapySessionRepo.HasCompletedDiscoveryAsync(profile.PatientId);
+            await EnrichAuditAsync(new[] { profile });
         }
         return profile;
     }
@@ -89,6 +107,7 @@ public class PatientProfileService : IPatientProfileService
         {
             profile.HasCompletedDiscovery = withDiscovery.Contains(profile.PatientId);
         }
+        await EnrichAuditAsync(profiles);
         return profiles;
     }
 

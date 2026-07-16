@@ -189,6 +189,8 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
             PhoneNumber = ct.User.PhoneNumber,
             CreatedTimestamp = ct.User.CreatedTimestamp,
             LastUpdated = ct.User.LastUpdatedTimestamp,
+            // WP-31 (U1): audit from the caretaker+user aggregate; updater name resolved in the service.
+            Audit = AuditInfo.FromPersonAggregate(ct, ct.User),
             Patients = ct.Patients.Select(pc => new CaretakerPatientSummary
             {
                 PatientId = pc.PatientId,
