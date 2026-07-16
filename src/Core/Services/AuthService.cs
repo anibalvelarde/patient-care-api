@@ -21,15 +21,19 @@ public class AuthService : IAuthService
     private const int MinPasswordLength = 8;
     private const string InvalidCredentialsMessage = "Invalid email or password.";
 
+    private const int DefaultIdleLogoffMinutes = 60;
+
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+    private readonly ISiteRepository _siteRepository;
 
-    public AuthService(IAuthRepository authRepository, IPasswordHasher passwordHasher, ITokenService tokenService)
+    public AuthService(IAuthRepository authRepository, IPasswordHasher passwordHasher, ITokenService tokenService, ISiteRepository siteRepository)
     {
         _authRepository = authRepository;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
+        _siteRepository = siteRepository;
     }
 
     public async Task<AuthResult> LoginAsync(LoginRequest request)
@@ -159,8 +163,18 @@ public class AuthService : IAuthService
             Roles = roles,
             Claims = claims,
             IsSystemAdmin = claims.Any(c =>
-                c.Type == SystemClaims.SystemClaimType && c.Value == SystemClaims.FullAccessValue)
+                c.Type == SystemClaims.SystemClaimType && c.Value == SystemClaims.FullAccessValue),
+            IdleLogoffMinutes = await GetIdleLogoffMinutesAsync()
         };
+    }
+
+    // WP-32 (U4): the idle auto-logoff setting is a Site attribute, but every operator needs it
+    // and the Site GETs are admin-gated — so it rides on /auth/me. Single-site platform today:
+    // read the first/only Site row (lowest Id); fall back to the default if no Site exists.
+    private async Task<int> GetIdleLogoffMinutesAsync()
+    {
+        var sites = await _siteRepository.GetAllAsync();
+        return sites.OrderBy(s => s.Id).FirstOrDefault()?.IdleLogoffMinutes ?? DefaultIdleLogoffMinutes;
     }
 
     private async Task<AuthResult> IssueTokensAsync(int userId, string? email, string fullName, bool mustChangePassword)

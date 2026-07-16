@@ -182,4 +182,121 @@ public class SiteProfileServiceTests
         // Assert
         Assert.False(result);
     }
+
+    // --- WP-32 (U4): idle auto-logoff field ---
+
+    [Fact]
+    public async Task GetByIdAsync_MapsIdleLogoffMinutes()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var site = new Site { Id = testId, SiteName = "Main Clinic", IdleLogoffMinutes = 90 };
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(site);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.GetByIdAsync(testId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(90, result!.IdleLogoffMinutes);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DefaultsIdleLogoffMinutes_To60_WhenOmitted()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2025, 6, 1)
+            // IdleLogoffMinutes omitted (null)
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(60, captured!.IdleLogoffMinutes);
+        Assert.Equal(60, result.IdleLogoffMinutes);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UsesProvidedIdleLogoffMinutes()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2025, 6, 1),
+            IdleLogoffMinutes = 120
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(120, captured!.IdleLogoffMinutes);
+        Assert.Equal(120, result.IdleLogoffMinutes);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SetsIdleLogoffMinutes_WhenProvided()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", IdleLogoffMinutes = 60 };
+        var updateRequest = new SiteProfileUpdateRequest { IdleLogoffMinutes = 0 };  // 0 = disabled
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(0, existingSite.IdleLogoffMinutes);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LeavesIdleLogoffMinutes_WhenNull()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", IdleLogoffMinutes = 45 };
+        var updateRequest = new SiteProfileUpdateRequest { SiteName = "Renamed" };  // idle omitted
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(45, existingSite.IdleLogoffMinutes);
+    }
 }

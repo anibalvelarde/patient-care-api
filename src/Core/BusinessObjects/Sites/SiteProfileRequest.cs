@@ -17,4 +17,8 @@ public class SiteProfileRequest
     public string? Address { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
+
+    // WP-32 (U4): optional on create; defaults to 60 when omitted. 0 = disabled.
+    [Range(0, 480)]
+    public int? IdleLogoffMinutes { get; set; }
 }

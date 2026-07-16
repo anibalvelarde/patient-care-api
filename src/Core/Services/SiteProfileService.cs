@@ -58,6 +58,7 @@ public class SiteProfileService : ISiteProfileService
         if (request.Address != null) site.Address = request.Address;
         if (request.Latitude.HasValue) site.Latitude = request.Latitude.Value;
         if (request.Longitude.HasValue) site.Longitude = request.Longitude.Value;
+        if (request.IdleLogoffMinutes.HasValue) site.IdleLogoffMinutes = request.IdleLogoffMinutes.Value;
 
         await _repository.UpdateAsync(site);
         return true;
@@ -74,6 +75,7 @@ public class SiteProfileService : ISiteProfileService
             Address = site.Address,
             Latitude = site.Latitude,
             Longitude = site.Longitude,
+            IdleLogoffMinutes = site.IdleLogoffMinutes,
         };
     }
 
@@ -87,6 +89,8 @@ public class SiteProfileService : ISiteProfileService
             Address = request.Address,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            // Optional on create; the DB default is also 60 (V029).
+            IdleLogoffMinutes = request.IdleLogoffMinutes ?? 60,
         };
     }
 }
