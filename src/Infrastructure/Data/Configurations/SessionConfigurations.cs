@@ -32,6 +32,8 @@ public class TherapySessionConfiguration : IEntityTypeConfiguration<TherapySessi
             .HasForeignKey(e => e.TreatmentPlanLineId)
             .HasConstraintName("TherapySession_ibfk_planline");
         builder.Property(e => e.TreatmentPlanLineId).HasColumnName("TreatmentPlanLineID");
+        // WP-39 (G4): mapped so the model matches V030; INERT until WP-40 (no DTO/mapper reads it).
+        builder.Property(e => e.OnSiteChargeAmount).HasPrecision(10, 2);
     }
 }
 

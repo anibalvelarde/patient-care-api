@@ -38,6 +38,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Site> Sites { get; set; }
     public DbSet<RoleType> RoleTypes { get; set; }
     public DbSet<SpecialtyType> SpecialtyTypes { get; set; }
+    public DbSet<SpecialtyDurationPrice> SpecialtyDurationPrices { get; set; }
     public DbSet<TherapistSpecialty> TherapistSpecialties { get; set; }
     public DbSet<TreatmentPlan> TreatmentPlans { get; set; }
     public DbSet<TreatmentPlanLine> TreatmentPlanLines { get; set; }

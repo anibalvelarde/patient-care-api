@@ -59,6 +59,7 @@ public class SiteProfileService : ISiteProfileService
         if (request.Latitude.HasValue) site.Latitude = request.Latitude.Value;
         if (request.Longitude.HasValue) site.Longitude = request.Longitude.Value;
         if (request.IdleLogoffMinutes.HasValue) site.IdleLogoffMinutes = request.IdleLogoffMinutes.Value;
+        if (request.OnSiteTripChargeAmount.HasValue) site.OnSiteTripChargeAmount = request.OnSiteTripChargeAmount.Value;
 
         await _repository.UpdateAsync(site);
         return true;
@@ -76,6 +77,7 @@ public class SiteProfileService : ISiteProfileService
             Latitude = site.Latitude,
             Longitude = site.Longitude,
             IdleLogoffMinutes = site.IdleLogoffMinutes,
+            OnSiteTripChargeAmount = site.OnSiteTripChargeAmount,
         };
     }
 
@@ -91,6 +93,8 @@ public class SiteProfileService : ISiteProfileService
             Longitude = request.Longitude,
             // Optional on create; the DB default is also 60 (V029).
             IdleLogoffMinutes = request.IdleLogoffMinutes ?? 60,
+            // WP-39 (G4): optional on create; the DB default is also 0 (V030).
+            OnSiteTripChargeAmount = request.OnSiteTripChargeAmount ?? 0m,
         };
     }
 }

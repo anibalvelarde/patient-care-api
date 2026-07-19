@@ -97,6 +97,14 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("POST", "/api/patients/merge", "OWN")]
     [InlineData("POST", "/api/patients/merge", "ACCT")]
     [InlineData("POST", "/api/patients/merge", "CARETAKER")]
+    // WP-39: Specialties.Prices.Edit [AM,MGR] (hash 57b6150a350c) — price editing is denied to
+    // FD/OWN/ACCT (OWN can VIEW the sheet but not edit; structural manage stays SYSADMIN-only).
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "FD")]
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "OWN")]
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "ACCT")]
+    // WP-39: GET history rides Admin.Lookups.SpecialtyType.View [AM (new grant), MGR, OWN] — FD/ACCT denied.
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "FD")]
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "ACCT")]
     public async Task RoleWithoutClaim_Is403(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -156,6 +164,18 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     // Patients.Merge (WP-22, F2) — SYSADMIN reaches both actions via the wildcard (no seed).
     [InlineData("POST", "/api/patients/merge/preview", "SYSADMIN")]
     [InlineData("POST", "/api/patients/merge", "SYSADMIN")]
+    // WP-39: Specialties.Prices.Edit [AM,MGR] + wildcard — the PR-3 point: price editing WITHOUT
+    // structural lookup-manage rights. (A granted PUT may still 400/404 on the "{}" body — only
+    // the authorization outcome is asserted here.)
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "MGR")]
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "AM")]
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices", "SYSADMIN")]
+    // WP-39: GET history — MGR/OWN held Admin.Lookups.SpecialtyType.View already; the AM row is
+    // the 57b6150a350c reachability grant proof (AM would have been 403 under 7ae3aa5e3274).
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "MGR")]
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "AM")]
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "OWN")]
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices", "SYSADMIN")]
     public async Task RoleWithClaim_IsNotBlocked(string method, string route, string role)
     {
         var response = await SendAsync(method, route, TokenFor(role));
@@ -174,6 +194,9 @@ public class SensitiveCellAuthorizationTests : IClassFixture<AccessControlTestFa
     [InlineData("GET", "/api/patients/session-history")]
     [InlineData("POST", "/api/patients/merge/preview")]
     [InlineData("POST", "/api/patients/merge")]
+    // WP-39 price endpoints.
+    [InlineData("GET", "/api/lookups/specialty-types/1/prices")]
+    [InlineData("PUT", "/api/lookups/specialty-types/1/prices")]
     public async Task NoToken_Is401(string method, string route)
     {
         var response = await SendAsync(method, route, token: null);

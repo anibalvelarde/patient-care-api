@@ -181,25 +181,33 @@ public class LookupServiceTests
     }
 
     // --- WP-23 (F6): DefaultAmount is a per-type field — SpecialtyType only ---
+    // WP-39: specialty-types READS now flow through ISpecialtyPriceRepository (a single
+    // Include-join query so the projection can carry durationPrices without an N+1), so the
+    // helper registers both repos; Create/Update still use the generic IRepository<SpecialtyType>.
 
     private Mock<IRepository<SpecialtyType>> UseSpecialtyRepo()
     {
         var mockSpecialtyRepo = new Mock<IRepository<SpecialtyType>>();
+        _specialtyPriceRepo = new Mock<ISpecialtyPriceRepository>();
         var mockServiceProvider = new Mock<IServiceProvider>();
         mockServiceProvider
             .Setup(sp => sp.GetService(typeof(IRepository<SpecialtyType>)))
             .Returns(mockSpecialtyRepo.Object);
+        mockServiceProvider
+            .Setup(sp => sp.GetService(typeof(ISpecialtyPriceRepository)))
+            .Returns(_specialtyPriceRepo.Object);
         _specialtyService = new LookupService(mockServiceProvider.Object, Mock.Of<ILogger<LookupService>>());
         return mockSpecialtyRepo;
     }
 
     private LookupService _specialtyService = null!;
+    private Mock<ISpecialtyPriceRepository> _specialtyPriceRepo = null!;
 
     [Fact]
     public async Task GetAllAsync_SpecialtyTypes_PopulatesDefaultAmount()
     {
-        var repo = UseSpecialtyRepo();
-        repo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<SpecialtyType>
+        UseSpecialtyRepo();
+        _specialtyPriceRepo.Setup(r => r.GetAllWithPricesAsync()).ReturnsAsync(new List<SpecialtyType>
         {
             new() { Id = 1, Abbreviation = "TL", Name = "Language Therapy", DefaultAmount = 65.00m },
             new() { Id = 2, Abbreviation = "FS", Name = "Physiotherapy", DefaultAmount = null },
@@ -270,5 +278,144 @@ public class LookupServiceTests
         // provided = set
         await _specialtyService.UpdateAsync("specialty-types", 1, new LookupUpdateRequest { DefaultAmount = 70.25m });
         Assert.Equal(70.25m, existing.DefaultAmount);
+    }
+
+    // --- WP-39 (PR-1/PR-2): offeredOnSite + current-effective durationPrices projection ---
+
+    private static SpecialtyDurationPrice Price(int duration, decimal amount, string effectiveFrom) =>
+        new()
+        {
+            DurationMinutes = duration,
+            Amount = amount,
+            EffectiveFrom = Iso(effectiveFrom),
+        };
+
+    private static DateOnly Iso(string date) =>
+        DateOnly.ParseExact(date, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+
+    [Fact]
+    public async Task GetAllAsync_SpecialtyTypes_ProjectsCurrentEffectivePrices_AndOfferedOnSite()
+    {
+        UseSpecialtyRepo();
+        _specialtyPriceRepo.Setup(r => r.GetAllWithPricesAsync()).ReturnsAsync(new List<SpecialtyType>
+        {
+            new()
+            {
+                Id = 1, Abbreviation = "TL", Name = "Language Therapy", OfferedOnSite = true,
+                DurationPrices =
+                {
+                    // 30-min: two effective rows -> the LATEST effectiveFrom <= today wins.
+                    Price(30, 22.00m, "2020-01-01"),
+                    Price(30, 25.00m, "2025-06-01"),
+                    // 60-min: one past row + one FUTURE row -> future excluded, past wins.
+                    Price(60, 45.00m, "2024-01-01"),
+                    Price(60, 99.00m, "2999-01-01"),
+                    // 90-min: only future -> duration ABSENT from the projection.
+                    Price(90, 80.00m, "2999-01-01"),
+                    // 45/120: no rows -> absent.
+                },
+            },
+        });
+
+        var item = (await _specialtyService.GetAllAsync("specialty-types")).Single();
+
+        Assert.True(item.OfferedOnSite);
+        Assert.Equal(2, item.DurationPrices.Count);
+        var p30 = item.DurationPrices[0];
+        Assert.Equal(30, p30.DurationMinutes);
+        Assert.Equal(25.00m, p30.Amount);
+        Assert.Equal(Iso("2025-06-01"), p30.EffectiveFrom);
+        var p60 = item.DurationPrices[1];
+        Assert.Equal(60, p60.DurationMinutes);
+        Assert.Equal(45.00m, p60.Amount);
+        // Single repository call carried everything — no per-item follow-up queries (WP-29 rule).
+        _specialtyPriceRepo.Verify(r => r.GetAllWithPricesAsync(), Times.Once);
+        _specialtyPriceRepo.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_SpecialtyType_ProjectsPricesFromSingleQuery()
+    {
+        UseSpecialtyRepo();
+        _specialtyPriceRepo.Setup(r => r.GetWithPricesAsync(7)).ReturnsAsync(
+            new SpecialtyType
+            {
+                Id = 7, Abbreviation = "HYD", Name = "Hydrotherapy", OfferedOnSite = false,
+                DurationPrices = { Price(45, 35.00m, "2024-05-01") },
+            });
+
+        var item = await _specialtyService.GetByIdAsync("specialty-types", 7);
+
+        Assert.NotNull(item);
+        Assert.False(item.OfferedOnSite);
+        var p = Assert.Single(item.DurationPrices);
+        Assert.Equal(45, p.DurationMinutes);
+        Assert.Equal(35.00m, p.Amount);
+        _specialtyPriceRepo.Verify(r => r.GetWithPricesAsync(7), Times.Once);
+        _specialtyPriceRepo.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_NonSpecialtyTable_OfferedOnSiteFalse_AndNoPrices()
+    {
+        _mockRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<AppointmentStatus>
+        {
+            new() { Id = 1, Abbreviation = "PROP", Name = "Proposed" },
+        });
+
+        var items = (await _service.GetAllAsync("appointment-statuses")).ToList();
+
+        Assert.False(items[0].OfferedOnSite);
+        Assert.Empty(items[0].DurationPrices);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SpecialtyType_HonorsOfferedOnSite_AndDefaultsFalse()
+    {
+        var repo = UseSpecialtyRepo();
+        SpecialtyType? captured = null;
+        repo.Setup(r => r.AddAsync(It.IsAny<SpecialtyType>()))
+            .Callback<SpecialtyType>(e => captured = e)
+            .ReturnsAsync((SpecialtyType e) => e);
+
+        await _specialtyService.CreateAsync("specialty-types",
+            new LookupCreateRequest { Abbreviation = "DOM", Name = "Home Therapy", OfferedOnSite = true });
+        Assert.True(captured!.OfferedOnSite);
+
+        await _specialtyService.CreateAsync("specialty-types",
+            new LookupCreateRequest { Abbreviation = "CLN", Name = "Clinic-only Therapy" });
+        Assert.False(captured!.OfferedOnSite); // omitted = false (DB default)
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SpecialtyType_SetsOfferedOnSite_AndNullMeansUnchanged()
+    {
+        var repo = UseSpecialtyRepo();
+        var existing = new SpecialtyType { Id = 1, Abbreviation = "TL", Name = "Language Therapy", OfferedOnSite = true };
+        repo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(existing);
+        repo.Setup(r => r.UpdateAsync(It.IsAny<SpecialtyType>())).Returns(Task.CompletedTask);
+
+        // null = unchanged
+        await _specialtyService.UpdateAsync("specialty-types", 1, new LookupUpdateRequest { Name = "Renamed" });
+        Assert.True(existing.OfferedOnSite);
+
+        // provided = set (false is a real value, not a sentinel)
+        await _specialtyService.UpdateAsync("specialty-types", 1, new LookupUpdateRequest { OfferedOnSite = false });
+        Assert.False(existing.OfferedOnSite);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NonSpecialtyTable_IgnoresOfferedOnSite()
+    {
+        AppointmentStatus? captured = null;
+        _mockRepo.Setup(r => r.AddAsync(It.IsAny<AppointmentStatus>()))
+            .Callback<AppointmentStatus>(e => captured = e)
+            .ReturnsAsync((AppointmentStatus e) => e);
+
+        var result = await _service.CreateAsync("appointment-statuses",
+            new LookupCreateRequest { Abbreviation = "NEW", Name = "NewStatus", OfferedOnSite = true });
+
+        Assert.NotNull(captured); // entity has no OfferedOnSite property — nothing to set
+        Assert.False(result.OfferedOnSite);
     }
 }

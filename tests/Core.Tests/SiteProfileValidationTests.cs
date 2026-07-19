@@ -97,4 +97,87 @@ public class SiteProfileValidationTests
 
         Assert.False(HasIdleLogoffError(Validate(model)));
     }
+
+    // --- WP-39 (G4): OnSiteTripChargeAmount must be ≥ 0 (auto-400 via [Range]) ---
+
+    private static bool HasTripChargeError(IReadOnlyList<ValidationResult> results)
+    {
+        foreach (var r in results)
+        {
+            foreach (var member in r.MemberNames)
+            {
+                if (member == nameof(SiteProfileRequest.OnSiteTripChargeAmount)) return true;
+            }
+        }
+        return false;
+    }
+
+    [Theory]
+    [InlineData("0")]      // 0 = no charge configured — valid boundary
+    [InlineData("15.50")]
+    public void Request_Accepts_NonNegativeTripCharge(string amount)
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2025, 1, 1),
+            OnSiteTripChargeAmount = decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.False(HasTripChargeError(Validate(model)));
+    }
+
+    [Fact]
+    public void Request_Accepts_NullTripCharge()
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2025, 1, 1),
+            OnSiteTripChargeAmount = null
+        };
+
+        Assert.False(HasTripChargeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("-25")]
+    public void Request_Rejects_NegativeTripCharge(string amount)
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2025, 1, 1),
+            OnSiteTripChargeAmount = decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.True(HasTripChargeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("-25")]
+    public void UpdateRequest_Rejects_NegativeTripCharge(string amount)
+    {
+        var model = new SiteProfileUpdateRequest
+        {
+            OnSiteTripChargeAmount = decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.True(HasTripChargeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("25.00")]
+    public void UpdateRequest_Accepts_NonNegativeTripCharge(string amount)
+    {
+        var model = new SiteProfileUpdateRequest
+        {
+            OnSiteTripChargeAmount = decimal.Parse(amount, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.False(HasTripChargeError(Validate(model)));
+    }
 }

@@ -299,4 +299,121 @@ public class SiteProfileServiceTests
         Assert.True(result);
         Assert.Equal(45, existingSite.IdleLogoffMinutes);
     }
+
+    // --- WP-39 (G4): on-site trip charge field (same threading pattern as IdleLogoffMinutes) ---
+
+    [Fact]
+    public async Task GetByIdAsync_MapsOnSiteTripChargeAmount()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var site = new Site { Id = testId, SiteName = "Main Clinic", OnSiteTripChargeAmount = 15.50m };
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(site);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.GetByIdAsync(testId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(15.50m, result!.OnSiteTripChargeAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DefaultsOnSiteTripChargeAmount_To0_WhenOmitted()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2025, 6, 1)
+            // OnSiteTripChargeAmount omitted (null)
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(0m, captured!.OnSiteTripChargeAmount);
+        Assert.Equal(0m, result.OnSiteTripChargeAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UsesProvidedOnSiteTripChargeAmount()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2025, 6, 1),
+            OnSiteTripChargeAmount = 25.00m
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(25.00m, captured!.OnSiteTripChargeAmount);
+        Assert.Equal(25.00m, result.OnSiteTripChargeAmount);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SetsOnSiteTripChargeAmount_WhenProvided()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", OnSiteTripChargeAmount = 10m };
+        var updateRequest = new SiteProfileUpdateRequest { OnSiteTripChargeAmount = 0m };  // 0 = no charge (legal)
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(0m, existingSite.OnSiteTripChargeAmount);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LeavesOnSiteTripChargeAmount_WhenNull()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", OnSiteTripChargeAmount = 12.75m };
+        var updateRequest = new SiteProfileUpdateRequest { SiteName = "Renamed" };  // charge omitted
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(12.75m, existingSite.OnSiteTripChargeAmount);
+    }
 }
