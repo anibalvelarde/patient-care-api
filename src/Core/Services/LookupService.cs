@@ -79,15 +79,47 @@ public class LookupService : ILookupService
     private async Task<IEnumerable<LookupItem>> GetAllInternalAsync<T>() where T : LookupEntityBase
     {
         _logger.LogInformation("Retrieving all {EntityType} records", typeof(T).Name);
+        // WP-39: specialty-types load WITH their price sheet in one query (Include join — no
+        // N+1, WP-29 rule) so the projection can carry the current-effective durationPrices.
+        if (typeof(T) == typeof(SpecialtyType))
+        {
+            var specialties = await _serviceProvider
+                .GetRequiredService<ISpecialtyPriceRepository>()
+                .GetAllWithPricesAsync();
+            _logger.LogInformation("Retrieved {Count} SpecialtyType records (with prices)", specialties.Count);
+            return OrderedItems(specialties);
+        }
+
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
         var entities = await repository.GetAllAsync();
         _logger.LogInformation("Retrieved {Count} {EntityType} records", entities.Count, typeof(T).Name);
-        return entities.Select(MapToLookupItem);
+        return OrderedItems(entities);
+    }
+
+    // WP-39 follow-up (owner ruling 2026-07-19): every lookup GET returns items ordered
+    // SortOrder ASC, then Name ASC — the guaranteed server-side order for the Admin tables and
+    // the booking specialty dropdown (contract: lookups-api.md). Single choke point: both the
+    // generic path and the enriched specialty-types path flow through here.
+    private static IEnumerable<LookupItem> OrderedItems(IEnumerable<LookupEntityBase> entities)
+    {
+        return entities
+            .OrderBy(e => e.SortOrder)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(MapToLookupItem);
     }
 
     private async Task<LookupItem?> GetByIdInternalAsync<T>(int id) where T : LookupEntityBase
     {
         _logger.LogInformation("Retrieving {EntityType} with ID: {Id}", typeof(T).Name, id);
+        // WP-39: same single-query price-sheet load as GetAll (see above).
+        if (typeof(T) == typeof(SpecialtyType))
+        {
+            var specialty = await _serviceProvider
+                .GetRequiredService<ISpecialtyPriceRepository>()
+                .GetWithPricesAsync(id);
+            return specialty == null ? null : MapToLookupItem(specialty);
+        }
+
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
         var entity = await repository.GetByIdAsync(id);
         return entity == null ? null : MapToLookupItem(entity);
@@ -109,11 +141,12 @@ public class LookupService : ILookupService
             LastUpdatedTimestamp = now,
         };
 
-        // WP-23 (F6): DefaultAmount is a per-type field — honored only for SpecialtyType,
-        // silently ignored for every other lookup table (their schema has no such column).
-        if (entity is SpecialtyType specialty && request.DefaultAmount.HasValue)
+        // WP-23 (F6) / WP-39 (PR-2): per-type fields — honored only for SpecialtyType,
+        // silently ignored for every other lookup table (their schema has no such columns).
+        if (entity is SpecialtyType specialty)
         {
-            specialty.DefaultAmount = request.DefaultAmount;
+            if (request.DefaultAmount.HasValue) specialty.DefaultAmount = request.DefaultAmount;
+            if (request.OfferedOnSite.HasValue) specialty.OfferedOnSite = request.OfferedOnSite.Value;
         }
 
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
@@ -135,10 +168,12 @@ public class LookupService : ILookupService
         if (request.Name != null) entity.Name = request.Name;
         if (request.Description != null) entity.Description = request.Description;
         if (request.SortOrder != null) entity.SortOrder = (short)request.SortOrder.Value;
-        // WP-23 (F6): per-type field — SpecialtyType only; null = unchanged (0 is a legal price).
-        if (entity is SpecialtyType specialty && request.DefaultAmount.HasValue)
+        // WP-23 (F6) / WP-39 (PR-2): per-type fields — SpecialtyType only; null = unchanged
+        // (0 is a legal price; the on-site flag keeps its stored value when omitted).
+        if (entity is SpecialtyType specialty)
         {
-            specialty.DefaultAmount = request.DefaultAmount;
+            if (request.DefaultAmount.HasValue) specialty.DefaultAmount = request.DefaultAmount;
+            if (request.OfferedOnSite.HasValue) specialty.OfferedOnSite = request.OfferedOnSite.Value;
         }
         entity.LastUpdatedTimestamp = DateTime.UtcNow;
 
@@ -149,6 +184,9 @@ public class LookupService : ILookupService
 
     private static LookupItem MapToLookupItem(LookupEntityBase entity)
     {
+        // WP-23 (F6) / WP-39: per-type fields — populated only for SpecialtyType;
+        // null / false / empty for every other lookup table.
+        var specialty = entity as SpecialtyType;
         return new LookupItem
         {
             Id = entity.Id,
@@ -156,8 +194,14 @@ public class LookupService : ILookupService
             Name = entity.Name,
             Description = entity.Description,
             SortOrder = entity.SortOrder,
-            // WP-23 (F6): per-type field — populated only for SpecialtyType, null elsewhere.
-            DefaultAmount = (entity as SpecialtyType)?.DefaultAmount,
+            DefaultAmount = specialty?.DefaultAmount,
+            OfferedOnSite = specialty?.OfferedOnSite ?? false,
+            // WP-39: CURRENT-EFFECTIVE sheet only (latest effectiveFrom ≤ today per duration;
+            // future-dated rows excluded). Full history lives on GET …/{id}/prices.
+            DurationPrices = specialty is null
+                ? []
+                : SpecialtyPricing.CurrentEffective(
+                    specialty.DurationPrices, DateOnly.FromDateTime(DateTime.UtcNow)),
             CreatedTimestamp = entity.CreatedTimestamp,
             LastUpdatedTimestamp = entity.LastUpdatedTimestamp,
         };

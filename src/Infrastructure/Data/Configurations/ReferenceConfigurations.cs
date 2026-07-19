@@ -19,6 +19,8 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(e => e.Address).IsRequired(false);
         builder.Property(e => e.Latitude).IsRequired(false);
         builder.Property(e => e.Longitude).IsRequired(false);
+        // WP-39 (G4): flat on-site trip charge (V030); ≥ 0 API-enforced, default 0.
+        builder.Property(e => e.OnSiteTripChargeAmount).HasPrecision(10, 2);
     }
 }
 
@@ -33,6 +35,28 @@ public class SpecialtyTypeConfiguration : IEntityTypeConfiguration<SpecialtyType
         builder.Property(e => e.Name).HasColumnName("SpecialtyName");
         builder.Property(e => e.Description).HasColumnName("SpecialtyDescription");
         builder.Property(e => e.DefaultAmount).HasPrecision(10, 2);
+    }
+}
+
+// WP-39 (PR-1): temporal per-duration price sheet (V030). FK column SpecialtyTypeID references
+// SpecialtyType's PK (column SpecialtyID — same pattern as TherapistSpecialty). Unique key over
+// (SpecialtyTypeID, DurationMinutes, EffectiveFrom) backs the append-only 409 semantics.
+public class SpecialtyDurationPriceConfiguration : IEntityTypeConfiguration<SpecialtyDurationPrice>
+{
+    public void Configure(EntityTypeBuilder<SpecialtyDurationPrice> builder)
+    {
+        builder.ToTable("SpecialtyDurationPrice");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasColumnName("SpecialtyDurationPriceID");
+        builder.Property(e => e.SpecialtyTypeId).HasColumnName("SpecialtyTypeID");
+        builder.Property(e => e.DurationMinutes).HasColumnType("smallint");
+        builder.Property(e => e.Amount).HasPrecision(10, 2);
+        builder.Property(e => e.EffectiveFrom).HasColumnType("date");
+        builder.HasOne(e => e.SpecialtyType)
+            .WithMany(s => s.DurationPrices)
+            .HasForeignKey(e => e.SpecialtyTypeId);
+        builder.HasIndex(e => new { e.SpecialtyTypeId, e.DurationMinutes, e.EffectiveFrom })
+            .IsUnique();
     }
 }
 

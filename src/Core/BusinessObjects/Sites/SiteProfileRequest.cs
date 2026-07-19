@@ -21,4 +21,8 @@ public class SiteProfileRequest
     // WP-32 (U4): optional on create; defaults to 60 when omitted. 0 = disabled.
     [Range(0, 480)]
     public int? IdleLogoffMinutes { get; set; }
+
+    // WP-39 (G4): optional on create; defaults to 0 (no charge) when omitted. 400 if negative.
+    [Range(0, 99999999.99)]
+    public decimal? OnSiteTripChargeAmount { get; set; }
 }

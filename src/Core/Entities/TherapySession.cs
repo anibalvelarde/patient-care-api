@@ -31,6 +31,10 @@ public class TherapySession : AuditableEntityBase
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
     public int? TreatmentPlanLineId { get; set; }
+    // WP-39 (G4): on-site trip charge snapshotted at booking; NULL = not an on-site visit.
+    // INERT until WP-40 — mapped so the EF model matches V030, but deliberately NOT threaded
+    // through any session DTO/mapper (remember: TWO SessionEvent mappers must stay in sync).
+    public decimal? OnSiteChargeAmount { get; set; }
     public Therapist? Therapist{ get; set; }
     public Patient? Patient{ get; set; }
     public AppointmentStatus? AppointmentStatus { get; set; }

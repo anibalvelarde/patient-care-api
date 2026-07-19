@@ -15,4 +15,7 @@ public class SiteProfile
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public int IdleLogoffMinutes { get; set; } = 60;
+
+    // WP-39 (G4): flat per-on-site-visit trip charge; 0 = no charge configured.
+    public decimal OnSiteTripChargeAmount { get; set; }
 }
