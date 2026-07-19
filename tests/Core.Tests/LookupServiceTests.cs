@@ -82,6 +82,52 @@ public class LookupServiceTests
         await Assert.ThrowsAsync<ArgumentException>(() => _service.GetAllAsync("invalid"));
     }
 
+    // --- WP-39 follow-up (owner ruling 2026-07-19): lookup GETs are ordered server-side ---
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsItems_OrderedBySortOrderThenName()
+    {
+        // Arrange: deliberately out of order on both keys (repo returns arbitrary/ID order).
+        var entities = new List<AppointmentStatus>
+        {
+            new() { Id = 1, Abbreviation = "ZZ", Name = "Zebra",    SortOrder = 2 },
+            new() { Id = 2, Abbreviation = "BB", Name = "Bravo",    SortOrder = 1 },
+            new() { Id = 3, Abbreviation = "AA", Name = "Alpha",    SortOrder = 2 },
+            new() { Id = 4, Abbreviation = "MM", Name = "Mike",     SortOrder = 0 },
+            new() { Id = 5, Abbreviation = "CC", Name = "Charlie",  SortOrder = 1 },
+        };
+        _mockRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(entities);
+
+        // Act
+        var items = (await _service.GetAllAsync("appointment-statuses")).ToList();
+
+        // Assert: SortOrder ASC, then Name ASC within the same SortOrder.
+        Assert.Equal(new[] { "Mike", "Bravo", "Charlie", "Alpha", "Zebra" },
+            items.Select(i => i.Name).ToArray());
+        Assert.Equal(new[] { 0, 1, 1, 2, 2 }, items.Select(i => i.SortOrder).ToArray());
+    }
+
+    [Fact]
+    public async Task GetAllAsync_SpecialtyTypes_EnrichedProjectionIsOrderedToo()
+    {
+        UseSpecialtyRepo();
+        _specialtyPriceRepo.Setup(r => r.GetAllWithPricesAsync()).ReturnsAsync(new List<SpecialtyType>
+        {
+            new() { Id = 1, Abbreviation = "TL", Name = "Language Therapy", SortOrder = 5,
+                    DurationPrices = { Price(60, 45.00m, "2024-01-01") } },
+            new() { Id = 2, Abbreviation = "FS", Name = "Physiotherapy",    SortOrder = 1 },
+            new() { Id = 3, Abbreviation = "TO", Name = "Occupational",     SortOrder = 1 },
+        });
+
+        var items = (await _specialtyService.GetAllAsync("specialty-types")).ToList();
+
+        Assert.Equal(new[] { "Occupational", "Physiotherapy", "Language Therapy" },
+            items.Select(i => i.Name).ToArray());
+        // The enrichment survives the ordering (last item carries its price sheet).
+        Assert.Single(items[2].DurationPrices);
+        Assert.Equal(60, items[2].DurationPrices[0].DurationMinutes);
+    }
+
     [Fact]
     public async Task GetByIdAsync_ReturnsItem_WhenExists()
     {

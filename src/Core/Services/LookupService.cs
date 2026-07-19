@@ -87,13 +87,25 @@ public class LookupService : ILookupService
                 .GetRequiredService<ISpecialtyPriceRepository>()
                 .GetAllWithPricesAsync();
             _logger.LogInformation("Retrieved {Count} SpecialtyType records (with prices)", specialties.Count);
-            return specialties.Select(MapToLookupItem);
+            return OrderedItems(specialties);
         }
 
         var repository = _serviceProvider.GetRequiredService<IRepository<T>>();
         var entities = await repository.GetAllAsync();
         _logger.LogInformation("Retrieved {Count} {EntityType} records", entities.Count, typeof(T).Name);
-        return entities.Select(MapToLookupItem);
+        return OrderedItems(entities);
+    }
+
+    // WP-39 follow-up (owner ruling 2026-07-19): every lookup GET returns items ordered
+    // SortOrder ASC, then Name ASC — the guaranteed server-side order for the Admin tables and
+    // the booking specialty dropdown (contract: lookups-api.md). Single choke point: both the
+    // generic path and the enriched specialty-types path flow through here.
+    private static IEnumerable<LookupItem> OrderedItems(IEnumerable<LookupEntityBase> entities)
+    {
+        return entities
+            .OrderBy(e => e.SortOrder)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(MapToLookupItem);
     }
 
     private async Task<LookupItem?> GetByIdInternalAsync<T>(int id) where T : LookupEntityBase
