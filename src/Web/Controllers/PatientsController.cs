@@ -188,6 +188,17 @@ public class PatientsController : ControllerBase
             return Forbid();
         }
 
+        // WP-37 (SEN-1/G4): the expiration date rides the SAME claim as the flag — one claim
+        // governs both SENADIS fields, no new claim, no matrix change. Present-AND-different
+        // needs Patients.SenadisDiscount.Edit; omitted/null/echoed-unchanged passes. Date-only
+        // comparison: the column is a DATE, so an echoed midnight timestamp is not a "change".
+        if (patientRequest.SenadisExpirationDate.HasValue
+            && patientRequest.SenadisExpirationDate.Value.Date != patientOnFile.SenadisExpirationDate?.Date
+            && !User.HasPermission(Permissions.PatientsSenadisDiscountEdit))
+        {
+            return Forbid();
+        }
+
         // WP-24 (F3/F4): same SENADIS-style gate for the discovery-first waiver flag — changing
         // it needs Patients.RequiresDiscovery.Edit (MGR/AM by Questionnaire C; FD sets it at
         // create only). Both gates run before any update applies.

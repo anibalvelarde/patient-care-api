@@ -40,6 +40,9 @@ public class PatientProfileRequest
     public string Gender { get; set; }
     // WP-23 (F7): settable at create by any patient-creating role (Questionnaire E gates edits only).
     public bool HasSenadisDiscount { get; set; }
+    // WP-37 (SEN-1/SEN-2): expiry settable at create by any patient-creating role, same as the
+    // flag (G4). Omitted/null = no expiry (G1 default — open-ended SENADIS).
+    public DateTime? SenadisExpirationDate { get; set; }
     // WP-24 (F3): settable at create by any patient-creating role; DEFAULT TRUE per
     // Questionnaire C — an omitted JSON field means the new patient must complete a
     // discovery session before treatment bookings. Later edits are claim-gated.

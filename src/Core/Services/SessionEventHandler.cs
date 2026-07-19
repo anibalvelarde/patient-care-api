@@ -191,7 +191,9 @@ public class SessionEventHandler : IHandleSessionEvent
 
         // WP-23 (F7): statutory SENADIS discount FLOOR — 20% of Amount, staff may grant more,
         // never less. (A pending "no stacking" customer ruling would tighten this to exactly-20%.)
-        if (pProfile!.HasSenadisDiscount)
+        // WP-37 (SEN-1/G2): expiry-aware via the shared predicate — compared against the SESSION
+        // date; expired ⇒ no floor at all (the flag itself is never auto-cleared, G3).
+        if (pProfile!.HasActiveSenadisDiscount(request.SessionDate))
         {
             request.Discount = Math.Max(request.Discount, Math.Round(0.20m * request.Amount, 2));
         }

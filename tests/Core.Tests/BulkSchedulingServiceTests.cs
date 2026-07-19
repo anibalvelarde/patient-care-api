@@ -166,6 +166,73 @@ public class BulkSchedulingServiceTests
         Assert.Equal(30m, session.DiscountAmount); // above the 13.00 floor → kept
     }
 
+    // ── WP-37 (SEN-1): expiry-aware floor on the bulk path — evaluated PER SESSION DATE (G2),
+    // so a schedule spanning the expiry floors only the lines on/before it. ──
+
+    private void SetupSenadisPatient(int patientId, DateTime? expiry)
+    {
+        _mockPatientService
+            .Setup(s => s.GetByIdAsync(patientId))
+            .ReturnsAsync(new PatientProfile
+            {
+                PatientId = patientId,
+                PatientName = "P",
+                HasSenadisDiscount = true,
+                SenadisExpirationDate = expiry,
+            });
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_SenadisExpiredBeforeSchedule_NoFloorOnAnyLine()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        SetupSenadisPatient(plan.PatientId, expiry: new DateTime(2026, 4, 12)); // day before start
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var session = Assert.Single(result.Sessions);
+        Assert.Equal(0m, session.DiscountAmount); // expired ⇒ no floor at all
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_SenadisExpiryMidSchedule_FloorsOnlySessionsOnOrBeforeExpiry()
+    {
+        // 2 weekly sessions: 2026-04-13 and 2026-04-20; expiry ON the first date (boundary
+        // still floors — G2 session-date comparison), second session past expiry gets none.
+        var plan = CreateActivePlan(weeks: 2, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        SetupSenadisPatient(plan.PatientId, expiry: new DateTime(2026, 4, 13));
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Equal(2, result.Sessions.Count);
+        var first = result.Sessions.Single(s => s.SessionDate == new DateOnly(2026, 4, 13));
+        var second = result.Sessions.Single(s => s.SessionDate == new DateOnly(2026, 4, 20));
+        Assert.Equal(13.00m, first.DiscountAmount);  // boundary: session date == expiry ⇒ floored
+        Assert.Equal(0m, second.DiscountAmount);     // past expiry ⇒ untouched
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_SenadisNullExpiry_StillFloorsEveryLine()
+    {
+        // G1: NULL = no expiry — behavior identical to pre-WP-37 (backfill-era flags).
+        var plan = CreateActivePlan(weeks: 2, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        SetupSenadisPatient(plan.PatientId, expiry: null);
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Equal(2, result.Sessions.Count);
+        Assert.All(result.Sessions, s => Assert.Equal(13.00m, s.DiscountAmount));
+    }
+
     [Fact]
     public async Task ScheduleAsync_HappyPath_CreatesCorrectNumberOfSessions()
     {

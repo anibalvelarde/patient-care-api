@@ -99,6 +99,63 @@ public class PatientProfileRepositoryTests
         }
     }
 
+    // WP-37 (SEN-1): expiry update semantics — null = unchanged (same pattern as the flag);
+    // a supplied value is persisted and projected back on the profile.
+    [Fact]
+    public async Task UpdateAsync_SenadisExpirationDate_NullLeavesUnchanged_ValueSetsAndProjects()
+    {
+        var options = CreateInMemoryOptions("Wp37SenadisExpiry_RoundTrip");
+        var initialExpiry = new System.DateTime(2026, 12, 31);
+        var newExpiry = new System.DateTime(2027, 6, 30);
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Patients.Add(new Patient
+            {
+                Id = 1,
+                Gender = "M",
+                MedicalRecordNumber = "MRN-001",
+                HasSenadisDiscount = true,
+                SenadisExpirationDate = initialExpiry,
+                User = new User { Id = 1, FirstName = "John", LastName = "Doe", ActiveStatus = true }
+            });
+            await context.SaveChangesAsync();
+        }
+
+        // Null expiry on the request = unchanged (the legacy-tolerant PUT pattern).
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new PatientProfileRepository(context);
+            var result = await repository.UpdateAsync(1, 1, new PatientProfileUpdateRequest
+            {
+                FirstName = "John",
+                LastName = "Doe",
+                ActiveStatus = true,
+            });
+            Assert.Equal(initialExpiry, result.SenadisExpirationDate);
+        }
+
+        // A supplied value is applied (claim gate runs in the controller before this point).
+        using (var context = new ApplicationDbContext(options))
+        {
+            var repository = new PatientProfileRepository(context);
+            var result = await repository.UpdateAsync(1, 1, new PatientProfileUpdateRequest
+            {
+                FirstName = "John",
+                LastName = "Doe",
+                ActiveStatus = true,
+                SenadisExpirationDate = newExpiry,
+            });
+            Assert.Equal(newExpiry, result.SenadisExpirationDate);
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var patient = await context.Patients.FindAsync(1);
+            Assert.Equal(newExpiry, patient!.SenadisExpirationDate);
+        }
+    }
+
     [Fact]
     public async Task UpdateAsync_Cedula_IsMappedPersistedAndProjected()
     {

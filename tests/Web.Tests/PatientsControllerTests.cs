@@ -446,6 +446,92 @@ public class PatientsControllerTests
         Assert.IsType<NoContentResult>(result);
     }
 
+    // ── WP-37 (SEN-1/G4): senadisExpirationDate rides the SAME edit gate as the flag ──
+    // One claim (Patients.SenadisDiscount.Edit) governs both SENADIS fields; omitted/null/
+    // echoed-unchanged values pass so FD clients that round-trip the profile keep working.
+
+    private void SetupPatientOnFileWithExpiry(int id, bool hasSenadisDiscount, DateTime? expiry)
+    {
+        _mockPatientProfileService
+            .Setup(s => s.GetByIdAsync(id))
+            .ReturnsAsync(new PatientProfile
+            {
+                PatientId = id,
+                PatientName = "P",
+                HasSenadisDiscount = hasSenadisDiscount,
+                SenadisExpirationDate = expiry,
+            });
+        _mockPatientProfileService
+            .Setup(s => s.UpdateAsync(id, It.IsAny<PatientProfileUpdateRequest>()))
+            .ReturnsAsync(true);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisExpirationChanged_WithoutClaim_ReturnsForbid_AndDoesNotUpdate()
+    {
+        SetupPatientOnFileWithExpiry(7, hasSenadisDiscount: true, expiry: null);
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit)); // FD-like: Edit but not the gate
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { SenadisExpirationDate = new DateTime(2027, 6, 30) });
+
+        Assert.IsType<ForbidResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<PatientProfileUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisExpirationChanged_WithClaim_Delegates()
+    {
+        SetupPatientOnFileWithExpiry(7, hasSenadisDiscount: true, expiry: new DateTime(2026, 12, 31));
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsSenadisDiscountEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { SenadisExpirationDate = new DateTime(2027, 6, 30) });
+
+        Assert.IsType<NoContentResult>(result);
+        _mockPatientProfileService.Verify(
+            s => s.UpdateAsync(7, It.Is<PatientProfileUpdateRequest>(
+                r => r.SenadisExpirationDate == new DateTime(2027, 6, 30))), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisExpirationChanged_WithWildcard_Delegates()
+    {
+        SetupPatientOnFileWithExpiry(7, hasSenadisDiscount: true, expiry: null);
+        UseCaller((SystemClaims.SystemClaimType, SystemClaims.FullAccessValue)); // SYSADMIN
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { SenadisExpirationDate = new DateTime(2027, 6, 30) });
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisExpirationEchoedUnchanged_WithoutClaim_Passes()
+    {
+        SetupPatientOnFileWithExpiry(7, hasSenadisDiscount: true, expiry: new DateTime(2027, 6, 30));
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { SenadisExpirationDate = new DateTime(2027, 6, 30) }); // echo, not a change
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdatePatient_SenadisExpirationOmitted_WithoutClaim_Passes()
+    {
+        // Null/omitted = unchanged (same pattern as the flag) — the stored expiry survives.
+        SetupPatientOnFileWithExpiry(7, hasSenadisDiscount: true, expiry: new DateTime(2027, 6, 30));
+        UseCaller((SystemClaims.PermissionClaimType, Permissions.PatientsEdit));
+
+        var result = await _controller.UpdatePatient(7,
+            new PatientProfileUpdateRequest { FirstName = "Renamed" }); // null expiry = unchanged
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
     // ── WP-24 (F3/F4): requiresDiscovery field-level edit gate on PUT ─────────────────
     // Changing the stored waiver flag needs Patients.RequiresDiscovery.Edit; omitted/null/
     // echoed-unchanged values pass so FD clients that round-trip the profile keep working.

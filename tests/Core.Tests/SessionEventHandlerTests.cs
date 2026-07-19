@@ -370,6 +370,69 @@ public class SessionEventHandlerTests
         Assert.Equal(5m, _capturedSession!.DiscountAmount);
     }
 
+    // ── WP-37 (SEN-1): expiry-aware SENADIS floor — G2: expiry is compared against the
+    // SESSION date (not "today"); expired ⇒ NO floor at all; the flag is never auto-cleared. ──
+
+    private static PatientProfile SenadisPatient(DateTime? expiry) => new()
+    {
+        PatientId = 1,
+        PatientName = "P",
+        HasSenadisDiscount = true,
+        SenadisExpirationDate = expiry,
+    };
+
+    [Fact]
+    public async Task CreateAsync_SenadisExpiredBeforeSessionDate_NoFloor()
+    {
+        // Session date is 2026-07-20 (MakeRequest); expiry the day before ⇒ expired for this
+        // booking — the requested discount is untouched (same as an unflagged patient).
+        SetupCreateAsyncWithCapture(
+            SenadisPatient(new DateTime(2026, 7, 19)),
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 5m));
+
+        Assert.Equal(5m, _capturedSession!.DiscountAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SenadisExpiryOnSessionDate_FloorStillApplies()
+    {
+        // Boundary (G2): session date == expiry ⇒ still active — the floor applies.
+        SetupCreateAsyncWithCapture(
+            SenadisPatient(new DateTime(2026, 7, 20)),
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 5m));
+
+        Assert.Equal(20m, _capturedSession!.DiscountAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SenadisExpiryAfterSessionDate_FloorApplies()
+    {
+        SetupCreateAsyncWithCapture(
+            SenadisPatient(new DateTime(2026, 12, 31)),
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 5m));
+
+        Assert.Equal(20m, _capturedSession!.DiscountAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SenadisNullExpiry_FloorApplies()
+    {
+        // G1: NULL = no expiry (open-ended) — all backfill-era flags; floor keeps applying.
+        SetupCreateAsyncWithCapture(
+            SenadisPatient(expiry: null),
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 10m });
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 5m));
+
+        Assert.Equal(20m, _capturedSession!.DiscountAmount);
+    }
+
     [Fact]
     public async Task CreateAsync_PatientWithoutCaretaker_ThrowsArgumentException()
     {
