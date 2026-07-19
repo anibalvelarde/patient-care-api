@@ -95,6 +95,78 @@ public class SpecialtyPriceServiceTests
         Assert.Equal(Iso("2025-06-01"), only.EffectiveFrom);
     }
 
+    // ── GET history: WP-31 audit block (WP-39 addendum, owner ruling 2026-07-19) ───
+
+    private static SpecialtyDurationPrice Stamped(SpecialtyDurationPrice row, int byUserId,
+        string createdAt, string updatedAt)
+    {
+        row.LastUpdatedByUserId = byUserId;
+        row.CreatedTimestamp = DateTime.Parse(createdAt, CultureInfo.InvariantCulture);
+        row.LastUpdatedTimestamp = DateTime.Parse(updatedAt, CultureInfo.InvariantCulture);
+        return row;
+    }
+
+    [Fact]
+    public async Task GetHistory_RowsCarryAuditBlock_WithResolvedName_AndBatchedResolution()
+    {
+        Seed(3, null, false,
+            Stamped(Row(30, 25.00m, "2025-06-01"), byUserId: 7, "2025-06-01T09:00:00", "2025-06-01T09:00:00"),
+            Stamped(Row(60, 45.00m, "2024-01-01"), byUserId: 7, "2024-01-01T10:30:00", "2024-01-01T10:30:00"),
+            Stamped(Row(90, 80.00m, "2026-01-01"), byUserId: 8, "2026-01-01T14:02:11", "2026-01-01T14:02:11"));
+        var resolver = new Mock<IUserNameResolver>();
+        resolver.Setup(r => r.ResolveAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new Dictionary<int, string> { [7] = "Lopez, Maria", [8] = "Diaz, Ana" });
+        var service = new SpecialtyPriceService(
+            Mock.Of<ILogger<SpecialtyPriceService>>(), _repo.Object, resolver.Object);
+
+        var history = await service.GetHistoryAsync(3);
+
+        Assert.NotNull(history);
+        Assert.All(history.Prices, p => Assert.NotNull(p.Audit));
+        var p30 = history.Prices.Single(p => p.DurationMinutes == 30);
+        Assert.Equal("Lopez, Maria", p30.Audit!.UpdatedBy);
+        Assert.Equal(DateTime.Parse("2025-06-01T09:00:00", CultureInfo.InvariantCulture), p30.Audit.CreatedAt);
+        Assert.Equal(DateTime.Parse("2025-06-01T09:00:00", CultureInfo.InvariantCulture), p30.Audit.UpdatedAt);
+        Assert.Equal("Diaz, Ana", history.Prices.Single(p => p.DurationMinutes == 90).Audit!.UpdatedBy);
+        // Batched: ONE resolver call for the whole history — never per-row (WP-29/WP-31 rule).
+        resolver.Verify(r => r.ResolveAsync(It.IsAny<IEnumerable<int>>()), Times.Once);
+        resolver.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task GetHistory_SystemFallback_ForId0AndUnknownIds()
+    {
+        Seed(3, null, false,
+            Stamped(Row(30, 25.00m, "2025-06-01"), byUserId: 0, "2025-06-01", "2025-06-01"),   // system/import
+            Stamped(Row(60, 45.00m, "2024-01-01"), byUserId: 999, "2024-01-01", "2024-01-01")); // unknown user
+        var resolver = new Mock<IUserNameResolver>();
+        resolver.Setup(r => r.ResolveAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new Dictionary<int, string>()); // resolver omits id 0/unknown (house contract)
+        var service = new SpecialtyPriceService(
+            Mock.Of<ILogger<SpecialtyPriceService>>(), _repo.Object, resolver.Object);
+
+        var history = await service.GetHistoryAsync(3);
+
+        Assert.NotNull(history);
+        Assert.All(history.Prices, p => Assert.Equal("System", p.Audit!.UpdatedBy));
+    }
+
+    [Fact]
+    public async Task GetHistory_WithoutResolver_AuditPresent_UpdatedByDefaultsToSystem()
+    {
+        // WP-31 optional-injection pattern: constructions without a resolver (older tests, DI-less
+        // contexts) still get the audit block, with the safe "System" display default.
+        Seed(3, null, false,
+            Stamped(Row(30, 25.00m, "2025-06-01"), byUserId: 7, "2025-06-01", "2025-06-01"));
+
+        var history = await _service.GetHistoryAsync(3); // _service has no resolver
+
+        Assert.NotNull(history);
+        var row = Assert.Single(history.Prices);
+        Assert.NotNull(row.Audit);
+        Assert.Equal("System", row.Audit!.UpdatedBy);
+    }
+
     // ── PUT append ─────────────────────────────────────────────────────────────────
 
     private static SpecialtyPricesPutRequest Request(params (int Duration, decimal Amount, string From)[] rows) =>

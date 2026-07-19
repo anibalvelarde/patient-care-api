@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -14,14 +15,19 @@ namespace Neurocorp.Api.Core.Services;
 public class SpecialtyPriceService : ISpecialtyPriceService
 {
     private readonly ISpecialtyPriceRepository _repository;
+    private readonly IUserNameResolver? _userNameResolver;
     private readonly ILogger<SpecialtyPriceService> _logger;
 
     public SpecialtyPriceService(
         ILogger<SpecialtyPriceService> logger,
-        ISpecialtyPriceRepository repository)
+        ISpecialtyPriceRepository repository,
+        // WP-31 pattern: optional so existing test constructions compile unchanged; DI supplies
+        // the real (batched) resolver for history-row audit attribution.
+        IUserNameResolver? userNameResolver = null)
     {
         _logger = logger;
         _repository = repository;
+        _userNameResolver = userNameResolver;
     }
 
     public async Task<SpecialtyPriceHistory?> GetHistoryAsync(int specialtyTypeId)
@@ -34,23 +40,33 @@ public class SpecialtyPriceService : ISpecialtyPriceService
         var current = SpecialtyPricing.CurrentEffective(specialty.DurationPrices, today)
             .ToDictionary(p => p.DurationMinutes, p => p.EffectiveFrom);
 
+        var rows = specialty.DurationPrices
+            .OrderBy(r => r.DurationMinutes)
+            .ThenByDescending(r => r.EffectiveFrom) // newest-first per duration
+            .Select(r => new SpecialtyPriceHistoryRow
+            {
+                DurationMinutes = r.DurationMinutes,
+                Amount = r.Amount,
+                EffectiveFrom = r.EffectiveFrom,
+                IsCurrent = current.TryGetValue(r.DurationMinutes, out var effective) &&
+                            effective == r.EffectiveFrom,
+                // WP-39 addendum: WP-31 audit block — append-only rows, so updatedBy ≡ the
+                // user who entered the price. Names batch-resolved below (one call, no N+1).
+                Audit = AuditInfo.FromEntity(r),
+            })
+            .ToList();
+
+        if (_userNameResolver != null)
+        {
+            await AuditEnrichment.ResolveNamesAsync(rows, _userNameResolver);
+        }
+
         return new SpecialtyPriceHistory
         {
             SpecialtyTypeId = specialty.Id,
             DefaultAmount = specialty.DefaultAmount,
             OfferedOnSite = specialty.OfferedOnSite,
-            Prices = specialty.DurationPrices
-                .OrderBy(r => r.DurationMinutes)
-                .ThenByDescending(r => r.EffectiveFrom) // newest-first per duration
-                .Select(r => new SpecialtyPriceHistoryRow
-                {
-                    DurationMinutes = r.DurationMinutes,
-                    Amount = r.Amount,
-                    EffectiveFrom = r.EffectiveFrom,
-                    IsCurrent = current.TryGetValue(r.DurationMinutes, out var effective) &&
-                                effective == r.EffectiveFrom,
-                })
-                .ToList(),
+            Prices = rows,
         };
     }
 

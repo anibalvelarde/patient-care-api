@@ -88,6 +88,14 @@ curl -s -H "Authorization: Bearer $AM_TOKEN" \
 # has isCurrent:false (future); the 2026-07-01 rows are isCurrent:true.
 # NB: the AM read itself proves the new Admin.Lookups.SpecialtyType.View grant (pre-reseed AM was 403).
 
+# Audit attribution (WP-39 addendum): rows appended by the MGR PUT in step 2 carry the WP-31
+# audit block with the MGR's display name (rows are append-only, so updatedBy = who ENTERED
+# the price; "System" for legacy/SQL-inserted rows; no raw user id on the wire):
+curl -s -H "Authorization: Bearer $AM_TOKEN" \
+  "$API/api/lookups/specialty-types/$SPEC/prices" \
+  | jq '.prices[] | {durationMinutes, effectiveFrom, audit}'
+# expect per row: "audit": {"createdAt": "...", "updatedAt": "...", "updatedBy": "<MGR Lastname, Firstname>"}
+
 # Projection now shows only the CURRENT-EFFECTIVE set (future 60-min row excluded):
 curl -s -H "Authorization: Bearer $FD_TOKEN" "$API/api/lookups/specialty-types/$SPEC" \
   | jq '.durationPrices'    # expect the two 2026-07-01 rows only
@@ -183,7 +191,9 @@ curl -s -H "Authorization: Bearer $ADMIN_TOKEN" "$API/api/sites/$SITE" \
 ---
 
 **Unit coverage (runs without a live DB):** `Core.Tests/SpecialtyPriceServiceTests` (history
-shape + isCurrent, append happy/404/409 both dup kinds, **ResolvePrice temporal cases** —
+shape + isCurrent, **audit block: resolved names batched Times.Once, "System" fallback for
+id 0/unknown, resolver-less default**, append happy/404/409 both dup kinds,
+**ResolvePrice temporal cases** —
 latest-≤-date wins, boundary date counts, future rows ignored, DefaultAmount fallback, none,
 retroactive row does not affect earlier session dates), `SpecialtyPriceValidationTests`
 (durations {30,45,60,90,120}, amount ≥ 0, effectiveFrom required, non-empty list),
@@ -194,4 +204,4 @@ offeredOnSite create/update/ignored-elsewhere), `SiteProfileServiceTests` +
 append-only + audit stamp via mocked ICurrentUserService),
 `Web.Tests/SpecialtyPricesControllerTests` (200/404/204/409 mapping) and
 `SensitiveCellAuthorizationTests` (403/allowed/401 cells for both new endpoints).
-Suite **621** green (547 baseline + 74).
+Suite **626** green (547 baseline + 79; incl. the ordering + audit addenda).
