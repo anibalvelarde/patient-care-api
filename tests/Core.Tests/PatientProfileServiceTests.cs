@@ -126,67 +126,202 @@ public class PatientProfileServiceTests
         Assert.IsAssignableFrom<IEnumerable<PatientProfile>>(result);
     }
 
-    [Fact]
-    public async Task CreateAsync_WithoutMrn_GeneratesTempMrn()
+    // ---- WP-36 (NP-1): system-managed MRN minting — NC{yy}-#### -------------------------------
+
+    /// <summary>
+    /// Expected NC prefix computed the way the service does per G6 (clinic-local year, not the
+    /// server's — the deployed container runs UTC): Panama is fixed UTC-5 with no DST, so a
+    /// plain offset subtraction from UTC is exact and matches any TimeZoneInfo resolution.
+    /// </summary>
+    private static string ExpectedNcPrefix()
+        => $"NC{(DateTime.UtcNow - TimeSpan.FromHours(5)).Year % 100:D2}-";
+
+    private sealed record CreateHarness(
+        PatientProfileService Svc,
+        Mock<IPatientRepository> PatientRepo,
+        Mock<IUserRepository> UserRepo,
+        Mock<IUserRoleRepository> UserRoleRepo,
+        Mock<IUnitOfWork> Uow,
+        Mock<ILogger<PatientProfileService>> Logger);
+
+    /// <summary>Create-flow harness: pass-through UoW (verifiable), id-assigning Add mocks.</summary>
+    private static CreateHarness BuildCreateHarness(int maxMrnSequence = 0)
     {
-        // Arrange
-        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
-        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
-        var mockPatientRepo = new Mock<IPatientRepository>();
-        var mockUserRepo = new Mock<IUserRepository>();
-        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        var logger = new Mock<ILogger<PatientProfileService>>();
+        var patientRepo = new Mock<IPatientRepository>();
+        var userRepo = new Mock<IUserRepository>();
+        var userRoleRepo = new Mock<IUserRoleRepository>();
 
-        var savedUser = new User { Id = 10, FirstName = "Jane", LastName = "Doe", MiddleName = "", Email = "j@d.com", PhoneNumber = "555", ActiveStatus = false };
-        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync(savedUser);
+        userRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync((User u) => { u.Id = 10; return u; });
+        patientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>())).ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+        patientRepo.Setup(r => r.GetMaxMrnSequenceAsync(It.IsAny<string>())).ReturnsAsync(maxMrnSequence);
+        userRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
 
-        var savedPatient = new Patient { Id = 5, User = savedUser, MedicalRecordNumber = "", DateOfBirth = DateTime.Today, Gender = "F" };
-        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>())).ReturnsAsync(savedPatient);
-        mockPatientRepo.Setup(r => r.UpdateAsync(It.IsAny<Patient>())).Returns(Task.CompletedTask);
+        var uow = new Mock<IUnitOfWork>();
+        uow.Setup(u => u.ExecuteAsync(It.IsAny<Func<Task<(User, Patient, UserRole)>>>()))
+           .Returns((Func<Task<(User, Patient, UserRole)>> op) => op());
 
-        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+        var svc = new PatientProfileService(logger.Object, Mock.Of<IPatientProfileRepository>(),
+            patientRepo.Object, userRepo.Object, userRoleRepo.Object,
+            Mock.Of<IPatientCaretakerRepository>(), FakeTherapySessionRepo(), uow.Object);
+        return new CreateHarness(svc, patientRepo, userRepo, userRoleRepo, uow, logger);
+    }
 
-        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
-        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, fakePatientCaretakerRepo, FakeTherapySessionRepo(), PassThroughUow());
-        var request = new PatientProfileRequest { FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555", Gender = "F", DateOfBirth = DateTime.Today, MedicalRecordNumber = "" };
+    private static PatientProfileRequest NewCreateRequest(string mrn = "") => new()
+    {
+        FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555",
+        Gender = "Female", DateOfBirth = DateTime.Today, Cedula = "8-123-4567",
+        MedicalRecordNumber = mrn,
+    };
 
-        // Act
-        var result = await svc.CreateAsync(request);
+    private static void VerifyWarningLogged(Mock<ILogger<PatientProfileService>> logger, Times times)
+        => logger.Verify(l => l.Log(LogLevel.Warning, It.IsAny<EventId>(),
+            It.Is<It.IsAnyType>((v, _) => true), It.IsAny<Exception?>(),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()), times);
 
-        // Assert
-        Assert.Equal("TEMP-5", result.MedicalRecordNumber);
-        Assert.False(result.IsActive);
-        mockPatientRepo.Verify(r => r.UpdateAsync(It.IsAny<Patient>()), Times.Once);
+    /// <summary>Duplicate-key shape as GlobalExceptionHandler sees it: outer save exception
+    /// wrapping the MySQL 1062 message naming the violated key.</summary>
+    private static Exception DuplicateKeyException(string keyName)
+        => new InvalidOperationException("Save failed.",
+            new Exception($"Duplicate entry 'x' for key '{keyName}'"));
+
+    // WP-36 (G1a default): empty table / first create of a Panama-calendar year mints {yy}-0001.
+    [Fact]
+    public async Task CreateAsync_MintsFirstMrnOfYear_As0001()
+    {
+        var h = BuildCreateHarness(maxMrnSequence: 0);
+
+        Patient? atInsert = null;
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .Callback<Patient>(p => atInsert = p)
+            .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+
+        var result = await h.Svc.CreateAsync(NewCreateRequest());
+
+        Assert.Equal($"{ExpectedNcPrefix()}0001", result.MedicalRecordNumber);
+        // The mint happens INSIDE the transaction, on the INSERT itself — no TEMP- stamp, no
+        // post-insert UPDATE round trip.
+        Assert.Equal(result.MedicalRecordNumber, atInsert!.MedicalRecordNumber);
+        h.PatientRepo.Verify(r => r.UpdateAsync(It.IsAny<Patient>()), Times.Never);
+        h.PatientRepo.Verify(r => r.GetMaxMrnSequenceAsync(ExpectedNcPrefix()), Times.Once);
+    }
+
+    // WP-36: sequence continues from the year's existing MAX, always {n:04d}-padded.
+    [Theory]
+    [InlineData(7, "0008")]
+    [InlineData(41, "0042")]
+    [InlineData(999, "1000")]
+    [InlineData(9998, "9999")]
+    public async Task CreateAsync_MintContinuesFromExistingMax_ZeroPadded(int existingMax, string expectedSeq)
+    {
+        var h = BuildCreateHarness(existingMax);
+
+        var result = await h.Svc.CreateAsync(NewCreateRequest());
+
+        Assert.Equal($"{ExpectedNcPrefix()}{expectedSeq}", result.MedicalRecordNumber);
+    }
+
+    // WP-36 (G3): a client-supplied MRN on create is IGNORED (logged, not 400) — old-UI
+    // tolerance during the API-first deploy gap.
+    [Fact]
+    public async Task CreateAsync_SuppliedMrn_IsIgnoredAndWarned()
+    {
+        var h = BuildCreateHarness(maxMrnSequence: 3);
+
+        Patient? atInsert = null;
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .Callback<Patient>(p => atInsert = p)
+            .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+
+        var result = await h.Svc.CreateAsync(NewCreateRequest(mrn: "L26-0099"));
+
+        Assert.Equal($"{ExpectedNcPrefix()}0004", result.MedicalRecordNumber);
+        Assert.Equal(result.MedicalRecordNumber, atInsert!.MedicalRecordNumber);
+        VerifyWarningLogged(h.Logger, Times.Once());
     }
 
     [Fact]
-    public async Task CreateAsync_WithMrn_UsesProvidedMrn()
+    public async Task CreateAsync_NoSuppliedMrn_DoesNotWarn()
     {
-        // Arrange
-        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
-        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
-        var mockPatientRepo = new Mock<IPatientRepository>();
-        var mockUserRepo = new Mock<IUserRepository>();
-        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        var h = BuildCreateHarness();
 
-        var savedUser = new User { Id = 10, FirstName = "Jane", LastName = "Doe", MiddleName = "", Email = "j@d.com", PhoneNumber = "555", ActiveStatus = true };
-        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync(savedUser);
+        await h.Svc.CreateAsync(NewCreateRequest());
 
-        var savedPatient = new Patient { Id = 5, User = savedUser, MedicalRecordNumber = "MRN-001", DateOfBirth = DateTime.Today, Gender = "F" };
-        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>())).ReturnsAsync(savedPatient);
+        VerifyWarningLogged(h.Logger, Times.Never());
+    }
 
-        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+    // WP-36 (G5): patients are ACTIVE at create — the inactive-until-MRN gate existed only
+    // because MRNs could be missing, and the system now always mints one.
+    [Fact]
+    public async Task CreateAsync_PatientIsActiveAtCreate()
+    {
+        var h = BuildCreateHarness();
 
-        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
-        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, fakePatientCaretakerRepo, FakeTherapySessionRepo(), PassThroughUow());
-        var request = new PatientProfileRequest { FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555", Gender = "F", DateOfBirth = DateTime.Today, MedicalRecordNumber = "MRN-001" };
+        User? atInsert = null;
+        h.UserRepo.Setup(r => r.AddAsync(It.IsAny<User>()))
+            .Callback<User>(u => atInsert = u)
+            .ReturnsAsync((User u) => { u.Id = 10; return u; });
 
-        // Act
-        var result = await svc.CreateAsync(request);
+        var result = await h.Svc.CreateAsync(NewCreateRequest());
 
-        // Assert
-        Assert.Equal("MRN-001", result.MedicalRecordNumber);
+        Assert.True(atInsert!.ActiveStatus);
         Assert.True(result.IsActive);
-        mockPatientRepo.Verify(r => r.UpdateAsync(It.IsAny<Patient>()), Times.Never);
+    }
+
+    // WP-36 (G1a): two stations can read the same MAX and mint the same NC{yy}-#### — on the
+    // MRN unique-key collision the whole create transaction re-runs ONCE with a re-read
+    // sequence.
+    [Fact]
+    public async Task CreateAsync_MrnDuplicateRace_RetriesOnceAndSucceeds()
+    {
+        var h = BuildCreateHarness();
+        var maxValues = new Queue<int>([41, 42]); // second read sees the winner's committed row
+        h.PatientRepo.Setup(r => r.GetMaxMrnSequenceAsync(It.IsAny<string>()))
+            .ReturnsAsync(() => maxValues.Dequeue());
+        var addCalls = 0;
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .ReturnsAsync((Patient p) =>
+            {
+                if (++addCalls == 1) throw DuplicateKeyException("Patient.MedicalRecordNumber");
+                p.Id = 5;
+                return p;
+            });
+
+        var result = await h.Svc.CreateAsync(NewCreateRequest());
+
+        Assert.Equal($"{ExpectedNcPrefix()}0043", result.MedicalRecordNumber);
+        // The WHOLE unit of work re-ran (the rolled-back user insert included), exactly twice.
+        h.Uow.Verify(u => u.ExecuteAsync(It.IsAny<Func<Task<(User, Patient, UserRole)>>>()), Times.Exactly(2));
+        h.UserRepo.Verify(r => r.AddAsync(It.IsAny<User>()), Times.Exactly(2));
+    }
+
+    // WP-36 (G1a): a SECOND collision propagates to the standard duplicate-key 409 path.
+    [Fact]
+    public async Task CreateAsync_MrnDuplicateRace_SecondCollision_Propagates()
+    {
+        var h = BuildCreateHarness();
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .ThrowsAsync(DuplicateKeyException("Patient.MedicalRecordNumber"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Svc.CreateAsync(NewCreateRequest()));
+
+        h.Uow.Verify(u => u.ExecuteAsync(It.IsAny<Func<Task<(User, Patient, UserRole)>>>()), Times.Exactly(2));
+    }
+
+    // WP-36 (G1a): ONLY an MRN-key collision is retryable — a cedula or email duplicate is a
+    // genuine client 409 and must propagate on the first attempt.
+    [Theory]
+    [InlineData("uq_patient_cedula")]
+    [InlineData("uq_systemuser_email")]
+    public async Task CreateAsync_NonMrnDuplicate_DoesNotRetry(string violatedKey)
+    {
+        var h = BuildCreateHarness();
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .ThrowsAsync(DuplicateKeyException(violatedKey));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => h.Svc.CreateAsync(NewCreateRequest()));
+
+        h.Uow.Verify(u => u.ExecuteAsync(It.IsAny<Func<Task<(User, Patient, UserRole)>>>()), Times.Once);
     }
 
     // WP-25 (F5): blank/missing cedula is now rejected upstream by [Required] model validation,
@@ -375,43 +510,30 @@ public class PatientProfileServiceTests
         mockUserRoleRepo.Verify(r => r.AddAsync(It.IsAny<UserRole>()), Times.Never);
     }
 
-    // B1 regression: a blank MRN was INSERTed as '' (not NULL) before the TEMP-{id} update —
-    // a latent unique-key collision under concurrency or failed-create debris.
+    // B1 regression, WP-36-updated expectation: a blank/whitespace MRN must never reach the
+    // INSERT as '' (a value under the unique key). Under WP-36 the INSERT always carries the
+    // freshly minted NC{yy}-#### — no '', no NULL window, no TEMP- stamp, no blank warning.
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task CreateAsync_BlankMrn_InsertsNullNotEmptyString(string blankMrn)
+    public async Task CreateAsync_BlankMrn_InsertsMintedMrn_NeverEmptyString(string blankMrn)
     {
-        // Arrange
-        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
-        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
-        var mockPatientRepo = new Mock<IPatientRepository>();
-        var mockUserRepo = new Mock<IUserRepository>();
-        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        var h = BuildCreateHarness(maxMrnSequence: 0);
 
-        var savedUser = new User { Id = 10, FirstName = "Jane", LastName = "Doe", MiddleName = "", Email = "j@d.com", PhoneNumber = "555", ActiveStatus = false };
-        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync(savedUser);
-
-        // Capture the MRN VALUE at insert time — the service mutates the same instance to
-        // TEMP-{id} right after, so holding the object reference would assert the wrong moment.
+        // Capture the MRN VALUE at insert time — asserting on the mutable instance later
+        // would miss what the INSERT actually carried.
         bool insertSeen = false;
         string? mrnAtInsert = null;
-        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+        h.PatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
             .Callback<Patient>(p => { insertSeen = true; mrnAtInsert = p.MedicalRecordNumber; })
             .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
-        mockPatientRepo.Setup(r => r.UpdateAsync(It.IsAny<Patient>())).Returns(Task.CompletedTask);
-        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
 
-        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
-        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, fakePatientCaretakerRepo, FakeTherapySessionRepo(), PassThroughUow());
-        var request = new PatientProfileRequest { FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555", Gender = "Female", DateOfBirth = DateTime.Today, MedicalRecordNumber = blankMrn };
+        var result = await h.Svc.CreateAsync(NewCreateRequest(mrn: blankMrn));
 
-        // Act
-        var result = await svc.CreateAsync(request);
-
-        // Assert — the INSERTed row carried NULL, and the TEMP MRN was stamped afterwards.
         Assert.True(insertSeen);
-        Assert.Null(mrnAtInsert);
-        Assert.Equal("TEMP-5", result.MedicalRecordNumber);
+        Assert.Equal($"{ExpectedNcPrefix()}0001", mrnAtInsert);
+        Assert.Equal(mrnAtInsert, result.MedicalRecordNumber);
+        // Blank is not a "supplied" MRN — no ignored-MRN warning noise on normal creates.
+        VerifyWarningLogged(h.Logger, Times.Never());
     }
 }
