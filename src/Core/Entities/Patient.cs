@@ -44,6 +44,10 @@ public class Patient : PersonBase
             && (senadisExpirationDate is null
                 || sessionDate <= DateOnly.FromDateTime(senadisExpirationDate.Value));
 
+    // Retire-after-backfill (WP-36/G2): new creates always mint a permanent NC{yy}-#### MRN,
+    // so this predicate (and the activation guard built on it) only matters for straggler
+    // TEMP-/blank rows that predate the deploy-time backfill (0 on prod at build time).
+    // Remove with the TEMP- convention cleanup WP.
     public bool HasTemporaryMrn()
     {
         return string.IsNullOrEmpty(MedicalRecordNumber)
