@@ -154,6 +154,7 @@ public class PatientProfileService : IPatientProfileService
             MedicalRecordNumber = newPatient.MedicalRecordNumber,
             Cedula = newPatient.Cedula,
             HasSenadisDiscount = newPatient.HasSenadisDiscount,
+            SenadisExpirationDate = newPatient.SenadisExpirationDate,
             RequiresDiscovery = newPatient.RequiresDiscovery,
             DateOfBirth = newPatient.DateOfBirth ?? DateTime.MinValue,
             Email = newUser.Email,
@@ -240,6 +241,8 @@ public class PatientProfileService : IPatientProfileService
                 : patientRequest.MedicalRecordNumber,
             Cedula = string.IsNullOrWhiteSpace(patientRequest.Cedula) ? null : patientRequest.Cedula,
             HasSenadisDiscount = patientRequest.HasSenadisDiscount,
+            // WP-37 (SEN-1): ungated at create, same as the flag (SEN-2/G4); .Date — DATE column.
+            SenadisExpirationDate = patientRequest.SenadisExpirationDate?.Date,
             RequiresDiscovery = patientRequest.RequiresDiscovery
         };
     }

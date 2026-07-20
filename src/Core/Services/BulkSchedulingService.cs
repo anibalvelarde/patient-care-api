@@ -59,8 +59,9 @@ public class BulkSchedulingService : IBulkSchedulingService
             throw new ArgumentException("A caretaker must be linked to this patient before booking.");
 
         // WP-23 (F7): SENADIS patients get a per-line discount floor of 20% of Amount.
+        // WP-37 (SEN-1/G2): expiry-aware PER SESSION DATE (shared predicate, evaluated inside
+        // the loop) — a schedule spanning the expiry floors only the sessions on/before it.
         var patientProfile = await _patientService.GetByIdAsync(plan.PatientId);
-        var hasSenadisDiscount = patientProfile?.HasSenadisDiscount ?? false;
 
         // Build effective lines (plan lines merged with overrides)
         var overrideMap = request.LineOverrides.ToDictionary(o => o.TreatmentPlanLineId);
@@ -178,7 +179,8 @@ public class BulkSchedulingService : IBulkSchedulingService
                 var amount = Math.Round(HourlyRate * line.Duration / 60m, 2);
                 var discountAmount = Math.Min(line.DiscountAmount, amount);
                 // WP-23 (F7): statutory SENADIS floor — staff may grant more, never less.
-                if (hasSenadisDiscount)
+                // WP-37 (G2): active only when unexpired as of THIS session's date.
+                if (patientProfile?.HasActiveSenadisDiscount(targetDate) ?? false)
                     discountAmount = Math.Max(discountAmount, Math.Round(0.20m * amount, 2));
                 var netAmount = amount - discountAmount;
                 var providerAmount = ComputeProviderAmount(assignedTherapistId.Value, netAmount, therapistMap);

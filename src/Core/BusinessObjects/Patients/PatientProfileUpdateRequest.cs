@@ -32,6 +32,10 @@ public class PatientProfileUpdateRequest
     // WP-23 (F7): omitted/null = unchanged. Changing the stored value requires the
     // Patients.SenadisDiscount.Edit claim (gate enforced in PatientsController.UpdatePatient).
     public bool? HasSenadisDiscount { get; set; }
+    // WP-37 (SEN-1): omitted/null = unchanged — SAME claim gate as the flag (G4). Consequence
+    // of the null-means-unchanged pattern: an expiry, once set, cannot be cleared back to null
+    // via this endpoint (extend with a later date; a true clear is a deliberate follow-up).
+    public DateTime? SenadisExpirationDate { get; set; }
     // WP-24 (F3/F4): omitted/null = unchanged. Changing the stored value requires the
     // Patients.RequiresDiscovery.Edit claim (gate enforced in PatientsController.UpdatePatient).
     public bool? RequiresDiscovery { get; set; }

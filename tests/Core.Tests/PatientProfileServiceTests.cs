@@ -227,6 +227,49 @@ public class PatientProfileServiceTests
         Assert.Equal(expectedCedula, result.Cedula);
     }
 
+    // WP-37 (SEN-1/SEN-2): the expiry is settable at CREATE by any patient-creating role —
+    // ungated, same rule as the flag (the claim gates later edits only) — and flows to both
+    // the new entity and the create response.
+    [Fact]
+    public async Task CreateAsync_MapsSenadisExpirationDate_ValueFlowsToNewPatientAndResponse()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
+        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
+        var mockPatientRepo = new Mock<IPatientRepository>();
+        var mockUserRepo = new Mock<IUserRepository>();
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+
+        var savedUser = new User { Id = 10, FirstName = "Jane", LastName = "Doe", MiddleName = "", Email = "j@d.com", PhoneNumber = "555", ActiveStatus = true };
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>())).ReturnsAsync(savedUser);
+
+        Patient? captured = null;
+        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .Callback<Patient>(p => captured = p)
+            .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+
+        var fakePatientCaretakerRepo = Mock.Of<IPatientCaretakerRepository>();
+        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, fakePatientCaretakerRepo, FakeTherapySessionRepo(), PassThroughUow());
+        var expiry = new DateTime(2027, 6, 30);
+        var request = new PatientProfileRequest
+        {
+            FirstName = "Jane", LastName = "Doe", Email = "j@d.com", PhoneNumber = "555",
+            Gender = "F", DateOfBirth = DateTime.Today, MedicalRecordNumber = "MRN-002",
+            Cedula = "001-1234567-8", HasSenadisDiscount = true, SenadisExpirationDate = expiry,
+        };
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.True(captured!.HasSenadisDiscount);
+        Assert.Equal(expiry, captured.SenadisExpirationDate);
+        Assert.Equal(expiry, result.SenadisExpirationDate);
+    }
+
     [Fact]
     public async Task UpdateAsync_ActivateWithTempMrn_ThrowsInvalidOperation()
     {

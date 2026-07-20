@@ -22,6 +22,14 @@ public class PatientProfile : IProfile, IHasAudit
     public bool IsActive { get; set; }
     // WP-23 (F7): statutory SENADIS 20% discount flag; edit gated by Patients.SenadisDiscount.Edit.
     public bool HasSenadisDiscount { get; set; }
+    // WP-37 (SEN-1): SENADIS credential expiry. NULL = no expiry (G1). Rides the SAME edit
+    // gate as the flag (G4 — one claim governs both SENADIS fields).
+    public DateTime? SenadisExpirationDate { get; set; }
+
+    // WP-37 (G2): delegates to the ONE shared predicate on the Patient entity — both
+    // session-create money paths call this so the floors can't drift.
+    public bool HasActiveSenadisDiscount(DateOnly sessionDate)
+        => Entities.Patient.IsSenadisDiscountActive(HasSenadisDiscount, SenadisExpirationDate, sessionDate);
     // WP-24 (F3/F4): discovery-first waiver; false = exempt. Edit gated by
     // Patients.RequiresDiscovery.Edit.
     public bool RequiresDiscovery { get; set; }

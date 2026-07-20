@@ -248,6 +248,13 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         {
             patientOnFile.HasSenadisDiscount = patientRequest.HasSenadisDiscount.Value;
         }
+        // WP-37 (SEN-1): null = unchanged (same pattern as the flag — an expiry, once set, is
+        // therefore not clearable via PUT; extend with a later date instead). Normalized to
+        // .Date: the column is a DATE.
+        if (patientRequest.SenadisExpirationDate.HasValue)
+        {
+            patientOnFile.SenadisExpirationDate = patientRequest.SenadisExpirationDate.Value.Date;
+        }
         // WP-24 (F3/F4): null = unchanged; the claim gate ran in the controller before we get here.
         if (patientRequest.RequiresDiscovery.HasValue)
         {
@@ -285,6 +292,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             MedicalRecordNumber = p.MedicalRecordNumber,
             Cedula = p.Cedula,
             HasSenadisDiscount = p.HasSenadisDiscount,
+            SenadisExpirationDate = p.SenadisExpirationDate,
             RequiresDiscovery = p.RequiresDiscovery,
             Gender = p.Gender,
             DateOfBirth = p.DateOfBirth ?? DateTime.MinValue,
