@@ -292,7 +292,7 @@ public class PatientProfileService : IPatientProfileService
         return false;
     }
 
-    public async Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize)
+    public async Task<SessionHistoryPagedResult> GetSessionHistoryAsync(string? search, int page, int pageSize)
     {
         _logger.LogInformation("Getting patient session-history summaries (search: {Search}, page: {Page}, pageSize: {PageSize}).",
             search, page, pageSize);

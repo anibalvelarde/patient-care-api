@@ -1,4 +1,4 @@
-# WP-35B verification — SH-1 firstSessionDate · from/to date-range params
+# WP-35B verification — SH-1 firstSessionDate · from/to date-range params · money totals addendum
 
 Post-deploy curls (run against the deployed API, e.g. `http://neurocorp.k3s:30000`, after this
 WP ships). All IDs/dates below are examples — substitute real ones from your environment.
@@ -91,6 +91,39 @@ curl -s "$API/api/patients/<pid>/sessions?status=Completed&from=2026-01-01" \
   -H "Authorization: Bearer $TOKEN" | jq .totalCount
 ```
 
+## 3b. Addendum (owner testing ruling 2026-07-27): money totals, claim-shaped
+
+Summary rows gain lifetime `grossAmount` / `discountAmount` / `grossProfit` (SUMs of the
+STORED per-session columns, any status) and the envelope gains a full-filtered-set `totals`
+block. **All money rides the EXISTING `Appointments.ProviderAmount`** (AM/MGR/OWN +
+SYSADMIN wildcard): callers without it (FD, ACCT) get all counts but the money fields are
+omitted from the JSON — not a 403.
+
+```bash
+MGR_TOKEN=$(mint '<mgr-email>' '<pwd>')   # holds Appointments.ProviderAmount
+FD_TOKEN=$(mint '<fd-email>' '<pwd>')     # does NOT hold it
+
+# WITH claim: per-row money + envelope totals present.
+curl -s "$API/api/patients/session-history?pageSize=3" -H "Authorization: Bearer $MGR_TOKEN" \
+  | jq '{row: .items[0] | {patientId, totalSessions, grossAmount, discountAmount, grossProfit},
+         totals}'
+# expect: numeric money on the row AND totals = {sessionCount, grossAmount, discountAmount, grossProfit}
+# sanity: totals.sessionCount ≈ the whole book (~10.9k); with ?search= it shrinks to the match set
+
+# totals respect the search filter (full FILTERED set, not the page):
+curl -s "$API/api/patients/session-history?search=<a-patient>&pageSize=1" \
+  -H "Authorization: Bearer $MGR_TOKEN" | jq '{totalCount, totals}'
+# expect: totals.sessionCount == that patient set's session count, money sums match their rows
+
+# WITHOUT claim (FD): counts intact, money fields ABSENT (omitted, not zeroed) — still 200.
+curl -s "$API/api/patients/session-history?pageSize=3" -H "Authorization: Bearer $FD_TOKEN" \
+  | jq '{row: .items[0], totals}'
+# expect: row has patientId/…/totalSessions but NO grossAmount/discountAmount/grossProfit keys;
+#         totals == {"sessionCount": <n>} only
+curl -s "$API/api/patients/session-history?pageSize=3" -H "Authorization: Bearer $FD_TOKEN" \
+  | grep -ci grossamount   # expect: 0 (field truly absent from the wire)
+```
+
 ## 4. Bad date input → 400 (model binding)
 
 ```bash
@@ -108,14 +141,16 @@ curl -s -o /dev/null -w 'garbage from -> %{http_code}\n' \
 | `from` == a session's date | that session included (boundary inclusive) |
 | `from`/`to` omitted | byte-identical pre-WP-35 behavior |
 | `from=not-a-date` | `400` (DateOnly model binding) |
-| Matrix | unchanged — `Patients.View` only, no reseed, no re-login |
+| Summary money (with `Appointments.ProviderAmount`) | per-row `grossAmount`/`discountAmount`/`grossProfit` + envelope `totals` (full filtered set) |
+| Summary money (without the claim — FD/ACCT) | `200`, counts intact, money keys ABSENT from the JSON |
+| Zero-session patient row (with claim) | money fields `0`, not null |
+| Matrix | unchanged — endpoint gate `Patients.View`; money shaping rides the EXISTING `Appointments.ProviderAmount`; no reseed, no re-login |
 
 ## Suite state
 
-`dotnet test patient-care-api.sln` → **666 green** (Core 266 / Infrastructure 126 / Web 274;
-was 661 pre-WP-35B). Regression-test-first: the 5 new tests (summary first+last dates +
-zero-session null-safety; from-only / to-only / both+boundary+omitted range filtering;
-controller forwards from/to) were written first and watched fail red, then the
-`MIN(SessionDate)` correlated subquery, the SQL range predicates, and the controller
-threading went in to green. `dotnet build -c Release --no-incremental` → 0 warnings
-(A1 ratchet clean).
+`dotnet test patient-care-api.sln` → **674 green** (Core 266 / Infrastructure 128 / Web 280;
+was 661 pre-WP-35B, 666 pre-addendum). Regression-test-first both rounds: the 5 SH-1/range
+tests, then the 4 addendum behavior tests (stored-column sums + zero-session zeros;
+full-filtered-set totals respecting search; FD/Patients.View-only envelope redaction with
+counts surviving) were written first and watched fail red before each implementation.
+`dotnet build -c Release --no-incremental` → 0 warnings (A1 ratchet clean).

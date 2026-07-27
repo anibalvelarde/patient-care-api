@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Routing;
 using Neurocorp.Api.Core.Authorization;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Web.Authorization;
 using Xunit;
@@ -182,6 +183,133 @@ public class ProviderAmountShapingTests
         var result = await RunFilter(FrontDesk(), payload);
         result.Value.Should().BeSameAs(payload);
         ((PagedResult<string>)result.Value!).Items.Single().Should().Be("keep-me");
+    }
+
+    // ── WP-35 addendum: SessionHistoryPagedResult money shaping ──────────────────────
+    // The session-history summary endpoint is reachable via Patients.View; its per-row and
+    // envelope-level money fields ride Appointments.ProviderAmount (owner ruling). Without the
+    // claim the money is nulled (⇒ omitted from JSON) but every count survives — not a 403.
+
+    private static SessionHistoryPagedResult HistoryEnvelope() => new()
+    {
+        Items =
+        [
+            new PatientSessionHistorySummary
+            {
+                PatientId = 1,
+                TotalSessions = 3,
+                GrossAmount = 350m,
+                DiscountAmount = 15m,
+                GrossProfit = 150m,
+            },
+            new PatientSessionHistorySummary
+            {
+                PatientId = 4,
+                TotalSessions = 0,
+                GrossAmount = 0m,
+                DiscountAmount = 0m,
+                GrossProfit = 0m,
+            },
+        ],
+        Page = 1,
+        PageSize = 30,
+        TotalCount = 866,
+        Totals = new SessionHistoryTotals
+        {
+            SessionCount = 10930,
+            GrossAmount = 667293.50m,
+            DiscountAmount = 1234.56m,
+            GrossProfit = 98765.43m,
+        },
+    };
+
+    [Fact]
+    public async Task PatientsView_only_history_envelope_money_is_redacted_counts_survive()
+    {
+        var result = await RunFilter(PatientsViewOnly(), HistoryEnvelope());
+
+        var shaped = (SessionHistoryPagedResult)result.Value!;
+        shaped.Items.Should().OnlyContain(r =>
+            r.GrossAmount == null && r.DiscountAmount == null && r.GrossProfit == null);
+        shaped.Totals.GrossAmount.Should().BeNull();
+        shaped.Totals.DiscountAmount.Should().BeNull();
+        shaped.Totals.GrossProfit.Should().BeNull();
+
+        // Counts are NOT confidential — all survive.
+        shaped.Totals.SessionCount.Should().Be(10930);
+        shaped.TotalCount.Should().Be(866);
+        shaped.Items.Select(r => r.TotalSessions).Should().Equal(3, 0);
+    }
+
+    [Fact]
+    public async Task FrontDesk_history_envelope_money_is_redacted()
+    {
+        var result = await RunFilter(FrontDesk(), HistoryEnvelope());
+
+        var shaped = (SessionHistoryPagedResult)result.Value!;
+        shaped.Items.Should().OnlyContain(r => r.GrossAmount == null);
+        shaped.Totals.GrossAmount.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Manager_history_envelope_keeps_money()
+    {
+        var result = await RunFilter(Manager(), HistoryEnvelope());
+
+        var shaped = (SessionHistoryPagedResult)result.Value!;
+        shaped.Items[0].GrossAmount.Should().Be(350m);
+        shaped.Items[0].DiscountAmount.Should().Be(15m);
+        shaped.Items[0].GrossProfit.Should().Be(150m);
+        shaped.Totals.GrossAmount.Should().Be(667293.50m);
+        shaped.Totals.SessionCount.Should().Be(10930);
+    }
+
+    [Fact]
+    public async Task Wildcard_history_envelope_keeps_money()
+    {
+        var result = await RunFilter(Wildcard(), HistoryEnvelope());
+
+        var shaped = (SessionHistoryPagedResult)result.Value!;
+        shaped.Items[0].GrossAmount.Should().Be(350m);
+        shaped.Totals.GrossProfit.Should().Be(98765.43m);
+    }
+
+    [Fact]
+    public void Null_history_money_is_omitted_from_json_counts_present()
+    {
+        var summary = new PatientSessionHistorySummary
+        {
+            PatientId = 1,
+            TotalSessions = 3,
+            GrossAmount = null,
+            DiscountAmount = null,
+            GrossProfit = null,
+        };
+        var totals = new SessionHistoryTotals
+        {
+            SessionCount = 10930,
+            GrossAmount = null,
+            DiscountAmount = null,
+            GrossProfit = null,
+        };
+
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var summaryJson = JsonSerializer.Serialize(summary, options).ToLowerInvariant();
+        var totalsJson = JsonSerializer.Serialize(totals, options).ToLowerInvariant();
+
+        summaryJson.Should().NotContain("grossamount").And.NotContain("discountamount").And.NotContain("grossprofit");
+        summaryJson.Should().Contain("totalsessions");
+        totalsJson.Should().NotContain("grossamount").And.NotContain("grossprofit");
+        totalsJson.Should().Contain("sessioncount");
+    }
+
+    [Fact]
+    public void Present_history_money_is_serialized()
+    {
+        var json = JsonSerializer.Serialize(
+            new PatientSessionHistorySummary { GrossAmount = 350m, DiscountAmount = 15m, GrossProfit = 150m },
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)).ToLowerInvariant();
+        json.Should().Contain("grossamount").And.Contain("discountamount").And.Contain("grossprofit");
     }
 
     // ── serialization: null ⇒ property omitted entirely ──────────────────────────────

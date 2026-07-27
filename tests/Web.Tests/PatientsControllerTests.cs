@@ -123,12 +123,15 @@ public class PatientsControllerTests
     [Fact]
     public async Task GetPatientSessionHistory_ReturnsOk_WithPagedResult()
     {
-        var envelope = new PagedResult<PatientSessionHistorySummary>
+        // WP-35 addendum: the endpoint returns the derived SessionHistoryPagedResult
+        // (shared paged shape + envelope Totals).
+        var envelope = new SessionHistoryPagedResult
         {
             Items = new List<PatientSessionHistorySummary> { new() { PatientId = 7 } },
             Page = 1,
             PageSize = 30,
             TotalCount = 1,
+            Totals = new SessionHistoryTotals { SessionCount = 3, GrossAmount = 350m },
         };
         _mockPatientProfileService
             .Setup(s => s.GetSessionHistoryAsync("doe", 1, 30))
@@ -137,7 +140,7 @@ public class PatientsControllerTests
         var result = await _controller.GetPatientSessionHistory("doe", 1, 30);
 
         var okResult = Assert.IsType<OkObjectResult>(result);
-        var returned = Assert.IsType<PagedResult<PatientSessionHistorySummary>>(okResult.Value);
+        var returned = Assert.IsType<SessionHistoryPagedResult>(okResult.Value);
         returned.Should().BeSameAs(envelope);
         _mockPatientProfileService.Verify(s => s.GetSessionHistoryAsync("doe", 1, 30), Times.Once);
     }
@@ -147,7 +150,7 @@ public class PatientsControllerTests
     {
         _mockPatientProfileService
             .Setup(s => s.GetSessionHistoryAsync(null, It.IsAny<int>(), It.IsAny<int>()))
-            .ReturnsAsync(new PagedResult<PatientSessionHistorySummary>());
+            .ReturnsAsync(new SessionHistoryPagedResult());
 
         // page 0 → 1; pageSize 9999 → the 100 ceiling; pageSize 0 → the 30 default.
         await _controller.GetPatientSessionHistory(null, page: 0, pageSize: 9999);

@@ -120,9 +120,12 @@ public class PatientsController : ControllerBase
 
     // WP-21 (F1): paged patient summaries ordered by most-recent-session first — backs the
     // Patients → Session History tab's patient list.
+    // WP-35 addendum: envelope is SessionHistoryPagedResult (shared shape + full-set Totals);
+    // all money fields (per-row and Totals) ride Appointments.ProviderAmount via
+    // ProviderAmountResultFilter — callers without the claim get counts only, not a 403.
     [HttpGet("session-history")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(PagedResult<PatientSessionHistorySummary>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(SessionHistoryPagedResult))]
     public async Task<IActionResult> GetPatientSessionHistory(
         [FromQuery] string? search = null,
         [FromQuery] int page = 1,
