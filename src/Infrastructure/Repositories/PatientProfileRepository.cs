@@ -94,6 +94,11 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
                 p.User!.LastName,
                 p.User!.MiddleName,
                 p.MedicalRecordNumber,
+                // WP-35 (SH-1): earliest session of ANY status (owner ruling G1) — no status
+                // filter, consistent with TotalSessions. Same correlated-subquery shape as MAX.
+                FirstSessionDate = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Min(ts => (DateOnly?)ts.SessionDate),
                 LastSessionDate = _dbContext.TherapySessions
                     .Where(ts => ts.PatientId == p.Id)
                     .Max(ts => (DateOnly?)ts.SessionDate),
@@ -115,6 +120,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             PatientId = r.Id,
             PatientName = $"{r.LastName}, {r.FirstName} {r.MiddleName}".Trim(),
             MedicalRecordNumber = r.MedicalRecordNumber,
+            FirstSessionDate = r.FirstSessionDate,
             LastSessionDate = r.LastSessionDate,
             TotalSessions = r.TotalSessions,
         }).ToList();

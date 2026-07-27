@@ -168,7 +168,7 @@ public class PatientsControllerTests
             TotalCount = 132,
         };
         _mockSessionEventRepository
-            .Setup(r => r.GetByPatientIdAsync(7, 2, 25, null, null))
+            .Setup(r => r.GetByPatientIdAsync(7, 2, 25, null, null, null, null))
             .ReturnsAsync(envelope);
 
         var result = await _controller.GetPatientSessions(7, page: 2, pageSize: 25);
@@ -176,19 +176,41 @@ public class PatientsControllerTests
         var okResult = Assert.IsType<OkObjectResult>(result);
         var returned = Assert.IsType<PagedResult<SessionEvent>>(okResult.Value);
         returned.Should().BeSameAs(envelope);
-        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 2, 25, null, null), Times.Once);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 2, 25, null, null, null, null), Times.Once);
     }
 
     [Fact]
     public async Task GetPatientSessions_ClampsPagingParams_AndForwardsFilters()
     {
         _mockSessionEventRepository
-            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool?>(), It.IsAny<string?>()))
+            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool?>(), It.IsAny<string?>(), It.IsAny<DateOnly?>(), It.IsAny<DateOnly?>()))
             .ReturnsAsync(new PagedResult<SessionEvent>());
 
         await _controller.GetPatientSessions(7, page: -5, pageSize: 400, isDiscovery: true, status: "Completed");
 
-        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 100, true, "Completed"), Times.Once);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 100, true, "Completed", null, null), Times.Once);
+    }
+
+    // WP-35 (SH-3 support): additive from/to date-range params must reach the repository;
+    // omitted params forward as null (unchanged behavior).
+    [Fact]
+    public async Task GetPatientSessions_ForwardsFromAndToDateRange()
+    {
+        _mockSessionEventRepository
+            .Setup(r => r.GetByPatientIdAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool?>(), It.IsAny<string?>(), It.IsAny<DateOnly?>(), It.IsAny<DateOnly?>()))
+            .ReturnsAsync(new PagedResult<SessionEvent>());
+
+        var from = new DateOnly(2026, 3, 1);
+        var to = new DateOnly(2026, 7, 1);
+        await _controller.GetPatientSessions(7, page: 1, pageSize: 25, from: from, to: to);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 25, null, null, from, to), Times.Once);
+
+        // from-only and to-only forward independently.
+        await _controller.GetPatientSessions(7, page: 1, pageSize: 25, from: from);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 25, null, null, from, null), Times.Once);
+
+        await _controller.GetPatientSessions(7, page: 1, pageSize: 25, to: to);
+        _mockSessionEventRepository.Verify(r => r.GetByPatientIdAsync(7, 1, 25, null, null, null, to), Times.Once);
     }
 
     [Fact]

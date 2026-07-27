@@ -201,6 +201,88 @@ public class SessionEventRepositoryTests
         }
     }
 
+    // ── WP-35 (SH-3 support): GetByPatientIdAsync from/to date-range filtering ────────
+    // Date-only INCLUSIVE semantics (sessionDate >= from, <= to), applied in SQL. Seed spans
+    // 2026-05-01 / 2026-06-01 / 2026-07-01 / 2026-07-01 / 2026-07-15 for patient 1.
+    private static async Task SeedDateRange(DbContextOptions<ApplicationDbContext> options)
+    {
+        using var context = new ApplicationDbContext(options);
+        context.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "Session took place" });
+        var patient = new Patient { Id = 1, User = new User { FirstName = "John", LastName = "Doe" } };
+        var therapist = new Therapist { Id = 1, User = new User { FirstName = "Jane", LastName = "Smith" } };
+
+        context.TherapySessions.AddRange(
+            Session(1, 1, patient, therapist, new DateOnly(2026, 5, 1), new TimeOnly(9, 0)),
+            Session(2, 1, patient, therapist, new DateOnly(2026, 6, 1), new TimeOnly(9, 0)),
+            Session(3, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(9, 0)),
+            Session(4, 1, patient, therapist, new DateOnly(2026, 7, 1), new TimeOnly(14, 0)),
+            Session(5, 1, patient, therapist, new DateOnly(2026, 7, 15), new TimeOnly(9, 0)));
+        await context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task GetByPatientIdAsync_FromOnly_IsInclusive_AndNarrowsTotalCount()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp35FromOnly")
+            .Options;
+        await SeedDateRange(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new SessionEventRepository(context);
+
+        // from == 2026-06-01 — the boundary session itself must be INCLUDED.
+        var result = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25, from: new DateOnly(2026, 6, 1));
+
+        Assert.Equal(4, result.TotalCount);
+        Assert.Equal(new[] { 5, 4, 3, 2 }, result.Items.Select(se => se.SessionId).ToArray());
+    }
+
+    [Fact]
+    public async Task GetByPatientIdAsync_ToOnly_IsInclusive_AndNarrowsTotalCount()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp35ToOnly")
+            .Options;
+        await SeedDateRange(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new SessionEventRepository(context);
+
+        // to == 2026-07-01 — BOTH boundary-date sessions must be INCLUDED.
+        var result = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25, to: new DateOnly(2026, 7, 1));
+
+        Assert.Equal(4, result.TotalCount);
+        Assert.Equal(new[] { 4, 3, 2, 1 }, result.Items.Select(se => se.SessionId).ToArray());
+    }
+
+    [Fact]
+    public async Task GetByPatientIdAsync_FromAndTo_BoundInclusively_OmittedMeansFullSet()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: "TestDatabase_Wp35FromTo")
+            .Options;
+        await SeedDateRange(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new SessionEventRepository(context);
+
+        // Both bounds land ON session dates — inclusive at each end.
+        var ranged = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25,
+            from: new DateOnly(2026, 6, 1), to: new DateOnly(2026, 7, 1));
+        Assert.Equal(3, ranged.TotalCount);
+        Assert.Equal(new[] { 4, 3, 2 }, ranged.Items.Select(se => se.SessionId).ToArray());
+
+        // Degenerate single-day range still matches that day's sessions.
+        var singleDay = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25,
+            from: new DateOnly(2026, 7, 1), to: new DateOnly(2026, 7, 1));
+        Assert.Equal(2, singleDay.TotalCount);
+
+        // Omitted from/to = unchanged behavior (the patient's full set).
+        var full = await repository.GetByPatientIdAsync(1, page: 1, pageSize: 25);
+        Assert.Equal(5, full.TotalCount);
+    }
+
     [Fact]
     public async Task GetByPatientIdAsync_PageBeyondEnd_ReturnsEmptyItemsWithTotalCount()
     {

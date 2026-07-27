@@ -13,6 +13,8 @@ public interface ISessionEventRepository : IRepository<SessionEvent>
     public Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync();
     public Task<IReadOnlyList<SessionEvent>> GetAllPastDueAsync(int? patientId, int? therapistId);
     // WP-21 (F1): paged, newest first (SessionDate/SessionTime/SessionID DESC).
-    public Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null);
+    // WP-35 (SH-3 support): optional date-only inclusive from/to range (SessionDate >= from,
+    // <= to), applied in SQL; omitted = unchanged behavior.
+    public Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null, DateOnly? from = null, DateOnly? to = null);
     public Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest);
 }

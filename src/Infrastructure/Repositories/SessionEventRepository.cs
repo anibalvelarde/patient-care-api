@@ -95,7 +95,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return result;
     }
 
-    public async Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null)
+    public async Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null, DateOnly? from = null, DateOnly? to = null)
     {
         var query = _dbContext.TherapySessions
             .Where(ts => ts.PatientId == patientId &&
@@ -107,6 +107,14 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
 
         if (!string.IsNullOrEmpty(status))
             query = query.Where(ts => ts.AppointmentStatus != null && ts.AppointmentStatus.Name == status);
+
+        // WP-35 (SH-3 support): date-only INCLUSIVE bounds, applied in SQL ahead of the
+        // count/page — never in-memory.
+        if (from.HasValue)
+            query = query.Where(ts => ts.SessionDate >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(ts => ts.SessionDate <= to.Value);
 
         // COUNT(*) over the filters only — no Includes, so no join amplification.
         var totalCount = await query.CountAsync();

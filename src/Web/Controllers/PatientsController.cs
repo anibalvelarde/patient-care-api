@@ -140,15 +140,19 @@ public class PatientsController : ControllerBase
     [HttpGet("{patientId:int}/sessions")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.PatientsView)]
     [ProducesResponseType(typeof(PagedResult<SessionEvent>), StatusCodes.Status200OK)]
+    // WP-35 (SH-3 support): additive `from`/`to` — date-only inclusive range on sessionDate,
+    // bound from `yyyy-MM-dd` query strings (DateOnly, same style as the Statement endpoints).
     public async Task<IActionResult> GetPatientSessions(
         int patientId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25,
         [FromQuery] bool? isDiscovery = null,
-        [FromQuery] string? status = null)
+        [FromQuery] string? status = null,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
     {
         var (safePage, safeSize) = PagingParams.Clamp(page, pageSize, defaultPageSize: 25);
-        var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, safePage, safeSize, isDiscovery, status);
+        var sessions = await _sessionEventRepository.GetByPatientIdAsync(patientId, safePage, safeSize, isDiscovery, status, from, to);
         return Ok(sessions);
     }
 

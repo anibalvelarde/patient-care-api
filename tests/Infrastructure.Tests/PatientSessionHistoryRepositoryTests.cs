@@ -84,6 +84,36 @@ public class PatientSessionHistoryRepositoryTests
         Assert.Equal(0, doe.TotalSessions);
     }
 
+    // WP-35 (SH-1): FirstSessionDate = MIN(SessionDate) of ANY status (owner ruling G1 —
+    // consistent with TotalSessions), null-safe for zero-session patients.
+    [Fact]
+    public async Task Summary_CarriesFirstAndLastSessionDates_NullSafeForZeroSessions()
+    {
+        var options = Options("Wp35Summary_FirstSessionDate");
+        await Seed(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new PatientProfileRepository(context);
+
+        var result = await repository.GetSessionHistoryAsync(search: null, page: 1, pageSize: 30);
+
+        // ANDERSON: 3 sessions — first 2026-03-01, last 2026-07-01.
+        var anderson = result.Items.Single(r => r.PatientId == 1);
+        Assert.Equal(new DateOnly(2026, 3, 1), anderson.FirstSessionDate);
+        Assert.Equal(new DateOnly(2026, 7, 1), anderson.LastSessionDate);
+
+        // BENNET: single session — first == last.
+        var bennet = result.Items.Single(r => r.PatientId == 2);
+        Assert.Equal(new DateOnly(2026, 6, 15), bennet.FirstSessionDate);
+        Assert.Equal(bennet.LastSessionDate, bennet.FirstSessionDate);
+
+        // DOE: zero sessions — both dates null, count 0.
+        var doe = result.Items.Single(r => r.PatientId == 4);
+        Assert.Null(doe.FirstSessionDate);
+        Assert.Null(doe.LastSessionDate);
+        Assert.Equal(0, doe.TotalSessions);
+    }
+
     [Fact]
     public async Task Paging_IsStable_AndTotalCountConstant()
     {
