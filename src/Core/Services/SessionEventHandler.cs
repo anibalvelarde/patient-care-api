@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
@@ -20,9 +21,14 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
     private readonly ITherapistSpecialtyRepository _therapistSpecialtyRepository;
     private readonly IPatientCaretakerRepository _patientCaretakerRepository;
+    private readonly ISpecialtyPriceService _priceService;
+    private readonly IRepository<Site> _siteRepository;
     private readonly IUserNameResolver? _userNameResolver;
 
     public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo, IPatientCaretakerRepository patientCaretakerRepo,
+        // WP-40 (BK-2): booking money is server-derived — the price service resolves Amount from
+        // the WP-39 sheet; the site repository supplies the on-site trip charge to snapshot.
+        ISpecialtyPriceService priceService, IRepository<Site> siteRepo,
         // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
         IUserNameResolver? userNameResolver = null)
     {
@@ -34,6 +40,8 @@ public class SessionEventHandler : IHandleSessionEvent
         _specialtyTypeRepository = specialtyTypeRepo;
         _therapistSpecialtyRepository = therapistSpecialtyRepo;
         _patientCaretakerRepository = patientCaretakerRepo;
+        _priceService = priceService;
+        _siteRepository = siteRepo;
         _userNameResolver = userNameResolver;
     }
 
@@ -189,13 +197,12 @@ public class SessionEventHandler : IHandleSessionEvent
             throw new ArgumentException("A caretaker must be linked to this patient before booking.");
         }
 
-        // WP-23 (F7): statutory SENADIS discount FLOOR — 20% of Amount, staff may grant more,
-        // never less. (A pending "no stacking" customer ruling would tighten this to exactly-20%.)
-        // WP-37 (SEN-1/G2): expiry-aware via the shared predicate — compared against the SESSION
-        // date; expired ⇒ no floor at all (the flag itself is never auto-cleared, G3).
-        if (pProfile!.HasActiveSenadisDiscount(request.SessionDate))
+        // WP-40 (G1, 2026-07-27 addendum): fixed bookable durations — new bookings only; stored
+        // legacy durations are never validated on reads. ArgumentException → 400.
+        if (!SessionMoneyMath.IsBookableDuration(request.Duration))
         {
-            request.Discount = Math.Max(request.Discount, Math.Round(0.20m * request.Amount, 2));
+            throw new ArgumentException(
+                $"Duration {request.Duration} min is not bookable — allowed: {SessionMoneyMath.BookableDurationsDisplay}.");
         }
 
         var specialty = await ResolveSpecialtyAsync(request);
@@ -221,7 +228,50 @@ public class SessionEventHandler : IHandleSessionEvent
                     $"Therapist {tProfile!.TherapistName} does not have the {specialty.Name} qualification.");
         }
 
-        var newTherapySession = await _therapySessionRepository.AddAsync(MapToNewSessionEvent(pProfile!, tProfile!, request, specialty));
+        // WP-40 (BK-2): the price sheet is the ONLY source of Amount — a booking without a
+        // resolvable specialty has nothing to price against.
+        if (specialty == null)
+        {
+            throw new ArgumentException(
+                "A specialty is required — the session price is derived from the specialty's price sheet.");
+        }
+
+        // Amount: WP-39 resolution at the SESSION date (row → DefaultAmount → none ⇒ G4 block).
+        var price = await _priceService.ResolvePriceAsync(specialty.Id, request.Duration, request.SessionDate);
+        if (price.Amount is null)
+        {
+            throw new ArgumentException(SessionMoneyMath.MissingPriceMessage(specialty.Name, request.Duration));
+        }
+        var amount = price.Amount.Value;
+
+        // Discount: G2 ruling (resolves WP-23 stacking) — exactly 20% when SENADIS is active at
+        // the session date (WP-37 shared predicate), exactly 0 otherwise. Client money values
+        // are ignored; log so junk senders are visible.
+        var derivedDiscount = SessionMoneyMath.DeriveBookingDiscount(
+            amount, pProfile!.HasActiveSenadisDiscount(request.SessionDate));
+        if ((request.Amount != 0 && request.Amount != amount) || (request.Discount != 0 && request.Discount != derivedDiscount))
+        {
+            _logger.LogWarning(
+                "WP-40: client-supplied money ignored on booking (amount {ReqAmount}→{Amount}, discount {ReqDiscount}→{Discount})",
+                request.Amount, amount, request.Discount, derivedDiscount);
+        }
+
+        // On-site leg (WP-39 G4 ruling): eligibility lives on the specialty, the flat trip
+        // charge on the Site — snapshotted at booking so later Site changes never reprice.
+        decimal? onSiteCharge = null;
+        if (request.IsOnSiteVisit)
+        {
+            if (!specialty.OfferedOnSite)
+                throw new ArgumentException($"{specialty.Name} is not offered as an on-site visit.");
+            if (!request.SiteId.HasValue)
+                throw new ArgumentException("An on-site visit requires a site (the trip charge is configured per site).");
+            var site = await _siteRepository.GetByIdAsync(request.SiteId.Value)
+                ?? throw new ArgumentException($"Site {request.SiteId.Value} not found.");
+            onSiteCharge = site.OnSiteTripChargeAmount;
+        }
+
+        var newTherapySession = await _therapySessionRepository.AddAsync(
+            MapToNewSessionEvent(pProfile!, tProfile!, request, specialty, amount, derivedDiscount, onSiteCharge));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
         var confirmedStatuses = new HashSet<int> { 2, 4, 6, 7 };
         return new SessionEvent()
@@ -234,7 +284,8 @@ public class SessionEventHandler : IHandleSessionEvent
             TherapyTypes = newTherapySession.TherapyTypes,
             Amount = newTherapySession.Amount,
             Discount = newTherapySession.DiscountAmount,
-            AmountDue = newTherapySession.Amount,
+            ProviderAmount = newTherapySession.ProviderAmount,
+            AmountDue = newTherapySession.AmountDue(),
             IsPastDue = false,
             IsPaidOff = false,
             Notes = newTherapySession.Notes,
@@ -247,6 +298,8 @@ public class SessionEventHandler : IHandleSessionEvent
             SpecialtyAbbreviation = specialty?.Abbreviation,
             SpecialtyName = specialty?.Name,
             IsDiscovery = specialty?.IsDiscovery,
+            OnSiteChargeAmount = newTherapySession.OnSiteChargeAmount,
+            AmountSource = price.Source.ToWireString(),
         };
     }
 
@@ -264,14 +317,51 @@ public class SessionEventHandler : IHandleSessionEvent
     {
         ArgumentNullException.ThrowIfNull(nameof(request));
 
-        // ensure both patient and therapist exist...
-        var sessionOnFile = await _repository.GetByIdAsync(sessionEventId);
-        if (sessionOnFile is not null)
+        var onFile = await _therapySessionRepository.GetByIdAsync(sessionEventId);
+        if (onFile is null) return false;
+
+        // WP-40 (G1): validate the duration only when the edit actually CHANGES it — historical
+        // (legacy-import) durations must never block an unrelated edit. Null = keep stored.
+        if (request.Duration.HasValue && request.Duration.Value != onFile.Duration
+            && !SessionMoneyMath.IsBookableDuration(request.Duration.Value))
         {
-            await _repository.UpdateAsync(sessionEventId, request);
-            return true;
+            throw new ArgumentException(
+                $"Duration {request.Duration.Value} min is not bookable — allowed: {SessionMoneyMath.BookableDurationsDisplay}.");
         }
-        return false;
+
+        // WP-40 (BK-3): when the edit changes Amount or Discount, validate the FINAL pair and
+        // re-derive ProviderAmount/GrossProfit through the shared math (never a stale fee after
+        // a discount change). The Sessions.Discount.Edit claim gate lives in SessionsController.
+        // When neither changes, stored money stays byte-identical (WP-29 discipline).
+        SessionMoneyPatch? moneyPatch = null;
+        if (request.Amount != onFile.Amount || request.Discount != onFile.DiscountAmount)
+        {
+            var patient = await _patientService.GetByIdAsync(onFile.PatientId);
+            if (patient?.HasActiveSenadisDiscount(onFile.SessionDate) == true)
+            {
+                var floor = SessionMoneyMath.SenadisFloor(request.Amount);
+                if (request.Discount < floor)
+                {
+                    throw new ArgumentException(
+                        $"Discount {request.Discount:0.00} is below the SENADIS floor {floor:0.00} " +
+                        $"(20% of {request.Amount:0.00}) — an active-SENADIS session may be discounted more, never less.");
+                }
+            }
+            else if (request.Discount < 0 || request.Discount > request.Amount)
+            {
+                throw new ArgumentException("Discount must be between 0 and the session amount.");
+            }
+
+            var therapistId = request.TherapistId ?? onFile.TherapistId;
+            var tProfile = await _therapistService.GetByIdAsync(therapistId)
+                ?? throw new ArgumentException($"Therapist {therapistId} not found.");
+            var net = request.Amount - request.Discount;
+            var fee = tProfile.CalculateFee(net);
+            moneyPatch = new SessionMoneyPatch(fee, SessionMoneyMath.GrossProfit(net, fee, onFile.OnSiteChargeAmount));
+        }
+
+        await _repository.UpdateAsync(sessionEventId, request, moneyPatch);
+        return true;
     }
 
     public Task DeleteAsync(int id)
@@ -289,31 +379,33 @@ public class SessionEventHandler : IHandleSessionEvent
         return false;
     }
 
-    private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile, SessionEventRequest req, SpecialtyType? specialty)
+    private static TherapySession MapToNewSessionEvent(PatientProfile pProfile, TherapistProfile tProfile,
+        SessionEventRequest req, SpecialtyType specialty, decimal amount, decimal discount, decimal? onSiteCharge)
     {
         // WP-23 (Questionnaire E ruling): the therapist fee applies to the NET amount — after
-        // discounts — matching BulkSchedulingService. Flat fees are unaffected by the base.
-        var netAmount = req.Amount - req.Discount;
+        // discounts — matching BulkSchedulingService. WP-40: amount/discount arrive derived
+        // (price sheet + SENADIS rule); the on-site trip charge is excluded from the fee base
+        // and added to gross profit.
+        var netAmount = amount - discount;
         var calcProviderAmt = tProfile.CalculateFee(netAmount);
-        var calcGrossProfit = netAmount - calcProviderAmt;
-        // When SpecialtyTypeId is provided, populate TherapyTypes from specialty for backward compat
-        var therapyTypes = specialty != null ? specialty.Abbreviation : req.TherapyType;
+        var calcGrossProfit = SessionMoneyMath.GrossProfit(netAmount, calcProviderAmt, onSiteCharge);
         return new TherapySession()
         {
             PatientId = pProfile.PatientId,
             TherapistId = tProfile.TherapistId,
             SessionDate = req.SessionDate,
             SessionTime = req.SessionTime,
-            TherapyTypes = therapyTypes,
+            TherapyTypes = specialty.Abbreviation,
             Duration = req.Duration,
-            Amount = req.Amount,
-            DiscountAmount = req.Discount,
+            Amount = amount,
+            DiscountAmount = discount,
             ProviderAmount = calcProviderAmt,
             GrossProfit = calcGrossProfit,
             Notes = req.Notes,
             AppointmentStatusId = req.AppointmentStatusId,
             SiteId = req.SiteId,
-            SpecialtyTypeId = specialty?.Id ?? req.SpecialtyTypeId,
+            SpecialtyTypeId = specialty.Id,
+            OnSiteChargeAmount = onSiteCharge,
         };
     }
 

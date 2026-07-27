@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -8,7 +9,6 @@ namespace Neurocorp.Api.Core.Services;
 
 public class BulkSchedulingService : IBulkSchedulingService
 {
-    private const decimal HourlyRate = 65.00m;
     private const int CancelledStatusId = 3;
     private const int CompletedStatusId = 4;
     private const int ProposedStatusId = 1;
@@ -20,6 +20,7 @@ public class BulkSchedulingService : IBulkSchedulingService
     private readonly ITherapistSpecialtyRepository _specialtyRepository;
     private readonly IPatientCaretakerRepository _patientCaretakerRepository;
     private readonly IPatientProfileService _patientService;
+    private readonly ISpecialtyPriceRepository _priceRepository;
 
     public BulkSchedulingService(
         ILogger<BulkSchedulingService> logger,
@@ -28,7 +29,10 @@ public class BulkSchedulingService : IBulkSchedulingService
         ITherapistRepository therapistRepository,
         ITherapistSpecialtyRepository specialtyRepository,
         IPatientCaretakerRepository patientCaretakerRepository,
-        IPatientProfileService patientService)
+        IPatientProfileService patientService,
+        // WP-40 (G5): bulk derives money from the SAME price sheet as the single-session path —
+        // the flat $65/hr placeholder is gone.
+        ISpecialtyPriceRepository priceRepository)
     {
         _logger = logger;
         _planRepository = planRepository;
@@ -37,6 +41,7 @@ public class BulkSchedulingService : IBulkSchedulingService
         _specialtyRepository = specialtyRepository;
         _patientCaretakerRepository = patientCaretakerRepository;
         _patientService = patientService;
+        _priceRepository = priceRepository;
     }
 
     public async Task<BulkScheduleResult> ScheduleAsync(int planId, BulkScheduleRequest request)
@@ -63,6 +68,16 @@ public class BulkSchedulingService : IBulkSchedulingService
         // the loop) — a schedule spanning the expiry floors only the sessions on/before it.
         var patientProfile = await _patientService.GetByIdAsync(plan.PatientId);
 
+        // WP-40 (G2/BK-3): booking-time discounts are DERIVED (SENADIS-only) — client line
+        // discount overrides are ignored; ad-hoc discounts happen post-booking via the gated
+        // Sessions.Discount.Edit path.
+        if (request.LineOverrides.Any(o => o.DiscountAmount != 0m))
+        {
+            _logger.LogWarning(
+                "WP-40: bulk line discount overrides ignored for PlanId:{PlanId} — booking discounts are derived (SENADIS-only)",
+                planId);
+        }
+
         // Build effective lines (plan lines merged with overrides)
         var overrideMap = request.LineOverrides.ToDictionary(o => o.TreatmentPlanLineId);
         var effectiveLines = plan.Lines.OrderBy(l => l.SortOrder).Select(line =>
@@ -77,9 +92,13 @@ public class BulkSchedulingService : IBulkSchedulingService
                 DayOfWeek = ov?.DayOfWeek ?? line.DayOfWeek,
                 Time = ov?.Time ?? line.PreferredTime,
                 Duration = line.Duration,
-                DiscountAmount = ov?.DiscountAmount ?? 0m,
             };
         }).ToList();
+
+        // WP-40 (G5): one price-sheet load feeds every line/week — same resolution rule
+        // (SpecialtyPricing.Resolve at each SESSION's date) as the single-session path.
+        var pricedSpecialties = (await _priceRepository.GetAllWithPricesAsync())
+            .ToDictionary(s => s.Id);
 
         // Compute date range for the full schedule
         var endDate = request.StartDate.AddDays(plan.DurationWeeks * 7);
@@ -132,6 +151,37 @@ public class BulkSchedulingService : IBulkSchedulingService
                 var targetDate = ComputeTargetDate(weekStart, line.DayOfWeek);
                 var targetTime = line.Time ?? new TimeOnly(9, 0);
 
+                // WP-40 (G1): bulk creates NEW sessions, so line durations must be bookable.
+                if (!SessionMoneyMath.IsBookableDuration(line.Duration))
+                {
+                    result.Conflicts.Add(new ScheduleConflict
+                    {
+                        WeekNumber = week,
+                        LineId = line.LineId,
+                        Date = targetDate,
+                        Reason = $"Duration {line.Duration} min is not bookable — allowed: {SessionMoneyMath.BookableDurationsDisplay}.",
+                    });
+                    continue;
+                }
+
+                // WP-40 (G4): missing price = schedule conflict — bulk stays atomic, nothing books at $0.
+                pricedSpecialties.TryGetValue(line.SpecialtyTypeId, out var pricedSpecialty);
+                var price = pricedSpecialty is null
+                    ? PriceResolution.None
+                    : SpecialtyPricing.Resolve(pricedSpecialty, line.Duration, targetDate);
+                if (price.Amount is null)
+                {
+                    result.Conflicts.Add(new ScheduleConflict
+                    {
+                        WeekNumber = week,
+                        LineId = line.LineId,
+                        Date = targetDate,
+                        Reason = SessionMoneyMath.MissingPriceMessage(
+                            pricedSpecialty?.Name ?? line.SpecialtyAbbreviation, line.Duration),
+                    });
+                    continue;
+                }
+
                 // Determine therapist
                 int? assignedTherapistId = line.TherapistId;
 
@@ -175,16 +225,19 @@ public class BulkSchedulingService : IBulkSchedulingService
                     continue;
                 }
 
-                // Compute financials
-                var amount = Math.Round(HourlyRate * line.Duration / 60m, 2);
-                var discountAmount = Math.Min(line.DiscountAmount, amount);
-                // WP-23 (F7): statutory SENADIS floor — staff may grant more, never less.
-                // WP-37 (G2): active only when unexpired as of THIS session's date.
-                if (patientProfile?.HasActiveSenadisDiscount(targetDate) ?? false)
-                    discountAmount = Math.Max(discountAmount, Math.Round(0.20m * amount, 2));
+                // Compute financials — WP-40 (G5): the SAME derivation as the single-session
+                // path. Amount from the price sheet (resolved above at THIS session's date);
+                // discount exactly-20% when SENADIS is active at the session date, else 0
+                // (WP-37 expiry-aware predicate); fee on net (bulk keeps its historical 2dp
+                // rounding of the fee).
+                var amount = price.Amount.Value;
+                var discountAmount = SessionMoneyMath.DeriveBookingDiscount(
+                    amount, patientProfile?.HasActiveSenadisDiscount(targetDate) ?? false);
                 var netAmount = amount - discountAmount;
-                var providerAmount = ComputeProviderAmount(assignedTherapistId.Value, netAmount, therapistMap);
-                var grossProfit = netAmount - providerAmount;
+                var providerAmount = therapistMap.TryGetValue(assignedTherapistId.Value, out var feeTherapist)
+                    ? Math.Round(SessionMoneyMath.ProviderFee(feeTherapist.FeePerSession, feeTherapist.FeePctPerSession, netAmount), 2)
+                    : 0m;
+                var grossProfit = SessionMoneyMath.GrossProfit(netAmount, providerAmount, onSiteCharge: null);
 
                 var session = new TherapySession
                 {
@@ -375,20 +428,6 @@ public class BulkSchedulingService : IBulkSchedulingService
         return null;
     }
 
-    private static decimal ComputeProviderAmount(int therapistId, decimal netAmount, Dictionary<int, Therapist> therapistMap)
-    {
-        if (!therapistMap.TryGetValue(therapistId, out var therapist))
-            return 0m;
-
-        if (therapist.FeePctPerSession > 0)
-            return Math.Round(netAmount * therapist.FeePctPerSession, 2);
-
-        if (therapist.FeePerSession > 0)
-            return therapist.FeePerSession;
-
-        return 0m;
-    }
-
     private static string GetTherapistName(int therapistId, Dictionary<int, Therapist> therapistMap)
     {
         if (!therapistMap.TryGetValue(therapistId, out var therapist) || therapist.User is null)
@@ -458,6 +497,5 @@ public class BulkSchedulingService : IBulkSchedulingService
         public byte? DayOfWeek { get; set; }
         public TimeOnly? Time { get; set; }
         public int Duration { get; set; }
-        public decimal DiscountAmount { get; set; }
     }
 }

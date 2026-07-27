@@ -17,6 +17,7 @@ public class BulkSchedulingServiceTests
     private readonly Mock<ITherapistSpecialtyRepository> _mockSpecialtyRepo;
     private readonly Mock<IPatientCaretakerRepository> _mockPatientCaretakerRepo;
     private readonly Mock<IPatientProfileService> _mockPatientService;
+    private readonly Mock<ISpecialtyPriceRepository> _mockPriceRepo;
     private readonly BulkSchedulingService _sut;
 
     public BulkSchedulingServiceTests()
@@ -28,6 +29,7 @@ public class BulkSchedulingServiceTests
         _mockSpecialtyRepo = new Mock<ITherapistSpecialtyRepository>();
         _mockPatientCaretakerRepo = new Mock<IPatientCaretakerRepository>();
         _mockPatientService = new Mock<IPatientProfileService>();
+        _mockPriceRepo = new Mock<ISpecialtyPriceRepository>();
         // WP-23 defaults: patient has a caretaker link and no SENADIS flag, so the
         // pre-existing scheduling tests run unchanged.
         _mockPatientCaretakerRepo
@@ -36,6 +38,9 @@ public class BulkSchedulingServiceTests
         _mockPatientService
             .Setup(s => s.GetByIdAsync(It.IsAny<int>()))
             .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "P" });
+        // WP-40 (G5) default price sheet: specialty 5 priced 65.00 @ 60 min and 48.75 @ 45 min
+        // (the figures the pre-WP-40 $65/h placeholder produced, now real sheet rows).
+        SetupPriceSheet(PricedSpecialty(rows: [(60, 65.00m), (45, 48.75m)]));
         _sut = new BulkSchedulingService(
             logger,
             _mockPlanRepo.Object,
@@ -43,8 +48,30 @@ public class BulkSchedulingServiceTests
             _mockTherapistRepo.Object,
             _mockSpecialtyRepo.Object,
             _mockPatientCaretakerRepo.Object,
-            _mockPatientService.Object);
+            _mockPatientService.Object,
+            _mockPriceRepo.Object);
     }
+
+    private void SetupPriceSheet(params SpecialtyType[] specialties) =>
+        _mockPriceRepo.Setup(r => r.GetAllWithPricesAsync()).ReturnsAsync(specialties.ToList());
+
+    private static SpecialtyType PricedSpecialty(
+        int id = 5, string abbrev = "FS", string name = "Full Speech",
+        decimal? defaultAmount = null, (int Duration, decimal Amount)[]? rows = null)
+        => new()
+        {
+            Id = id,
+            Abbreviation = abbrev,
+            Name = name,
+            DefaultAmount = defaultAmount,
+            DurationPrices = (rows ?? []).Select(r => new SpecialtyDurationPrice
+            {
+                SpecialtyTypeId = id,
+                DurationMinutes = r.Duration,
+                Amount = r.Amount,
+                EffectiveFrom = new DateOnly(2026, 1, 1),
+            }).ToList(),
+        };
 
     private TreatmentPlan CreateActivePlan(int id = 1, int patientId = 1, int weeks = 2, int frequency = 1)
     {
@@ -123,9 +150,9 @@ public class BulkSchedulingServiceTests
     }
 
     [Fact]
-    public async Task ScheduleAsync_SenadisPatient_FloorsEachLineDiscountAtTwentyPercent()
+    public async Task ScheduleAsync_SenadisPatient_DerivesExactTwentyPercentDiscount()
     {
-        // 60-min line at the 65/h rate → amount 65.00; floor = round(0.20 × 65, 2) = 13.00.
+        // WP-40 (G2): 60-min sheet row → amount 65.00; derived discount = round(0.20 × 65, 2) = 13.00.
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         SetupCommonMocks(plan);
         SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
@@ -138,13 +165,16 @@ public class BulkSchedulingServiceTests
 
         var session = Assert.Single(result.Sessions);
         Assert.Equal(65.00m, session.Amount);
-        Assert.Equal(13.00m, session.DiscountAmount);                       // floored from 0
+        Assert.Equal(13.00m, session.DiscountAmount);                       // derived exactly-20%
         Assert.Equal(Math.Round((65.00m - 13.00m) * 0.40m, 2), Math.Round(session.ProviderAmount, 2)); // fee on net
     }
 
     [Fact]
-    public async Task ScheduleAsync_SenadisPatient_KeepsLargerRequestedDiscount()
+    public async Task ScheduleAsync_LineDiscountOverride_IsIgnored_DiscountIsDerived()
     {
+        // WP-40 (G2/BK-3): booking-time discounts are derived — a client line override (the
+        // pre-WP-40 staff-discretion path) no longer moves the discount; ad-hoc discounts go
+        // through the gated post-booking Sessions.Discount.Edit path instead.
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         SetupCommonMocks(plan);
         SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
@@ -163,7 +193,7 @@ public class BulkSchedulingServiceTests
         var result = await _sut.ScheduleAsync(1, request);
 
         var session = Assert.Single(result.Sessions);
-        Assert.Equal(30m, session.DiscountAmount); // above the 13.00 floor → kept
+        Assert.Equal(13.00m, session.DiscountAmount); // derived exactly-20%; the 30 override is ignored
     }
 
     // ── WP-37 (SEN-1): expiry-aware floor on the bulk path — evaluated PER SESSION DATE (G2),
@@ -258,8 +288,10 @@ public class BulkSchedulingServiceTests
     }
 
     [Fact]
-    public async Task ScheduleAsync_PricingModel_ProRatesAndAppliesDiscount()
+    public async Task ScheduleAsync_PricingModel_UsesPriceSheetRowForLineDuration()
     {
+        // WP-40 (G5): amount comes from the sheet's 45-min row (48.75), NOT an hourly pro-rate;
+        // the line discount override is ignored (derived discount = 0 for non-SENADIS).
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         plan.Lines.First().Duration = 45; // 45 min
         SetupCommonMocks(plan);
@@ -277,10 +309,61 @@ public class BulkSchedulingServiceTests
 
         Assert.Single(result.Sessions);
         var session = result.Sessions[0];
-        Assert.Equal(48.75m, session.Amount); // $65 * 45/60
-        Assert.Equal(10m, session.DiscountAmount);
-        Assert.Equal(15.50m, session.ProviderAmount); // (48.75 - 10) * 0.40 = 15.50
-        Assert.Equal(23.25m, session.GrossProfit); // 38.75 - 15.50
+        Assert.Equal(48.75m, session.Amount);   // 45-min sheet row
+        Assert.Equal(0m, session.DiscountAmount); // override ignored, non-SENADIS ⇒ 0
+        Assert.Equal(19.50m, session.ProviderAmount); // 48.75 * 0.40
+        Assert.Equal(29.25m, session.GrossProfit); // 48.75 - 19.50
+    }
+
+    // ── WP-40 (G1/G4): bulk parity — bookable durations + missing-price conflicts ──
+
+    [Fact]
+    public async Task ScheduleAsync_LineDurationNotBookable_ReportsConflict_NothingPersisted()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        plan.Lines.First().Duration = 50; // ∉ {30,40,45,60,90,120}
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Equal(0, result.SessionsCreated);
+        Assert.Contains(result.Conflicts, c => c.Reason.Contains("not bookable"));
+        _mockSessionRepo.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_MissingPriceAndNoDefault_ReportsConflict_NothingPersisted()
+    {
+        // G4: no 60-min row and no DefaultAmount ⇒ conflict (never books at $0), atomic.
+        SetupPriceSheet(PricedSpecialty(rows: [(30, 25.00m)]));
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Equal(0, result.SessionsCreated);
+        Assert.Contains(result.Conflicts, c => c.Reason.Contains("No price configured"));
+        _mockSessionRepo.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ScheduleAsync_NoDurationRow_FallsBackToDefaultAmount()
+    {
+        // Resolution order parity with the single-session path: row → DefaultAmount → conflict.
+        SetupPriceSheet(PricedSpecialty(defaultAmount: 40.00m, rows: [(30, 25.00m)]));
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var session = Assert.Single(result.Sessions);
+        Assert.Equal(40.00m, session.Amount); // DefaultAmount fallback (no 60-min row)
     }
 
     [Fact]
@@ -389,7 +472,7 @@ public class BulkSchedulingServiceTests
     }
 
     [Fact]
-    public async Task ScheduleAsync_LineOverride_OverridesTherapistAndDiscount()
+    public async Task ScheduleAsync_LineOverride_OverridesTherapist_DiscountStaysDerived()
     {
         var plan = CreateActivePlan(weeks: 1, frequency: 1);
         SetupCommonMocks(plan);
@@ -414,7 +497,7 @@ public class BulkSchedulingServiceTests
 
         Assert.Single(result.Sessions);
         Assert.Equal(20, result.Sessions[0].TherapistId);
-        Assert.Equal(5m, result.Sessions[0].DiscountAmount);
+        Assert.Equal(0m, result.Sessions[0].DiscountAmount);  // WP-40: override ignored — derived (non-SENADIS ⇒ 0)
         Assert.Equal(30m, result.Sessions[0].ProviderAmount); // Flat fee
     }
 

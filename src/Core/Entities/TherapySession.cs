@@ -46,7 +46,9 @@ public class TherapySession : AuditableEntityBase
 
     public decimal AmountDue()
     {
-        return Amount - DiscountAmount - AmountPaid;
+        // WP-40: the on-site trip charge is part of the billed total (statements, payment
+        // allocation, past-due) — but never part of the provider-fee base.
+        return Amount - DiscountAmount - AmountPaid + (OnSiteChargeAmount ?? 0m);
     }
 
     public bool GetPastDue()

@@ -11,8 +11,13 @@ namespace Neurocorp.Api.Core.Services;
 /// </summary>
 public static class SpecialtyPricing
 {
-    /// <summary>Durations the price sheet accepts, API-enforced (no DB CHECK — a future 75-min offering is a value change here, not a migration).</summary>
-    public static readonly IReadOnlyList<int> AllowedDurations = [30, 45, 60, 90, 120];
+    /// <summary>
+    /// Durations the price sheet accepts, API-enforced (no DB CHECK — a future 75-min offering
+    /// is a value change here, not a migration). 40 added by WP-40 (2026-07-27 addendum): the
+    /// 2026 price sheet carries real 40-minute interview services (Ent-TC, Ent-TC-P).
+    /// WP-40 booking validation (SessionMoneyMath.IsBookableDuration) reads this same list.
+    /// </summary>
+    public static readonly IReadOnlyList<int> AllowedDurations = [30, 40, 45, 60, 90, 120];
 
     /// <summary>
     /// The current-effective set as of <paramref name="asOf"/>: per duration, the row with the

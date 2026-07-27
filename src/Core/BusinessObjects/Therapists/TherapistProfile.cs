@@ -24,12 +24,8 @@ public class TherapistProfile : IProfile
     string IProfile.Name => this.TherapistName;
     bool IProfile.IsValid => true;
 
+    // WP-40: delegates to the shared derivation math so this path and BulkSchedulingService
+    // apply the identical fee model (flat when pct is 0, else % of net).
     internal decimal CalculateFee(decimal amount)
-    {
-        if (FeePctPerSession.Equals(0))
-        {            
-            return FeePerSession;  // flat fee!
-        }
-        return amount * FeePctPerSession;  // % of business!
-    }
+        => Services.SessionMoneyMath.ProviderFee(FeePerSession, FeePctPerSession, amount);
 }

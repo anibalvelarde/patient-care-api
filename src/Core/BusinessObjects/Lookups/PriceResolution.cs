@@ -21,3 +21,14 @@ public sealed record PriceResolution(decimal? Amount, AmountSource Source)
 {
     public static readonly PriceResolution None = new(null, AmountSource.None);
 }
+
+/// <summary>WP-40: the contract's camelCase wire form of <see cref="AmountSource"/>.</summary>
+public static class AmountSourceExtensions
+{
+    public static string? ToWireString(this AmountSource source) => source switch
+    {
+        AmountSource.DurationPrice => "durationPrice",
+        AmountSource.DefaultAmount => "defaultAmount",
+        _ => null,
+    };
+}

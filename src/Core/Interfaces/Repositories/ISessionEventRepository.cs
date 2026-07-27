@@ -16,5 +16,8 @@ public interface ISessionEventRepository : IRepository<SessionEvent>
     // WP-35 (SH-3 support): optional date-only inclusive from/to range (SessionDate >= from,
     // <= to), applied in SQL; omitted = unchanged behavior.
     public Task<PagedResult<SessionEvent>> GetByPatientIdAsync(int patientId, int page, int pageSize, bool? isDiscovery = null, string? status = null, DateOnly? from = null, DateOnly? to = null);
-    public Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest);
+    // WP-40: moneyPatch carries the server-derived ProviderAmount/GrossProfit when the edit
+    // changed Amount/Discount; null = leave stored money untouched. The client's providerAmount
+    // is never applied. A null updateRequest.Duration keeps the stored duration.
+    public Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest, SessionMoneyPatch? moneyPatch = null);
 }

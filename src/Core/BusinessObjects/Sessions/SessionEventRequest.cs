@@ -21,4 +21,7 @@ public class SessionEventRequest
     public int AppointmentStatusId { get; set; } = 1; // Default: Proposed
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
+    // WP-40 on-site leg: only valid when the resolved specialty is OfferedOnSite; requires
+    // SiteId (the trip charge is configured per site and snapshotted at booking).
+    public bool IsOnSiteVisit { get; set; }
 }
