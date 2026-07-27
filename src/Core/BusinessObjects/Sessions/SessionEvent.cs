@@ -50,6 +50,15 @@ public class SessionEvent : IHasAudit
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? ProviderAmount { get; set; }
 
+    // WP-40 on-site leg: the Site's trip charge snapshotted at booking; null = in-clinic.
+    // Populated by BOTH SessionEvent mappers (the two-mapper contract). Included in amountDue,
+    // excluded from the provider fee.
+    public decimal? OnSiteChargeAmount { get; set; }
+
+    // WP-40: where the derived Amount came from ("durationPrice" | "defaultAmount") — set on
+    // the create/derivation path only; null on list/read paths (the source is not persisted).
+    public string? AmountSource { get; set; }
+
     // WP-31 (U1): additive audit block for the Session Details ⓘ popover. Populated by BOTH
     // SessionEvent mappers (ExtractSessionEvent + MapToSessionEvent — the two-mapper contract).
     public AuditInfo? Audit { get; set; }

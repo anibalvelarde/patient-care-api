@@ -77,6 +77,20 @@ public class SessionsController : ControllerBase
         {
             throw new ArgumentException($"The update request is not valid for session {id}.");
         }
+
+        // WP-40 (BK-3): CHANGING the Discount Amount on a booked session requires
+        // Sessions.Discount.Edit (AM/MGR + SYSADMIN wildcard) — the interim surface for ad-hoc
+        // discounts. Imperative like the WP-24/WP-37 field gates: only a changed discount trips
+        // it, so FD keeps editing non-money fields; nothing changes on the Forbid path. The
+        // SENADIS floor + recompute live in the handler.
+        var sessionOnFile = await _sessionEventHandler.GetByIdAsync(id);
+        if (sessionOnFile is not null
+            && sessionUpdateRequest.Discount != sessionOnFile.Discount
+            && !User.HasPermission(Permissions.SessionsDiscountEdit))
+        {
+            return Forbid();
+        }
+
         if (!await _sessionEventHandler.UpdateAsync(id, sessionUpdateRequest))
         {
             throw new ArgumentException($"Session {id} could not be updated.");

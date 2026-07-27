@@ -11,7 +11,10 @@ public class SessionEventUpdateRequest
 
     public TimeOnly SessionTime { get; set; }
     public string TherapyType { get; set; } = string.Empty;
-    public int Duration { get; set; }
+    // WP-40: nullable — omitted means "keep the stored duration" (the UI edit surfaces don't
+    // carry the session's duration and used to hardcode 60, silently overwriting it). A
+    // provided value that CHANGES the stored duration is validated against the bookable set.
+    public int? Duration { get; set; }
     public decimal Amount { get; set; }
     public decimal AmountPaid { get; set; }
     public decimal Discount { get; set; }

@@ -199,16 +199,20 @@ public class SessionsControllerTests
     [Fact]
     public async Task Should_Handle_Updating_ExisingSession()
     {
- 
+
         // Arrange
         var existingSession = Mock.Of<SessionEventUpdateRequest>();
         var fakeNewSessionId = DateTime.UtcNow.Millisecond;
         _mockSessionEventHandler
             .Setup(x => x.VerifyRequestAsync(fakeNewSessionId, existingSession))
             .ReturnsAsync(true);
-        _mockSessionEventHandler        
+        // WP-40 (BK-3): the controller reads the session on file to detect a discount change.
+        _mockSessionEventHandler
+            .Setup(x => x.GetByIdAsync(fakeNewSessionId))
+            .ReturnsAsync(new SessionEvent { SessionId = fakeNewSessionId, Discount = 0m });
+        _mockSessionEventHandler
             .Setup(x => x.UpdateAsync(fakeNewSessionId, existingSession))
-            .ReturnsAsync(true);        
+            .ReturnsAsync(true);
 
         // Act
         var result = await _controller.UpdateSession(fakeNewSessionId, existingSession);
@@ -217,5 +221,89 @@ public class SessionsControllerTests
         _mockSessionEventHandler.VerifyAll();
         result.Should()
             .BeOfType<NoContentResult>();
-    }    
+    }
+
+    // ── WP-40 (BK-3): the Sessions.Discount.Edit gate on PUT — a CHANGED discount needs the
+    // claim (AM/MGR + wildcard); unchanged/echoed discounts pass so FD keeps editing
+    // non-money fields. Same imperative pattern as the WP-23/WP-37 patient-field gates. ──
+
+    private void UseCaller(params (string Type, string Value)[] claims)
+    {
+        var identity = new System.Security.Claims.ClaimsIdentity(
+            claims.Select(c => new System.Security.Claims.Claim(c.Type, c.Value)),
+            authenticationType: "TestAuth");
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = new System.Security.Claims.ClaimsPrincipal(identity)
+            }
+        };
+    }
+
+    private SessionEventUpdateRequest SetupSessionOnFile(int id, decimal storedDiscount)
+    {
+        var request = new SessionEventUpdateRequest { Amount = 100m, Discount = storedDiscount };
+        _mockSessionEventHandler.Setup(x => x.VerifyRequestAsync(id, It.IsAny<SessionEventUpdateRequest>())).ReturnsAsync(true);
+        _mockSessionEventHandler.Setup(x => x.GetByIdAsync(id))
+            .ReturnsAsync(new SessionEvent { SessionId = id, Amount = 100m, Discount = storedDiscount });
+        return request;
+    }
+
+    [Fact]
+    public async Task UpdateSession_DiscountChanged_WithoutClaim_ReturnsForbid_AndDoesNotUpdate()
+    {
+        var request = SetupSessionOnFile(7, storedDiscount: 0m);
+        request.Discount = 15m; // change
+        UseCaller((Neurocorp.Api.Core.Authorization.SystemClaims.PermissionClaimType,
+                   Neurocorp.Api.Web.Authorization.Permissions.AppointmentsBook)); // FD-like
+
+        var result = await _controller.UpdateSession(7, request);
+
+        result.Should().BeOfType<ForbidResult>();
+        _mockSessionEventHandler.Verify(x => x.UpdateAsync(It.IsAny<int>(), It.IsAny<SessionEventUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateSession_DiscountChanged_WithClaim_Delegates()
+    {
+        var request = SetupSessionOnFile(7, storedDiscount: 0m);
+        request.Discount = 15m;
+        UseCaller((Neurocorp.Api.Core.Authorization.SystemClaims.PermissionClaimType,
+                   Neurocorp.Api.Web.Authorization.Permissions.SessionsDiscountEdit));
+        _mockSessionEventHandler.Setup(x => x.UpdateAsync(7, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSession(7, request);
+
+        result.Should().BeOfType<NoContentResult>();
+        _mockSessionEventHandler.Verify(x => x.UpdateAsync(7, request), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSession_DiscountChanged_WithWildcard_Delegates()
+    {
+        var request = SetupSessionOnFile(7, storedDiscount: 10m);
+        request.Discount = 0m; // lowering is also a change
+        UseCaller((Neurocorp.Api.Core.Authorization.SystemClaims.SystemClaimType,
+                   Neurocorp.Api.Core.Authorization.SystemClaims.FullAccessValue)); // SYSADMIN
+        _mockSessionEventHandler.Setup(x => x.UpdateAsync(7, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSession(7, request);
+
+        result.Should().BeOfType<NoContentResult>();
+    }
+
+    [Fact]
+    public async Task UpdateSession_DiscountEchoedUnchanged_WithoutClaim_Passes()
+    {
+        var request = SetupSessionOnFile(7, storedDiscount: 20m);
+        request.Discount = 20m; // echo, not a change
+        UseCaller((Neurocorp.Api.Core.Authorization.SystemClaims.PermissionClaimType,
+                   Neurocorp.Api.Web.Authorization.Permissions.AppointmentsBook));
+        _mockSessionEventHandler.Setup(x => x.UpdateAsync(7, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSession(7, request);
+
+        result.Should().BeOfType<NoContentResult>();
+    }
 }

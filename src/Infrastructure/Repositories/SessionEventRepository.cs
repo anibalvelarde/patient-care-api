@@ -70,7 +70,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         var query = _dbContext.TherapySessions
             .Where(ts => (ts.Patient != null) &&
                          (ts.Therapist != null) &&
-                         (ts.Amount - ts.DiscountAmount - ts.AmountPaid) > 0 &&
+                         (ts.Amount - ts.DiscountAmount - ts.AmountPaid + (ts.OnSiteChargeAmount ?? 0m)) > 0 &&
                          ts.SessionDate <= cutoff);
 
         if (patientId.HasValue)
@@ -176,7 +176,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return await Task.FromException<SessionEvent>(new NotImplementedException());
     }
 
-    public async Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest)
+    public async Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest, SessionMoneyPatch? moneyPatch = null)
     {
         // fetch the therapy session
         var therapySessionToUpdate = await _dbContext.TherapySessions
@@ -192,21 +192,30 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             .Include(ts => ts.Site)
             .Include(ts => ts.SpecialtyType)
             .FirstAsync(ts => ts.Id == therapySessionId);
-        therapySessionToUpdate = MapUpdatedTherapySession(updateRequest, therapySessionToUpdate);
+        therapySessionToUpdate = MapUpdatedTherapySession(updateRequest, therapySessionToUpdate, moneyPatch);
         _dbContext.ChangeTracker.DetectChanges();
         await _dbContext.SaveChangesAsync();
         
         return ExtractSessionEvent(therapySessionToUpdate);
     }
 
-    private TherapySession MapUpdatedTherapySession(SessionEventUpdateRequest updateRequest, TherapySession therapySessionToUpdate)
+    private TherapySession MapUpdatedTherapySession(SessionEventUpdateRequest updateRequest, TherapySession therapySessionToUpdate, SessionMoneyPatch? moneyPatch)
     {
-
-        therapySessionToUpdate.Duration = updateRequest.Duration;
+        // WP-40: null Duration = keep stored (the UI edit surfaces don't carry the duration).
+        if (updateRequest.Duration.HasValue)
+        {
+            therapySessionToUpdate.Duration = updateRequest.Duration.Value;
+        }
         therapySessionToUpdate.Amount = updateRequest.Amount;
         therapySessionToUpdate.AmountPaid = updateRequest.AmountPaid;
         therapySessionToUpdate.DiscountAmount = updateRequest.Discount;
-        therapySessionToUpdate.ProviderAmount = updateRequest.ProviderAmount;
+        // WP-40: the client's providerAmount is never applied — ProviderAmount/GrossProfit come
+        // from the server-derived money patch (present iff amount/discount changed).
+        if (moneyPatch is not null)
+        {
+            therapySessionToUpdate.ProviderAmount = moneyPatch.ProviderAmount;
+            therapySessionToUpdate.GrossProfit = moneyPatch.GrossProfit;
+        }
         therapySessionToUpdate.Notes = updateRequest.Notes;
         therapySessionToUpdate.TherapyTypes = updateRequest.TherapyType;
         if (updateRequest.AppointmentStatusId.HasValue)
@@ -273,6 +282,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             CaretakerPhone = caretakerUser?.PhoneNumber,
             CaretakerEmail = caretakerUser?.Email,
             ProviderAmount = ts.ProviderAmount,
+            // WP-40: on-site trip charge snapshot (null = in-clinic).
+            OnSiteChargeAmount = ts.OnSiteChargeAmount,
             // WP-31 (U1): audit from the session's own trio; updater name resolved in the handler.
             // KEEP IN STEP with BookingRepository.MapToSessionEvent (the two-mapper contract).
             Audit = AuditInfo.FromEntity(ts),

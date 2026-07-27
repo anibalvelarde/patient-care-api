@@ -1,9 +1,9 @@
 {
   "_meta": {
-    "generatedAt": "2026-07-19T12:14:28-05:00",
+    "generatedAt": "2026-07-27T14:46:20-05:00",
     "generator": "tools/generate-access-manifest.sh",
     "hashScope": "sha256 (first 12 hex) of canonical JSON {claims:[{claim,grants}]}, claims+grants sorted; wildcard/restricted cells and all metadata excluded",
-    "semanticHash": "57b6150a350c",
+    "semanticHash": "f82cab8c9efd",
     "source": "access-control-matrix.md"
   },
   "claims": [
@@ -314,6 +314,13 @@
         "AM",
         "MGR",
         "OWN"
+      ]
+    },
+    {
+      "claim": "Sessions.Discount.Edit",
+      "grants": [
+        "AM",
+        "MGR"
       ]
     },
     {
