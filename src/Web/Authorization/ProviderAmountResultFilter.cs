@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 namespace Neurocorp.Api.Web.Authorization;
@@ -21,6 +22,12 @@ namespace Neurocorp.Api.Web.Authorization;
 /// patient-context session reads are reachable via <c>Patients.View</c>, which is exactly why ACCT/FD
 /// get redacted rows there rather than a 403. (<c>Dashboard.ProviderAmount</c> is a reserved/future
 /// claim with no endpoint yet; a future dashboard DTO would get its own shaping keyed on that claim.)
+///
+/// WP-35 addendum (owner ruling): the session-history summary money
+/// (<see cref="PatientSessionHistorySummary"/> GrossAmount/DiscountAmount/GrossProfit and the
+/// envelope-level <see cref="SessionHistoryTotals"/>) rides the SAME claim — callers without it
+/// get every count (TotalSessions, Totals.SessionCount, TotalCount) but null ⇒ omitted money,
+/// keyed on the closed <see cref="SessionHistoryPagedResult"/> type-match.
 /// </summary>
 public class ProviderAmountResultFilter : IAsyncResultFilter
 {
@@ -37,12 +44,26 @@ public class ProviderAmountResultFilter : IAsyncResultFilter
     }
 
     private static bool IsSessionEventPayload(object value) =>
-        value is SessionEvent || value is IEnumerable<SessionEvent> || value is PagedResult<SessionEvent>;
+        value is SessionEvent || value is IEnumerable<SessionEvent> || value is PagedResult<SessionEvent>
+        || value is SessionHistoryPagedResult;
 
     private static object Redact(object value)
     {
         switch (value)
         {
+            case SessionHistoryPagedResult history:
+                // WP-35 addendum: null the money on every row AND on the envelope Totals —
+                // WhenWritingNull then omits the fields; counts deliberately survive.
+                foreach (var row in history.Items)
+                {
+                    row.GrossAmount = null;
+                    row.DiscountAmount = null;
+                    row.GrossProfit = null;
+                }
+                history.Totals.GrossAmount = null;
+                history.Totals.DiscountAmount = null;
+                history.Totals.GrossProfit = null;
+                return history;
             case SessionEvent single:
                 single.ProviderAmount = null;
                 return single;

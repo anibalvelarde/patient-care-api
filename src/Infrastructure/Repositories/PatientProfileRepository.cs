@@ -69,7 +69,7 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
     // most-recent-session first. Recency/count come from correlated scalar subqueries — they
     // translate to SQL on every provider (incl. the InMemory test provider), and at this table's
     // scale (~1k patients / ~11k sessions) they're as good as a grouped join.
-    public async Task<PagedResult<PatientSessionHistorySummary>> GetSessionHistoryAsync(string? search, int page, int pageSize)
+    public async Task<SessionHistoryPagedResult> GetSessionHistoryAsync(string? search, int page, int pageSize)
     {
         var patients = _dbContext.Patients.Where(p => p.User != null);
 
@@ -94,11 +94,29 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
                 p.User!.LastName,
                 p.User!.MiddleName,
                 p.MedicalRecordNumber,
+                // WP-35 (SH-1): earliest session of ANY status (owner ruling G1) — no status
+                // filter, consistent with TotalSessions. Same correlated-subquery shape as MAX.
+                FirstSessionDate = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Min(ts => (DateOnly?)ts.SessionDate),
                 LastSessionDate = _dbContext.TherapySessions
                     .Where(ts => ts.PatientId == p.Id)
                     .Max(ts => (DateOnly?)ts.SessionDate),
                 TotalSessions = _dbContext.TherapySessions
                     .Count(ts => ts.PatientId == p.Id),
+                // WP-35 addendum: lifetime SUMs of the STORED money columns (not recomputed),
+                // any status — same population as TotalSessions. The nullable-cast + coalesce
+                // makes the empty set 0 on both providers (SQL SUM yields NULL when empty).
+                // Claim shaping to null/omitted happens later in ProviderAmountResultFilter.
+                GrossAmount = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Sum(ts => (decimal?)ts.Amount) ?? 0m,
+                DiscountAmount = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Sum(ts => (decimal?)ts.DiscountAmount) ?? 0m,
+                GrossProfit = _dbContext.TherapySessions
+                    .Where(ts => ts.PatientId == p.Id)
+                    .Sum(ts => (decimal?)ts.GrossProfit) ?? 0m,
             })
             // MySQL puts NULLs last under ORDER BY ... DESC, matching .NET's comparer — patients
             // who never had a session deliberately sort to the end on both providers.
@@ -115,16 +133,35 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
             PatientId = r.Id,
             PatientName = $"{r.LastName}, {r.FirstName} {r.MiddleName}".Trim(),
             MedicalRecordNumber = r.MedicalRecordNumber,
+            FirstSessionDate = r.FirstSessionDate,
             LastSessionDate = r.LastSessionDate,
             TotalSessions = r.TotalSessions,
+            GrossAmount = r.GrossAmount,
+            DiscountAmount = r.DiscountAmount,
+            GrossProfit = r.GrossProfit,
         }).ToList();
 
-        return new PagedResult<PatientSessionHistorySummary>
+        // WP-35 addendum: envelope Totals over the FULL filtered set (respects `search`, not
+        // the page window) — sessions belonging to any patient in the filtered population.
+        // Plain scalar aggregates (guaranteed SQL translation on both providers, same
+        // precedent as the correlated subqueries above); trivial cost at this table's scale.
+        var sessionsInScope = _dbContext.TherapySessions
+            .Where(ts => patients.Any(p => p.Id == ts.PatientId));
+        var totals = new SessionHistoryTotals
+        {
+            SessionCount = await sessionsInScope.CountAsync(),
+            GrossAmount = await sessionsInScope.SumAsync(ts => (decimal?)ts.Amount) ?? 0m,
+            DiscountAmount = await sessionsInScope.SumAsync(ts => (decimal?)ts.DiscountAmount) ?? 0m,
+            GrossProfit = await sessionsInScope.SumAsync(ts => (decimal?)ts.GrossProfit) ?? 0m,
+        };
+
+        return new SessionHistoryPagedResult
         {
             Items = items,
             Page = page,
             PageSize = pageSize,
-            TotalCount = totalCount
+            TotalCount = totalCount,
+            Totals = totals
         };
     }
 

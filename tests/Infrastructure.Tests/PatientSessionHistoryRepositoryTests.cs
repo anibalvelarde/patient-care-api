@@ -23,14 +23,17 @@ public class PatientSessionHistoryRepositoryTests
     private static Patient NewPatient(int id, string first, string last, string? mrn = null) =>
         new() { Id = id, MedicalRecordNumber = mrn, User = new User { FirstName = first, LastName = last } };
 
-    private static TherapySession NewSession(int id, int patientId, DateOnly date) => new()
+    private static TherapySession NewSession(int id, int patientId, DateOnly date,
+        decimal amount = 100, decimal discount = 0, decimal grossProfit = 0) => new()
     {
         Id = id,
         PatientId = patientId,
         TherapistId = 1,
         SessionDate = date,
         SessionTime = new TimeOnly(9, 0),
-        Amount = 100,
+        Amount = amount,
+        DiscountAmount = discount,
+        GrossProfit = grossProfit,
     };
 
     private static async Task Seed(DbContextOptions<ApplicationDbContext> options)
@@ -47,13 +50,19 @@ public class PatientSessionHistoryRepositoryTests
             NewPatient(2, "Neya", "Bennet", "L25-0034"),
             NewPatient(3, "Luis", "Coronado", "L24-0201"),
             NewPatient(4, "Jane", "Doe", "TEMP-4"));
+        // WP-35 addendum: STORED money columns (Amount / DiscountAmount / GrossProfit) — the
+        // summary must SUM these as stored, not recompute. Expected sums:
+        //   ANDERSON  gross 350 / discount 15 / profit 150
+        //   BENNET    gross  80 / discount 16 / profit  30
+        //   CORONADO  gross 130 / discount  7 / profit  55
+        //   full set  count 6 / gross 560 / discount 38 / profit 235
         context.TherapySessions.AddRange(
-            NewSession(1, 1, new DateOnly(2026, 3, 1)),
-            NewSession(2, 1, new DateOnly(2026, 7, 1)),
-            NewSession(3, 1, new DateOnly(2026, 5, 1)),
-            NewSession(4, 2, new DateOnly(2026, 6, 15)),
-            NewSession(5, 3, new DateOnly(2026, 6, 15)),
-            NewSession(6, 3, new DateOnly(2026, 1, 10)));
+            NewSession(1, 1, new DateOnly(2026, 3, 1), amount: 100, discount: 10, grossProfit: 40),
+            NewSession(2, 1, new DateOnly(2026, 7, 1), amount: 200, discount: 0, grossProfit: 90),
+            NewSession(3, 1, new DateOnly(2026, 5, 1), amount: 50, discount: 5, grossProfit: 20),
+            NewSession(4, 2, new DateOnly(2026, 6, 15), amount: 80, discount: 16, grossProfit: 30),
+            NewSession(5, 3, new DateOnly(2026, 6, 15), amount: 60, discount: 0, grossProfit: 25),
+            NewSession(6, 3, new DateOnly(2026, 1, 10), amount: 70, discount: 7, grossProfit: 30));
         await context.SaveChangesAsync();
     }
 
@@ -82,6 +91,94 @@ public class PatientSessionHistoryRepositoryTests
         var doe = result.Items[3];
         Assert.Null(doe.LastSessionDate);
         Assert.Equal(0, doe.TotalSessions);
+    }
+
+    // WP-35 (SH-1): FirstSessionDate = MIN(SessionDate) of ANY status (owner ruling G1 —
+    // consistent with TotalSessions), null-safe for zero-session patients.
+    [Fact]
+    public async Task Summary_CarriesFirstAndLastSessionDates_NullSafeForZeroSessions()
+    {
+        var options = Options("Wp35Summary_FirstSessionDate");
+        await Seed(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new PatientProfileRepository(context);
+
+        var result = await repository.GetSessionHistoryAsync(search: null, page: 1, pageSize: 30);
+
+        // ANDERSON: 3 sessions — first 2026-03-01, last 2026-07-01.
+        var anderson = result.Items.Single(r => r.PatientId == 1);
+        Assert.Equal(new DateOnly(2026, 3, 1), anderson.FirstSessionDate);
+        Assert.Equal(new DateOnly(2026, 7, 1), anderson.LastSessionDate);
+
+        // BENNET: single session — first == last.
+        var bennet = result.Items.Single(r => r.PatientId == 2);
+        Assert.Equal(new DateOnly(2026, 6, 15), bennet.FirstSessionDate);
+        Assert.Equal(bennet.LastSessionDate, bennet.FirstSessionDate);
+
+        // DOE: zero sessions — both dates null, count 0.
+        var doe = result.Items.Single(r => r.PatientId == 4);
+        Assert.Null(doe.FirstSessionDate);
+        Assert.Null(doe.LastSessionDate);
+        Assert.Equal(0, doe.TotalSessions);
+    }
+
+    // WP-35 addendum: per-row lifetime money sums of the STORED session columns (any status,
+    // same population as TotalSessions); zero-session patients get 0, not null — shaping to
+    // null/omitted is the result filter's job, not the repository's.
+    [Fact]
+    public async Task Summary_SumsStoredMoneyColumns_ZeroesForZeroSessionPatients()
+    {
+        var options = Options("Wp35Summary_MoneySums");
+        await Seed(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new PatientProfileRepository(context);
+
+        var result = await repository.GetSessionHistoryAsync(search: null, page: 1, pageSize: 30);
+
+        var anderson = result.Items.Single(r => r.PatientId == 1);
+        Assert.Equal(350m, anderson.GrossAmount);
+        Assert.Equal(15m, anderson.DiscountAmount);
+        Assert.Equal(150m, anderson.GrossProfit);
+
+        var doe = result.Items.Single(r => r.PatientId == 4);
+        Assert.Equal(0m, doe.GrossAmount);
+        Assert.Equal(0m, doe.DiscountAmount);
+        Assert.Equal(0m, doe.GrossProfit);
+    }
+
+    // WP-35 addendum: envelope Totals aggregate the FULL filtered set — they respect the
+    // search param but NOT the page window.
+    [Fact]
+    public async Task EnvelopeTotals_CoverFullFilteredSet_AndRespectSearch()
+    {
+        var options = Options("Wp35Summary_EnvelopeTotals");
+        await Seed(options);
+
+        using var context = new ApplicationDbContext(options);
+        var repository = new PatientProfileRepository(context);
+
+        // Unfiltered, tiny page: Totals still cover ALL 6 sessions, not the page's patients.
+        var paged = await repository.GetSessionHistoryAsync(search: null, page: 1, pageSize: 1);
+        Assert.Equal(6, paged.Totals.SessionCount);
+        Assert.Equal(560m, paged.Totals.GrossAmount);
+        Assert.Equal(38m, paged.Totals.DiscountAmount);
+        Assert.Equal(235m, paged.Totals.GrossProfit);
+
+        // Search narrows the population: BENNET only.
+        var searched = await repository.GetSessionHistoryAsync("bennet", page: 1, pageSize: 30);
+        Assert.Equal(1, searched.Totals.SessionCount);
+        Assert.Equal(80m, searched.Totals.GrossAmount);
+        Assert.Equal(16m, searched.Totals.DiscountAmount);
+        Assert.Equal(30m, searched.Totals.GrossProfit);
+
+        // No-match search: totals are all zeros, not nulls.
+        var empty = await repository.GetSessionHistoryAsync("zzz-no-such-patient", page: 1, pageSize: 30);
+        Assert.Equal(0, empty.Totals.SessionCount);
+        Assert.Equal(0m, empty.Totals.GrossAmount);
+        Assert.Equal(0m, empty.Totals.DiscountAmount);
+        Assert.Equal(0m, empty.Totals.GrossProfit);
     }
 
     [Fact]
