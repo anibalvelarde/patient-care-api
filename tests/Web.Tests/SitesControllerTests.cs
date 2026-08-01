@@ -122,4 +122,170 @@ public class SitesControllerTests
         // Assert
         Assert.IsType<NotFoundResult>(result);
     }
+
+    // ── WP-42 (G1): noShowFeePct is SYSADMIN-role-gated — a CHANGED value needs the role
+    // (or the god-mode wildcard, which only SYSADMIN holds); omitted/echoed-unchanged passes
+    // any Admin.Sites.Manage holder. Same present-AND-different pattern as the WP-23/WP-40
+    // field gates, but keyed on the ROLE, not a claim (owner ruling: no matrix change). ──
+
+    private void UseCaller(params System.Security.Claims.Claim[] claims)
+    {
+        var identity = new System.Security.Claims.ClaimsIdentity(claims, authenticationType: "TestAuth");
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+            {
+                User = new System.Security.Claims.ClaimsPrincipal(identity)
+            }
+        };
+    }
+
+    private static System.Security.Claims.Claim SysAdminRole()
+        => new(System.Security.Claims.ClaimTypes.Role, Neurocorp.Api.Core.Authorization.SystemClaims.SystemAdminRoleName);
+
+    private static System.Security.Claims.Claim ManagerRole()
+        => new(System.Security.Claims.ClaimTypes.Role, "Manager");
+
+    private static System.Security.Claims.Claim Wildcard()
+        => new(Neurocorp.Api.Core.Authorization.SystemClaims.SystemClaimType,
+               Neurocorp.Api.Core.Authorization.SystemClaims.FullAccessValue);
+
+    private void SetupSiteOnFile(int id, decimal storedPct)
+        => _mockService.Setup(s => s.GetByIdAsync(id))
+            .ReturnsAsync(new SiteProfile { SiteId = id, SiteName = "Main", NoShowFeePct = storedPct });
+
+    [Fact]
+    public async Task UpdateSite_FeeChanged_WithoutSysAdminRole_Forbids_AndDoesNotUpdate()
+    {
+        SetupSiteOnFile(1, storedPct: 30m);
+        UseCaller(ManagerRole());
+        var request = new SiteProfileUpdateRequest { NoShowFeePct = 15m };
+
+        var result = await _controller.UpdateSite(1, request);
+
+        Assert.IsType<ForbidResult>(result);
+        _mockService.Verify(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<SiteProfileUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateSite_FeeChanged_WithSysAdminRole_Updates()
+    {
+        SetupSiteOnFile(1, storedPct: 30m);
+        UseCaller(SysAdminRole());
+        var request = new SiteProfileUpdateRequest { NoShowFeePct = 15m };
+        _mockService.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSite(1, request);
+
+        Assert.IsType<NoContentResult>(result);
+        _mockService.Verify(s => s.UpdateAsync(1, request), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSite_FeeChanged_WithWildcardClaim_Updates()
+    {
+        SetupSiteOnFile(1, storedPct: 30m);
+        UseCaller(Wildcard()); // ('System','FullAccess') — granted only to SYSADMIN
+        var request = new SiteProfileUpdateRequest { NoShowFeePct = 0m }; // waiving the fee is a change too
+        _mockService.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSite(1, request);
+
+        Assert.IsType<NoContentResult>(result);
+    }
+
+    [Fact]
+    public async Task UpdateSite_FeeEchoedUnchanged_WithoutSysAdminRole_Passes()
+    {
+        SetupSiteOnFile(1, storedPct: 12.5m);
+        UseCaller(ManagerRole());
+        var request = new SiteProfileUpdateRequest { SiteName = "Renamed", NoShowFeePct = 12.5m }; // echo
+        _mockService.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSite(1, request);
+
+        Assert.IsType<NoContentResult>(result);
+        _mockService.Verify(s => s.UpdateAsync(1, request), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateSite_FeeOmitted_WithoutSysAdminRole_Passes_WithoutReadingSite()
+    {
+        UseCaller(ManagerRole());
+        var request = new SiteProfileUpdateRequest { SiteName = "Renamed" }; // fee omitted
+        _mockService.Setup(s => s.UpdateAsync(1, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSite(1, request);
+
+        Assert.IsType<NoContentResult>(result);
+        _mockService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateSite_FeeProvided_SiteMissing_ReturnsNotFound()
+    {
+        _mockService.Setup(s => s.GetByIdAsync(99)).ReturnsAsync((SiteProfile?)null);
+        UseCaller(SysAdminRole());
+        var request = new SiteProfileUpdateRequest { NoShowFeePct = 15m };
+
+        var result = await _controller.UpdateSite(99, request);
+
+        Assert.IsType<NotFoundResult>(result);
+        _mockService.Verify(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<SiteProfileUpdateRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateSite_NonDefaultFee_WithoutSysAdminRole_Forbids_AndDoesNotCreate()
+    {
+        UseCaller(ManagerRole());
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1),
+            NoShowFeePct = 50m
+        };
+
+        var result = await _controller.CreateSite(request);
+
+        Assert.IsType<ForbidResult>(result);
+        _mockService.Verify(s => s.CreateAsync(It.IsAny<SiteProfileRequest>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(null)]  // omitted → server default 30
+    [InlineData("30")]  // explicit default — not a privileged value
+    public async Task CreateSite_DefaultFee_WithoutSysAdminRole_Creates(string? pct)
+    {
+        UseCaller(ManagerRole());
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1),
+            NoShowFeePct = pct is null ? null : decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
+        };
+        _mockService.Setup(s => s.CreateAsync(request))
+            .ReturnsAsync(new SiteProfile { SiteId = 5, SiteName = "New Clinic", NoShowFeePct = 30m });
+
+        var result = await _controller.CreateSite(request);
+
+        Assert.IsType<CreatedAtActionResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateSite_NonDefaultFee_WithSysAdminRole_Creates()
+    {
+        UseCaller(SysAdminRole());
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1),
+            NoShowFeePct = 50m
+        };
+        _mockService.Setup(s => s.CreateAsync(request))
+            .ReturnsAsync(new SiteProfile { SiteId = 5, SiteName = "New Clinic", NoShowFeePct = 50m });
+
+        var result = await _controller.CreateSite(request);
+
+        Assert.IsType<CreatedAtActionResult>(result);
+    }
 }

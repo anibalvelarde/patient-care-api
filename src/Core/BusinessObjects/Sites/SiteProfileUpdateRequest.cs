@@ -18,4 +18,10 @@ public class SiteProfileUpdateRequest
     // WP-39 (G4): null/omitted = unchanged; 400 if negative.
     [Range(0, 99999999.99)]
     public decimal? OnSiteTripChargeAmount { get; set; }
+
+    // WP-42 (G1): null/omitted = unchanged; 400 outside 0-100; a CHANGED value requires the
+    // SYSADMIN role (field-gate in SitesController; echoed-unchanged passes any role).
+    // Double-typed bounds on purpose: the int overload truncates decimals (−0.01 would pass).
+    [Range(0.0, 100.0)]
+    public decimal? NoShowFeePct { get; set; }
 }

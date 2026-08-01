@@ -180,4 +180,90 @@ public class SiteProfileValidationTests
 
         Assert.False(HasTripChargeError(Validate(model)));
     }
+
+    // --- WP-42 (G1): NoShowFeePct must be 0-100 (auto-400 via [Range]) ---
+
+    private static bool HasNoShowFeeError(IReadOnlyList<ValidationResult> results)
+    {
+        foreach (var r in results)
+        {
+            foreach (var member in r.MemberNames)
+            {
+                if (member == nameof(SiteProfileRequest.NoShowFeePct)) return true;
+            }
+        }
+        return false;
+    }
+
+    [Theory]
+    [InlineData("0")]      // no fee — valid boundary
+    [InlineData("12.5")]
+    [InlineData("30")]     // the default
+    [InlineData("100")]    // upper boundary — valid
+    public void Request_Accepts_InRangeNoShowFeePct(string pct)
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2026, 1, 1),
+            NoShowFeePct = decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.False(HasNoShowFeeError(Validate(model)));
+    }
+
+    [Fact]
+    public void Request_Accepts_NullNoShowFeePct()
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2026, 1, 1),
+            NoShowFeePct = null
+        };
+
+        Assert.False(HasNoShowFeeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("-0.01")]
+    [InlineData("100.01")]
+    [InlineData("250")]
+    public void Request_Rejects_OutOfRangeNoShowFeePct(string pct)
+    {
+        var model = new SiteProfileRequest
+        {
+            SiteName = "Clinic",
+            InceptionDate = new System.DateTime(2026, 1, 1),
+            NoShowFeePct = decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.True(HasNoShowFeeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("101")]
+    public void UpdateRequest_Rejects_OutOfRangeNoShowFeePct(string pct)
+    {
+        var model = new SiteProfileUpdateRequest
+        {
+            NoShowFeePct = decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.True(HasNoShowFeeError(Validate(model)));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("100")]
+    public void UpdateRequest_Accepts_InRangeNoShowFeePct(string pct)
+    {
+        var model = new SiteProfileUpdateRequest
+        {
+            NoShowFeePct = decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
+        };
+
+        Assert.False(HasNoShowFeeError(Validate(model)));
+    }
 }

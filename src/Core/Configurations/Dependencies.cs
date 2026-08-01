@@ -23,6 +23,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IAccountStatementService, AccountStatementService>();
         services.AddScoped<ITherapistStatementService, TherapistStatementService>();
         services.AddScoped<IBookingService, BookingService>();
+        services.AddScoped<ISessionTransitionMoneyService, SessionTransitionMoneyService>(); // WP-42
         services.AddScoped<ISiteProfileService, SiteProfileService>();
         services.AddScoped<ILookupService, LookupService>();
         services.AddScoped<ISpecialtyPriceService, SpecialtyPriceService>(); // WP-39

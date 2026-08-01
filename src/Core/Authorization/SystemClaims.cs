@@ -20,6 +20,13 @@ public static class SystemClaims
     /// <summary>Conventional claim type for granular permissions.</summary>
     public const string PermissionClaimType = "Permission";
 
+    /// <summary>
+    /// RoleType.RoleName of the privileged SA role (abbreviation SYSADMIN — the bootstrap
+    /// script's canonical name). Used by WP-42's role-gated Site fee edit: the owner's ruling
+    /// gates that field by ROLE, not by claim (no matrix change).
+    /// </summary>
+    public const string SystemAdminRoleName = "SystemAdmin";
+
     /// <summary>Custom JWT claim carrying the authenticated user's SystemUser.UserID.</summary>
     public const string UserIdClaimType = "uid";
 

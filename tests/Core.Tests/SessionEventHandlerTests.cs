@@ -22,6 +22,7 @@ public class SessionEventHandlerTests
     private readonly Mock<IPatientCaretakerRepository> _mockPatientCaretakerRepository;
     private readonly Mock<ISpecialtyPriceService> _mockPriceService;
     private readonly Mock<IRepository<Site>> _mockSiteRepository;
+    private readonly Mock<ISessionTransitionMoneyService> _mockTransitionMoney;
     private readonly SessionEventHandler _sut;
 
     public SessionEventHandlerTests()
@@ -45,6 +46,15 @@ public class SessionEventHandlerTests
         _mockPriceService
             .Setup(s => s.ResolvePriceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly>()))
             .ReturnsAsync(new PriceResolution(100m, AmountSource.DurationPrice));
+        // WP-42 defaults: sessions are NOT covered by payroll and edits are not 3/5 transitions,
+        // so pre-existing tests keep their behavior.
+        _mockTransitionMoney = new Mock<ISessionTransitionMoneyService>();
+        _mockTransitionMoney
+            .Setup(t => t.IsCoveredByServicePaymentAsync(It.IsAny<int>()))
+            .ReturnsAsync(false);
+        _mockTransitionMoney
+            .Setup(t => t.PrepareTransitionAsync(It.IsAny<TherapySession>(), It.IsAny<int>()))
+            .ReturnsAsync((SessionTransitionMoneyPatch?)null);
         _sut = new SessionEventHandler(
             fakeLogger,
             _mockRepository.Object,
@@ -55,7 +65,8 @@ public class SessionEventHandlerTests
             _mockTherapistSpecialtyRepository.Object,
             _mockPatientCaretakerRepository.Object,
             _mockPriceService.Object,
-            _mockSiteRepository.Object);
+            _mockSiteRepository.Object,
+            _mockTransitionMoney.Object);
     }
 
     [Fact]
@@ -862,6 +873,174 @@ public class SessionEventHandlerTests
         var ok = await _sut.UpdateAsync(999, MakeUpdate(amount: 100m, discount: 0m));
 
         Assert.False(ok);
+    }
+
+    // ── WP-42 — UpdateAsync: covered-session lock (G5, BEFORE the WP-40 recompute) and the
+    // generic-PUT leg of the 3/5 transition choke point ──
+
+    private void SetupCovered(bool covered = true)
+        => _mockTransitionMoney.Setup(t => t.IsCoveredByServicePaymentAsync(77)).ReturnsAsync(covered);
+
+    [Fact]
+    public async Task UpdateAsync_CoveredSession_DiscountChange_Blocks_BeforeAnyRecompute()
+    {
+        // The known WP-40 gap this closes: a gated discount edit used to silently recompute
+        // ProviderAmount on an already-paid session. The lock must fire BEFORE the fee math.
+        SessionOnFile(amount: 100m, discount: 0m);
+        SetupCovered();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.UpdateAsync(77, MakeUpdate(amount: 100m, discount: 30m)));
+
+        Assert.Equal(SessionTransitionMoneyService.CoveredSessionMessage, ex.Message);
+        _mockTherapistService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never); // no recompute ran
+        _mockPatientService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);   // not even the floor check
+        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<SessionEventUpdateRequest>(), It.IsAny<SessionMoneyPatch?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CoveredSession_AmountChange_Blocks()
+    {
+        SessionOnFile(amount: 100m, discount: 0m);
+        SetupCovered();
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.UpdateAsync(77, MakeUpdate(amount: 60m, discount: 0m)));
+
+        Assert.Equal(SessionTransitionMoneyService.CoveredSessionMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CoveredSession_TherapistReassignment_Blocks()
+    {
+        SessionOnFile(amount: 100m, discount: 0m);
+        SetupCovered();
+        var request = MakeUpdate(amount: 100m, discount: 0m);
+        request.TherapistId = 2; // stored is 1
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.UpdateAsync(77, request));
+
+        Assert.Equal(SessionTransitionMoneyService.CoveredSessionMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CoveredSession_TherapistEchoedUnchanged_Passes()
+    {
+        SessionOnFile(amount: 100m, discount: 0m);
+        SetupCovered();
+        var request = MakeUpdate(amount: 100m, discount: 0m); // all money echoed
+        request.TherapistId = 1; // echo of the stored therapist
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77, It.IsAny<SessionEventUpdateRequest>(), null), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_CoveredSession_NonMoneyEdit_Passes_WithoutCoverageQuery()
+    {
+        // Echoed-unchanged money + no reassignment: the lock predicate never even queries.
+        SessionOnFile(amount: 100m, discount: 10m);
+        SetupCovered();
+
+        var ok = await _sut.UpdateAsync(77, MakeUpdate(amount: 100m, discount: 10m));
+
+        Assert.True(ok);
+        _mockTransitionMoney.Verify(t => t.IsCoveredByServicePaymentAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChangesTo3_AppliesTransitionPatch_AndBypassesWp40Derivation()
+    {
+        var onFile = SessionOnFile(amount: 100m, discount: 15m, providerAmount: 50m, grossProfit: 35m);
+        onFile.AppointmentStatusId = 2;
+        var marker = "[CANCELLED-ZEROED 2026-07-31: was A:100.00 D:15.00 P:50.00 G:35.00]";
+        _mockTransitionMoney
+            .Setup(t => t.PrepareTransitionAsync(onFile, 3))
+            .ReturnsAsync(new SessionTransitionMoneyPatch(0m, 0m, 0m, 0m, marker));
+        var request = MakeUpdate(amount: 100m, discount: 15m); // echoes — the patch must override
+        request.AppointmentStatusId = 3;
+        request.Notes = "familia canceló";
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u =>
+                u.Amount == 0m && u.Discount == 0m && u.Notes.Contains("familia canceló") && u.Notes.Contains(marker)),
+            It.Is<SessionMoneyPatch>(p => p.ProviderAmount == 0m && p.GrossProfit == 0m)), Times.Once);
+        // WP-42 rule: the zero write must NOT run the WP-40 derivation (no SENADIS floor, no fee).
+        _mockTherapistService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
+        _mockPatientService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChangesTo5_AppliesFeePatch()
+    {
+        var onFile = SessionOnFile(amount: 85m, discount: 0m, providerAmount: 40m, grossProfit: 45m);
+        onFile.AppointmentStatusId = 2;
+        _mockTransitionMoney
+            .Setup(t => t.PrepareTransitionAsync(onFile, 5))
+            .ReturnsAsync(new SessionTransitionMoneyPatch(25.50m, 0m, 0m, 25.50m, "[NOSHOW-FEE 2026-07-31: was A:85.00 D:0.00 P:40.00 G:45.00]"));
+        var request = MakeUpdate(amount: 85m, discount: 0m);
+        request.AppointmentStatusId = 5;
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u => u.Amount == 25.50m && u.Discount == 0m && u.Notes.Contains("[NOSHOW-FEE")),
+            It.Is<SessionMoneyPatch>(p => p.ProviderAmount == 0m && p.GrossProfit == 25.50m)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChangesTo3_GuardThrows_NothingWritten()
+    {
+        var onFile = SessionOnFile(amount: 100m, discount: 0m);
+        onFile.AppointmentStatusId = 2;
+        _mockTransitionMoney
+            .Setup(t => t.PrepareTransitionAsync(onFile, 3))
+            .ThrowsAsync(new ArgumentException(SessionTransitionMoneyService.PaymentsRecordedMessage));
+        var request = MakeUpdate(amount: 100m, discount: 0m);
+        request.AppointmentStatusId = 3;
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.UpdateAsync(77, request));
+
+        Assert.Equal(SessionTransitionMoneyService.PaymentsRecordedMessage, ex.Message);
+        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<SessionEventUpdateRequest>(), It.IsAny<SessionMoneyPatch?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_IdempotentTransition_KeepsStoredMoneyByteIdentical()
+    {
+        // Prepare returns null (already zeroed) — the write must keep stored money, patch-less.
+        var onFile = SessionOnFile(amount: 0m, discount: 0m, providerAmount: 0m, grossProfit: 0m);
+        onFile.AppointmentStatusId = 2;
+        var request = MakeUpdate(amount: 0m, discount: 0m);
+        request.AppointmentStatusId = 3;
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u => u.Amount == 0m && u.Discount == 0m),
+            null), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusReassertedSame3_NotATransition_ChokePointNotCalled()
+    {
+        // Contract: the generic-PUT leg fires only when appointmentStatusId CHANGES to 3/5.
+        var onFile = SessionOnFile(amount: 0m, discount: 0m, providerAmount: 0m, grossProfit: 0m);
+        onFile.AppointmentStatusId = 3;
+        var request = MakeUpdate(amount: 0m, discount: 0m);
+        request.AppointmentStatusId = 3; // echo
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockTransitionMoney.Verify(t => t.PrepareTransitionAsync(It.IsAny<TherapySession>(), It.IsAny<int>()), Times.Never);
     }
 
     [Fact]

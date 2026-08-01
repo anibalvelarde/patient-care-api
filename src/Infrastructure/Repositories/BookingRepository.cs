@@ -50,7 +50,7 @@ public class BookingRepository : IBookingRepository
             .FirstOrDefaultAsync();
     }
 
-    public async Task<SessionEvent> UpdateStatusAsync(int sessionId, int statusId)
+    public async Task<SessionEvent> UpdateStatusAsync(int sessionId, int statusId, SessionTransitionMoneyPatch? moneyPatch = null)
     {
         var session = await _dbContext.TherapySessions
             .Include(ts => ts.Patient).ThenInclude(p => p!.User)
@@ -64,6 +64,22 @@ public class BookingRepository : IBookingRepository
             ?? throw new ArgumentException($"Session {sessionId} not found.");
 
         session.AppointmentStatusId = statusId;
+
+        // WP-42: apply the transition money side-effect (zero-at-cancel / no-show fee) in the
+        // same SaveChanges as the status write, appending the audit marker to Notes.
+        if (moneyPatch is not null)
+        {
+            session.Amount = moneyPatch.Amount;
+            session.DiscountAmount = moneyPatch.DiscountAmount;
+            session.ProviderAmount = moneyPatch.ProviderAmount;
+            session.GrossProfit = moneyPatch.GrossProfit;
+            if (!string.IsNullOrEmpty(moneyPatch.NotesMarker))
+            {
+                session.Notes = string.IsNullOrWhiteSpace(session.Notes)
+                    ? moneyPatch.NotesMarker
+                    : $"{session.Notes}\n{moneyPatch.NotesMarker}";
+            }
+        }
 
         // Reload the navigation property for the new status
         var newStatus = await _dbContext.AppointmentStatuses.FindAsync(statusId)

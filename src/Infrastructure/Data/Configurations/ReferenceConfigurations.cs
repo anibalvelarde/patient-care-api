@@ -21,6 +21,8 @@ public class SiteConfiguration : IEntityTypeConfiguration<Site>
         builder.Property(e => e.Longitude).IsRequired(false);
         // WP-39 (G4): flat on-site trip charge (V030); ≥ 0 API-enforced, default 0.
         builder.Property(e => e.OnSiteTripChargeAmount).HasPrecision(10, 2);
+        // WP-42 (G1): no-show fee pct (V032); 0–100 API-enforced, default 30.00.
+        builder.Property(e => e.NoShowFeePct).HasPrecision(5, 2);
     }
 }
 
