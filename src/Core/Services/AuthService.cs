@@ -18,7 +18,6 @@ public class AuthService : IAuthService
 {
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
-    private const int MinPasswordLength = 8;
     private const string InvalidCredentialsMessage = "Invalid email or password.";
 
     private const int DefaultIdleLogoffMinutes = 60;
@@ -111,9 +110,10 @@ public class AuthService : IAuthService
             return AuthResult.Fail("A new password is required.");
         }
 
-        if (request.NewPassword.Length < MinPasswordLength)
+        // WP-41B: shared policy — the admin temp-password flows enforce the same rule.
+        if (request.NewPassword.Length < PasswordPolicy.MinLength)
         {
-            return AuthResult.Fail($"The new password must be at least {MinPasswordLength} characters long.");
+            return AuthResult.Fail(PasswordPolicy.TooShortMessage("new password"));
         }
 
         var user = await _authRepository.GetByIdAsync(userId);
