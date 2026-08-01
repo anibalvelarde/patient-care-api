@@ -7,7 +7,12 @@ public interface IBookingRepository
 {
     Task<IEnumerable<LookupItem>> GetAllStatusesAsync();
     Task<SessionEvent?> GetSessionEventByIdAsync(int sessionId);
-    Task<SessionEvent> UpdateStatusAsync(int sessionId, int statusId);
+    /// <summary>
+    /// Sets the appointment status; when <paramref name="moneyPatch"/> is supplied (WP-42
+    /// transitions into 3/5), applies the money side-effect and appends its Notes marker in the
+    /// SAME save — the status and money writes are atomic.
+    /// </summary>
+    Task<SessionEvent> UpdateStatusAsync(int sessionId, int statusId, SessionTransitionMoneyPatch? moneyPatch = null);
     Task AppendNotesAsync(int sessionId, string note);
     Task AddConfirmationAsync(int sessionId, ConfirmationRequest request);
     Task<IEnumerable<SessionEvent>> GetByStatusAndDateRangeAsync(int statusId, DateOnly from, DateOnly to);

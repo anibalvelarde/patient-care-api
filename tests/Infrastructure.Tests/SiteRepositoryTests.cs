@@ -118,6 +118,63 @@ public class SiteRepositoryTests
         }
     }
 
+    // --- WP-42 (G1, V032): Site.NoShowFeePct entity-model coverage (like OnSiteTripChargeAmount) ---
+
+    [Fact]
+    public async Task Site_NoShowFeePct_RoundTripsCorrectly()
+    {
+        var options = CreateInMemoryOptions("SiteRepository_NoShowFeePct");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            context.Sites.Add(new Site
+            {
+                SiteName = "Fee Clinic",
+                InceptionDate = new DateTime(2026, 7, 1),
+                NoShowFeePct = 12.50m
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var site = await context.Sites.FirstAsync(s => s.SiteName == "Fee Clinic");
+            Assert.Equal(12.50m, site.NoShowFeePct);
+        }
+    }
+
+    [Fact]
+    public async Task Site_NoShowFeePct_DefaultsTo30()
+    {
+        var options = CreateInMemoryOptions("SiteRepository_NoShowFeePctDefault");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            // NoShowFeePct not set — the entity default mirrors the V032 column default.
+            context.Sites.Add(new Site { SiteName = "Default Clinic", InceptionDate = new DateTime(2026, 7, 1) });
+            await context.SaveChangesAsync();
+        }
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var site = await context.Sites.FirstAsync(s => s.SiteName == "Default Clinic");
+            Assert.Equal(30.00m, site.NoShowFeePct);
+        }
+    }
+
+    [Fact]
+    public void Site_NoShowFeePct_MappedWithPrecision5_2()
+    {
+        var options = CreateInMemoryOptions("SiteRepository_NoShowFeePctPrecision");
+        using var context = new ApplicationDbContext(options);
+
+        var property = context.Model.FindEntityType(typeof(Site))!.FindProperty(nameof(Site.NoShowFeePct));
+
+        Assert.NotNull(property);
+        Assert.Equal(5, property!.GetPrecision());   // decimal(5,2) — V032
+        Assert.Equal(2, property.GetScale());
+    }
+
     [Fact]
     public async Task TherapySession_SiteId_ForeignKey_NavigationWorks()
     {

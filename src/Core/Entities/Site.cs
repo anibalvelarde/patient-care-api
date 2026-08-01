@@ -24,5 +24,12 @@ public class Site : AuditableEntityBase
     /// </summary>
     public decimal OnSiteTripChargeAmount { get; set; }
 
+    /// <summary>
+    /// WP-42 (G1, V032): no-show fee as a percentage of the booked gross Amount, applied by
+    /// the transition choke point when a session moves to NoShow. 0–100 API-enforced
+    /// (0 = no fee); editing a CHANGED value is SYSADMIN-role-gated. Default 30.00 (DB default).
+    /// </summary>
+    public decimal NoShowFeePct { get; set; } = 30.00m;
+
     public ICollection<TherapySession> TherapySessions { get; set; } = [];
 }

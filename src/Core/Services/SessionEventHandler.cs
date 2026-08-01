@@ -23,12 +23,16 @@ public class SessionEventHandler : IHandleSessionEvent
     private readonly IPatientCaretakerRepository _patientCaretakerRepository;
     private readonly ISpecialtyPriceService _priceService;
     private readonly IRepository<Site> _siteRepository;
+    private readonly ISessionTransitionMoneyService _transitionMoney;
     private readonly IUserNameResolver? _userNameResolver;
 
     public SessionEventHandler(ILogger<SessionEventHandler> logger, ISessionEventRepository repo, ITherapySessionRepository therapySessionRepo, ITherapistProfileService therapistSvc, IPatientProfileService patientSvc, IRepository<SpecialtyType> specialtyTypeRepo, ITherapistSpecialtyRepository therapistSpecialtyRepo, IPatientCaretakerRepository patientCaretakerRepo,
         // WP-40 (BK-2): booking money is server-derived — the price service resolves Amount from
         // the WP-39 sheet; the site repository supplies the on-site trip charge to snapshot.
         ISpecialtyPriceService priceService, IRepository<Site> siteRepo,
+        // WP-42: covered-session lock + the 3/5 transition choke point on the generic PUT.
+        // REQUIRED on purpose — an integrity guard must not silently vanish when unwired.
+        ISessionTransitionMoneyService transitionMoney,
         // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
         IUserNameResolver? userNameResolver = null)
     {
@@ -42,6 +46,7 @@ public class SessionEventHandler : IHandleSessionEvent
         _patientCaretakerRepository = patientCaretakerRepo;
         _priceService = priceService;
         _siteRepository = siteRepo;
+        _transitionMoney = transitionMoney;
         _userNameResolver = userNameResolver;
     }
 
@@ -329,12 +334,59 @@ public class SessionEventHandler : IHandleSessionEvent
                 $"Duration {request.Duration.Value} min is not bookable — allowed: {SessionMoneyMath.BookableDurationsDisplay}.");
         }
 
+        // WP-42 (G5): covered-session lock — while non-reversed payroll allocations exist,
+        // amount/discount changes AND therapist reassignment are hard-blocked. This runs
+        // BEFORE the WP-40 recompute below, closing the known gap where a gated discount edit
+        // silently changed ProviderAmount on an already-paid session. Echoed-unchanged values
+        // pass; non-money edits stay allowed.
+        var amountChanged = request.Amount != onFile.Amount;
+        var discountChanged = request.Discount != onFile.DiscountAmount;
+        var therapistChanged = request.TherapistId.HasValue && request.TherapistId.Value != onFile.TherapistId;
+        if ((amountChanged || discountChanged || therapistChanged)
+            && await _transitionMoney.IsCoveredByServicePaymentAsync(sessionEventId))
+        {
+            throw new ArgumentException(SessionTransitionMoneyService.CoveredSessionMessage);
+        }
+
+        // WP-42: the generic-PUT leg of the money-at-transition choke point — an
+        // appointmentStatusId that CHANGES to Cancelled (3) / NoShow (5) applies the same
+        // guards + money side-effects as the dedicated endpoints. The patch values override
+        // whatever money the client sent, and deliberately BYPASS the WP-40 derivation below
+        // (no SENADIS floor, no fee recompute on the zero/fee write itself).
+        var transitionsToMoneyStatus = request.AppointmentStatusId.HasValue
+            && (request.AppointmentStatusId.Value == SessionTransitionMoneyService.CancelledStatusId
+                || request.AppointmentStatusId.Value == SessionTransitionMoneyService.NoShowStatusId)
+            && request.AppointmentStatusId.Value != onFile.AppointmentStatusId;
+
+        SessionMoneyPatch? moneyPatch = null;
+        if (transitionsToMoneyStatus)
+        {
+            var patch = await _transitionMoney.PrepareTransitionAsync(onFile, request.AppointmentStatusId!.Value);
+            if (patch is not null)
+            {
+                request.Amount = patch.Amount;
+                request.Discount = patch.DiscountAmount;
+                moneyPatch = new SessionMoneyPatch(patch.ProviderAmount, patch.GrossProfit);
+                if (!string.IsNullOrEmpty(patch.NotesMarker))
+                {
+                    request.Notes = string.IsNullOrWhiteSpace(request.Notes)
+                        ? patch.NotesMarker
+                        : $"{request.Notes}\n{patch.NotesMarker}";
+                }
+            }
+            else
+            {
+                // Idempotent transition (already zeroed / fee already applied): status-only —
+                // stored money stays byte-identical.
+                request.Amount = onFile.Amount;
+                request.Discount = onFile.DiscountAmount;
+            }
+        }
         // WP-40 (BK-3): when the edit changes Amount or Discount, validate the FINAL pair and
         // re-derive ProviderAmount/GrossProfit through the shared math (never a stale fee after
         // a discount change). The Sessions.Discount.Edit claim gate lives in SessionsController.
         // When neither changes, stored money stays byte-identical (WP-29 discipline).
-        SessionMoneyPatch? moneyPatch = null;
-        if (request.Amount != onFile.Amount || request.Discount != onFile.DiscountAmount)
+        else if (amountChanged || discountChanged)
         {
             var patient = await _patientService.GetByIdAsync(onFile.PatientId);
             if (patient?.HasActiveSenadisDiscount(onFile.SessionDate) == true)

@@ -25,4 +25,10 @@ public class SiteProfileRequest
     // WP-39 (G4): optional on create; defaults to 0 (no charge) when omitted. 400 if negative.
     [Range(0, 99999999.99)]
     public decimal? OnSiteTripChargeAmount { get; set; }
+
+    // WP-42 (G1): optional on create; defaults to 30 when omitted. 400 outside 0-100; a
+    // NON-DEFAULT value additionally requires the SYSADMIN role (gate in SitesController).
+    // Double-typed bounds on purpose: the int overload truncates decimals (−0.01 would pass).
+    [Range(0.0, 100.0)]
+    public decimal? NoShowFeePct { get; set; }
 }

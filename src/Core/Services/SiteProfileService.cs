@@ -60,6 +60,7 @@ public class SiteProfileService : ISiteProfileService
         if (request.Longitude.HasValue) site.Longitude = request.Longitude.Value;
         if (request.IdleLogoffMinutes.HasValue) site.IdleLogoffMinutes = request.IdleLogoffMinutes.Value;
         if (request.OnSiteTripChargeAmount.HasValue) site.OnSiteTripChargeAmount = request.OnSiteTripChargeAmount.Value;
+        if (request.NoShowFeePct.HasValue) site.NoShowFeePct = request.NoShowFeePct.Value;
 
         await _repository.UpdateAsync(site);
         return true;
@@ -78,6 +79,7 @@ public class SiteProfileService : ISiteProfileService
             Longitude = site.Longitude,
             IdleLogoffMinutes = site.IdleLogoffMinutes,
             OnSiteTripChargeAmount = site.OnSiteTripChargeAmount,
+            NoShowFeePct = site.NoShowFeePct,
         };
     }
 
@@ -95,6 +97,8 @@ public class SiteProfileService : ISiteProfileService
             IdleLogoffMinutes = request.IdleLogoffMinutes ?? 60,
             // WP-39 (G4): optional on create; the DB default is also 0 (V030).
             OnSiteTripChargeAmount = request.OnSiteTripChargeAmount ?? 0m,
+            // WP-42 (G1): optional on create; the DB default is also 30.00 (V032).
+            NoShowFeePct = request.NoShowFeePct ?? 30.00m,
         };
     }
 }

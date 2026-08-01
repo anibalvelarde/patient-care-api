@@ -396,6 +396,123 @@ public class SiteProfileServiceTests
         Assert.Equal(0m, existingSite.OnSiteTripChargeAmount);
     }
 
+    // --- WP-42 (G1): no-show fee pct (same threading pattern as the two fields above) ---
+
+    [Fact]
+    public async Task GetByIdAsync_MapsNoShowFeePct()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var site = new Site { Id = testId, SiteName = "Main Clinic", NoShowFeePct = 12.50m };
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(site);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.GetByIdAsync(testId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(12.50m, result!.NoShowFeePct);
+    }
+
+    [Fact]
+    public async Task CreateAsync_DefaultsNoShowFeePct_To30_WhenOmitted()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1)
+            // NoShowFeePct omitted (null)
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(30.00m, captured!.NoShowFeePct);
+        Assert.Equal(30.00m, result.NoShowFeePct);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UsesProvidedNoShowFeePct()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1),
+            NoShowFeePct = 0m // 0 = no fee (legal)
+        };
+        Site? captured = null;
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.AddAsync(It.IsAny<Site>()))
+            .Callback<Site>(s => captured = s)
+            .ReturnsAsync((Site s) => s);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.CreateAsync(request);
+
+        // Assert
+        Assert.NotNull(captured);
+        Assert.Equal(0m, captured!.NoShowFeePct);
+        Assert.Equal(0m, result.NoShowFeePct);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_SetsNoShowFeePct_WhenProvided()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", NoShowFeePct = 30m };
+        var updateRequest = new SiteProfileUpdateRequest { NoShowFeePct = 12.50m };
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(12.50m, existingSite.NoShowFeePct);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_LeavesNoShowFeePct_WhenNull()
+    {
+        // Arrange
+        var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
+        int testId = 1;
+        var existingSite = new Site { Id = testId, SiteName = "Clinic", NoShowFeePct = 45.25m };
+        var updateRequest = new SiteProfileUpdateRequest { SiteName = "Renamed" };  // fee omitted
+        var _mockRepository = new Mock<ISiteRepository>(MockBehavior.Strict);
+        _mockRepository.Setup(repo => repo.GetByIdAsync(testId)).ReturnsAsync(existingSite);
+        _mockRepository.Setup(repo => repo.UpdateAsync(It.IsAny<Site>())).Returns(Task.CompletedTask);
+        var svc = new SiteProfileService(fakeLogger, _mockRepository.Object);
+
+        // Act
+        var result = await svc.UpdateAsync(testId, updateRequest);
+
+        // Assert
+        Assert.True(result);
+        Assert.Equal(45.25m, existingSite.NoShowFeePct);
+    }
+
     [Fact]
     public async Task UpdateAsync_LeavesOnSiteTripChargeAmount_WhenNull()
     {
