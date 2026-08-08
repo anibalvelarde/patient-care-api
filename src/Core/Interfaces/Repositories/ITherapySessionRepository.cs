@@ -22,4 +22,15 @@ public interface ITherapySessionRepository : IRepository<TherapySession>
     Task AddRangeAsync(IEnumerable<TherapySession> sessions);
     Task<bool> HasSessionsForPlanAsync(int treatmentPlanId);
     Task<IReadOnlyList<TherapySession>> GetBySiteAndDateRangeAsync(int siteId, DateOnly from, DateOnly to);
+
+    /// <summary>
+    /// WP-49 (BR3): sessions eligible for the late chargeback as of <paramref name="asOf"/> —
+    /// never charged (the LateFeeAppliedOn latch is null), still carrying an unpaid balance,
+    /// at least <c>graceDays + 1</c> days old, and not Cancelled. Includes patient/caretaker
+    /// so the preview can name who owes the money.
+    /// </summary>
+    Task<IReadOnlyList<TherapySession>> GetLateFeeEligibleAsync(DateOnly asOf, int graceDays);
+
+    /// <summary>WP-49: load specific sessions with patient/caretaker, for the batch write path.</summary>
+    Task<IReadOnlyList<TherapySession>> GetByIdsWithPartiesAsync(IReadOnlyCollection<int> sessionIds);
 }

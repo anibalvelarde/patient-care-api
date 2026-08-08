@@ -269,7 +269,10 @@ public class PatientsController : ControllerBase
         {
             // WP-29: scoped fetch — the patient filter runs in SQL, not over the full table.
             var patientPastDueSessions = await _sessionEventHandler.GetPastDueByPatientAsync(patientId);
-            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.Amount - s.Discount);
+            // WP-49: was a hand-copied `Amount − Discount`, which dropped the on-site trip
+            // charge (live bug) and would have dropped the late fee. TotalCharges() is the
+            // shared definition — see SessionEvent.
+            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.TotalCharges());
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
             _logger.LogInformation(
                 "Patient [{patientName}] has {Count} sessions that are past-due. PastDue:{d} PaidSoFar:{d} ",

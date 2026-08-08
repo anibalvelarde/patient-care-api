@@ -97,8 +97,8 @@ public class SiteProfileService : ISiteProfileService
             IdleLogoffMinutes = request.IdleLogoffMinutes ?? 60,
             // WP-39 (G4): optional on create; the DB default is also 0 (V030).
             OnSiteTripChargeAmount = request.OnSiteTripChargeAmount ?? 0m,
-            // WP-42 (G1): optional on create; the DB default is also 30.00 (V032).
-            NoShowFeePct = request.NoShowFeePct ?? 30.00m,
+            // WP-42 (G1): optional on create; the DB default matches (V032, raised by V033).
+            NoShowFeePct = request.NoShowFeePct ?? SiteDefaults.NoShowFeePct,
         };
     }
 }

@@ -44,10 +44,20 @@ public static class SessionMoneyMath
 
     /// <summary>
     /// Gross profit: net − fee, plus the on-site trip charge (WP-39 G4 ruling: the trip charge
-    /// is clinic revenue — never part of the provider-fee base).
+    /// is clinic revenue — never part of the provider-fee base) and the WP-49 late chargeback
+    /// (BR3/D2 — likewise 100% clinic revenue; the therapist is not paid for a payment delay).
+    ///
+    /// ⚠️ <paramref name="lateFee"/> has no default ON PURPOSE. Every caller must state what it
+    /// means to do with a late fee. The trap this guards against is specific and was verified
+    /// against live code: the recompute path in <c>SessionEventHandler</c> re-derives
+    /// GrossProfit whenever a discount is edited, so a forgotten argument there would keep the
+    /// fee in <c>AmountDue()</c> but silently drop it from GrossProfit — correct on the day the
+    /// fee is applied, wrong the moment anyone later touches the discount, with no error and no
+    /// failing test. An optional parameter would let a future caller reintroduce that by
+    /// omission; a required one makes the compiler ask.
     /// </summary>
-    public static decimal GrossProfit(decimal netAmount, decimal providerFee, decimal? onSiteCharge)
-        => netAmount - providerFee + (onSiteCharge ?? 0m);
+    public static decimal GrossProfit(decimal netAmount, decimal providerFee, decimal? onSiteCharge, decimal? lateFee)
+        => netAmount - providerFee + (onSiteCharge ?? 0m) + (lateFee ?? 0m);
 
     /// <summary>G4 block message — contract copy, the UI surfaces it verbatim.</summary>
     public static string MissingPriceMessage(string specialtyName, int durationMinutes)

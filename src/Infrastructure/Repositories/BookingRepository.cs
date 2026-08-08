@@ -217,6 +217,11 @@ public class BookingRepository : IBookingRepository
             CaretakerEmail = caretakerUser?.Email,
             // WP-40: on-site trip charge snapshot (null = in-clinic).
             OnSiteChargeAmount = ts.OnSiteChargeAmount,
+            // WP-49 (BR3/BR4): fee state — CarriesFee drives the discount-edit loophole guard.
+            LateFeeAmount = ts.LateFeeAmount,
+            LateFeeAppliedOn = ts.LateFeeAppliedOn,
+            FeeWaivedOn = ts.FeeWaivedOn,
+            CarriesFee = ts.CarriesFee(),
             // WP-31 (U1): audit from the session's own trio; updater name resolved in the handler.
             // KEEP IN STEP with SessionEventRepository.ExtractSessionEvent (the two-mapper contract).
             Audit = AuditInfo.FromEntity(ts),

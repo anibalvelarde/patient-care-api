@@ -237,7 +237,9 @@ public class BulkSchedulingService : IBulkSchedulingService
                 var providerAmount = therapistMap.TryGetValue(assignedTherapistId.Value, out var feeTherapist)
                     ? Math.Round(SessionMoneyMath.ProviderFee(feeTherapist.FeePerSession, feeTherapist.FeePctPerSession, netAmount), 2)
                     : 0m;
-                var grossProfit = SessionMoneyMath.GrossProfit(netAmount, providerAmount, onSiteCharge: null);
+                // WP-49: both null because this is a CREATE path — a session being scheduled
+                // carries neither an on-site charge nor a late chargeback yet.
+                var grossProfit = SessionMoneyMath.GrossProfit(netAmount, providerAmount, onSiteCharge: null, lateFee: null);
 
                 var session = new TherapySession
                 {

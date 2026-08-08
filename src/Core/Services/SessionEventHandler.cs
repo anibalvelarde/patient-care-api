@@ -304,6 +304,13 @@ public class SessionEventHandler : IHandleSessionEvent
             SpecialtyName = specialty?.Name,
             IsDiscovery = specialty?.IsDiscovery,
             OnSiteChargeAmount = newTherapySession.OnSiteChargeAmount,
+            // WP-49: a freshly created session never carries a fee, but state these explicitly
+            // rather than leaning on defaults — this is the third of three mappers that must
+            // stay in step, and "it happened to be false" is not the same as "it is false".
+            LateFeeAmount = newTherapySession.LateFeeAmount,
+            LateFeeAppliedOn = newTherapySession.LateFeeAppliedOn,
+            FeeWaivedOn = newTherapySession.FeeWaivedOn,
+            CarriesFee = newTherapySession.CarriesFee(),
             AmountSource = price.Source.ToWireString(),
         };
     }
@@ -409,7 +416,13 @@ public class SessionEventHandler : IHandleSessionEvent
                 ?? throw new ArgumentException($"Therapist {therapistId} not found.");
             var net = request.Amount - request.Discount;
             var fee = tProfile.CalculateFee(net);
-            moneyPatch = new SessionMoneyPatch(fee, SessionMoneyMath.GrossProfit(net, fee, onFile.OnSiteChargeAmount));
+            // WP-49 Finding 1 — the highest-risk line in the WP. This recompute fires on EVERY
+            // discount edit, long after a late fee was applied. Passing onFile.LateFeeAmount
+            // keeps the fee in GrossProfit; dropping it would leave the fee collectible in
+            // AmountDue() while it silently vanished from clinic P&L, correct on day one and
+            // wrong forever after, with nothing to signal the divergence.
+            moneyPatch = new SessionMoneyPatch(fee,
+                SessionMoneyMath.GrossProfit(net, fee, onFile.OnSiteChargeAmount, onFile.LateFeeAmount));
         }
 
         await _repository.UpdateAsync(sessionEventId, request, moneyPatch);
@@ -440,7 +453,9 @@ public class SessionEventHandler : IHandleSessionEvent
         // and added to gross profit.
         var netAmount = amount - discount;
         var calcProviderAmt = tProfile.CalculateFee(netAmount);
-        var calcGrossProfit = SessionMoneyMath.GrossProfit(netAmount, calcProviderAmt, onSiteCharge);
+        // WP-49: lateFee is null because this is the CREATE path — a session being booked
+        // cannot already carry a late chargeback. Stated explicitly rather than defaulted.
+        var calcGrossProfit = SessionMoneyMath.GrossProfit(netAmount, calcProviderAmt, onSiteCharge, lateFee: null);
         return new TherapySession()
         {
             PatientId = pProfile.PatientId,

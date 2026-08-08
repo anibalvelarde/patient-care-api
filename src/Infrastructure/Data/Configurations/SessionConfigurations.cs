@@ -34,6 +34,9 @@ public class TherapySessionConfiguration : IEntityTypeConfiguration<TherapySessi
         builder.Property(e => e.TreatmentPlanLineId).HasColumnName("TreatmentPlanLineID");
         // WP-39 (G4): mapped so the model matches V030; INERT until WP-40 (no DTO/mapper reads it).
         builder.Property(e => e.OnSiteChargeAmount).HasPrecision(10, 2);
+        // WP-49 (BR3/BR4, V034). LateFeeAppliedOn / FeeWaivedOn are DateOnly → MySQL `date`,
+        // which Pomelo maps by convention; only the money column needs an explicit precision.
+        builder.Property(e => e.LateFeeAmount).HasPrecision(10, 2);
     }
 }
 

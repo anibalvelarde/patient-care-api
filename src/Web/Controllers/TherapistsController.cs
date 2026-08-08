@@ -123,7 +123,9 @@ public class TherapistsController : ControllerBase
         {
             // WP-29: scoped fetch — the therapist filter runs in SQL, not over the full table.
             var patientPastDueSessions = await _sessionEventHandler.GetPastDueByTherapistAsync(therapistId);
-            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.Amount - s.Discount);
+            // WP-49: see the matching note in PatientsController — shared TotalCharges()
+            // instead of a hand-copied `Amount − Discount` that dropped the on-site charge.
+            var totalPastDueAmount = patientPastDueSessions.Sum(s => s.TotalCharges());
             var totalPaidSoFar = patientPastDueSessions.Sum(s => s.AmountPaid);
             _logger.LogInformation(
                 "Therapist [{name}] has {Count} sessions where their customers are past-due. PastDue:{d} PaidSoFar:{d} ",

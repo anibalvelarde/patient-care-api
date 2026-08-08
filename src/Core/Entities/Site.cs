@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Services;
+
 namespace Neurocorp.Api.Core.Entities;
 
 public class Site : AuditableEntityBase
@@ -27,9 +29,10 @@ public class Site : AuditableEntityBase
     /// <summary>
     /// WP-42 (G1, V032): no-show fee as a percentage of the booked gross Amount, applied by
     /// the transition choke point when a session moves to NoShow. 0–100 API-enforced
-    /// (0 = no fee); editing a CHANGED value is SYSADMIN-role-gated. Default 30.00 (DB default).
+    /// (0 = no fee); editing a CHANGED value is SYSADMIN-role-gated.
+    /// Default raised 30 → 100 by WP-49/BR1 (V033) — see <see cref="SiteDefaults.NoShowFeePct"/>.
     /// </summary>
-    public decimal NoShowFeePct { get; set; } = 30.00m;
+    public decimal NoShowFeePct { get; set; } = SiteDefaults.NoShowFeePct;
 
     public ICollection<TherapySession> TherapySessions { get; set; } = [];
 }

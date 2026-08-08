@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Sites;
 using Neurocorp.Api.Core.Interfaces.Services;
+using Neurocorp.Api.Core.Services;
 using Neurocorp.Api.Web.Authorization;
 
 namespace Neurocorp.Api.Web.Controllers;
@@ -53,9 +54,11 @@ public class SitesController : ControllerBase
     {
         // WP-42 (G1): the no-show fee pct is SYSADMIN-gated by ROLE (owner ruling 2026-07-31 —
         // no claim, no matrix change). On create, a value differing from the platform default
-        // (30) needs the role; omitted/default passes any Admin.Sites.Manage holder.
+        // needs the role; omitted/default passes any Admin.Sites.Manage holder. The pivot
+        // tracks SiteDefaults.NoShowFeePct, so WP-49/BR1 moving it to 100 automatically makes
+        // 100 the unprivileged value and 30 a privileged one.
         if (createRequest.NoShowFeePct.HasValue
-            && createRequest.NoShowFeePct.Value != 30.00m
+            && createRequest.NoShowFeePct.Value != SiteDefaults.NoShowFeePct
             && !User.IsSystemAdmin())
         {
             return Forbid();

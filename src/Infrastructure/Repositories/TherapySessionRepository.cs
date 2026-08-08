@@ -186,4 +186,42 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ThenBy(s => s.SessionTime)
             .ToListAsync();
     }
+
+    // WP-49 (BR3). The predicate runs in SQL over ~11k rows and is deliberately UNINDEXED —
+    // the existing 35-day past-due predicate scans the same table the same way, and indexing
+    // one without the other would imply a performance story that isn't true.
+    //
+    // ⚠️ This mirrors SessionFeeService's write-time eligibility check. The two must agree, or
+    // the preview shows rows the batch then refuses to charge. Keep them in step.
+    public async Task<IReadOnlyList<TherapySession>> GetLateFeeEligibleAsync(DateOnly asOf, int graceDays)
+    {
+        // Eligible on the day AFTER the grace period expires: 6 grace days ⇒ charged on day 7.
+        var cutoff = asOf.AddDays(-(graceDays + 1));
+
+        return await _dbContext.TherapySessions
+            .Include(s => s.Patient).ThenInclude(p => p!.User)
+            .Include(s => s.Patient).ThenInclude(p => p!.Caretakers).ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
+            .Where(s => s.LateFeeAppliedOn == null                       // the anti-compounding latch
+                && (s.Amount - s.DiscountAmount - s.AmountPaid + (s.OnSiteChargeAmount ?? 0m)) > 0
+                && s.SessionDate <= cutoff
+                && s.AppointmentStatusId != 3)                           // Cancelled is not billable
+                                                                         // NoShow (5) IS eligible — an unpaid
+                                                                         // no-show fee can itself go late.
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<TherapySession>> GetByIdsWithPartiesAsync(IReadOnlyCollection<int> sessionIds)
+    {
+        if (sessionIds.Count == 0) return [];
+
+        return await _dbContext.TherapySessions
+            .Include(s => s.Patient).ThenInclude(p => p!.User)
+            .Include(s => s.Patient).ThenInclude(p => p!.Caretakers).ThenInclude(pc => pc.Caretaker).ThenInclude(c => c!.User)
+            .Where(s => sessionIds.Contains(s.Id))
+            .OrderBy(s => s.SessionDate)
+            .ThenBy(s => s.SessionTime)
+            .ToListAsync();
+    }
 }

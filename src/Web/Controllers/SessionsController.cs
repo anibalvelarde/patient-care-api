@@ -84,9 +84,25 @@ public class SessionsController : ControllerBase
         // it, so FD keeps editing non-money fields; nothing changes on the Forbid path. The
         // SENADIS floor + recompute live in the handler.
         var sessionOnFile = await _sessionEventHandler.GetByIdAsync(id);
-        if (sessionOnFile is not null
-            && sessionUpdateRequest.Discount != sessionOnFile.Discount
-            && !User.HasPermission(Permissions.SessionsDiscountEdit))
+        var discountChanged = sessionOnFile is not null
+            && sessionUpdateRequest.Discount != sessionOnFile.Discount;
+
+        if (discountChanged && !User.HasPermission(Permissions.SessionsDiscountEdit))
+        {
+            return Forbid();
+        }
+
+        // WP-49 (ruling 4) — close the AM loophole. On a session that CARRIES A FEE, changing
+        // the discount additionally requires Sessions.Fee.Manage. Without this, an AM holding
+        // only Sessions.Discount.Edit could erase a manager's fee by setting discount = amount,
+        // and BR4's manager-only waiver would be decoration: the same money would move, just
+        // without a reason, an audit marker, or a waiver record.
+        //
+        // Ordinary discount editing on fee-free sessions is untouched — AM keeps it everywhere
+        // else.
+        if (discountChanged
+            && sessionOnFile!.CarriesFee
+            && !User.HasPermission(Permissions.SessionsFeeManage))
         {
             return Forbid();
         }

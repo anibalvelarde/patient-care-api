@@ -32,8 +32,11 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     public const int CancelledStatusId = 3;
     public const int NoShowStatusId = 5;
 
-    /// <summary>Default fee pct when the session has no Site on file — mirrors the V032 column default.</summary>
-    public const decimal DefaultNoShowFeePct = 30.00m;
+    /// <summary>
+    /// Default fee pct when the session has no Site on file — mirrors the DB column default
+    /// (V032, raised 30 → 100 by V033/WP-49). The name is kept because tests reference it.
+    /// </summary>
+    public const decimal DefaultNoShowFeePct = SiteDefaults.NoShowFeePct;
 
     /// <summary>Wire-exact 400 message for the AmountPaid guard (contract copy — the UI matches on it).</summary>
     public const string PaymentsRecordedMessage =
@@ -89,15 +92,29 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
 
     private static SessionTransitionMoneyPatch? PrepareCancel(TherapySession session)
     {
+        // WP-49: a late fee SURVIVES cancellation, and GrossProfit must keep it.
+        //
+        // Cancelling zeroes the service money (BR2 — a cancelled session is not billed), but
+        // the BR3 chargeback penalises late PAYMENT, not the service, so voiding the session
+        // does not void a penalty already levied. Removing it is a deliberate, claim-gated
+        // waive. If cancel silently cleared the fee, any Appointments.Book holder (FD
+        // included) could erase a manager's charge by cancelling — exactly the loophole
+        // ruling 4 closes on the discount side.
+        //
+        // GrossProfit therefore lands on the retained fee rather than 0. Zeroing it would
+        // leave the fee collectible in AmountDue but absent from P&L — Finding 1's trap
+        // wearing a different hat.
+        var lateFee = session.LateFeeAmount ?? 0m;
+
         // Idempotent: an already-zero session (12338 pattern, or a re-cancel) transitions
         // status-only — no re-stamp, no duplicate marker.
         if (session.Amount == 0m && session.DiscountAmount == 0m
-            && session.ProviderAmount == 0m && session.GrossProfit == 0m)
+            && session.ProviderAmount == 0m && session.GrossProfit == lateFee)
         {
             return null;
         }
 
-        return new SessionTransitionMoneyPatch(0m, 0m, 0m, 0m,
+        return new SessionTransitionMoneyPatch(0m, 0m, 0m, lateFee,
             BuildMarker(CancelledMarkerPrefix, session));
     }
 
@@ -113,14 +130,20 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         var pct = await ResolveNoShowFeePctAsync(session);
         var fee = NoShowFee(pct, session.Amount);
 
+        // WP-49: an existing late fee survives the transition and stays in GrossProfit. The
+        // no-show fee lands in Amount; the late fee lives in its own column and is added on
+        // top, so the two never overwrite each other. (A session CAN carry both — an unpaid
+        // no-show fee can itself go late, which is why waive takes a fee-kind.)
+        var lateFee = session.LateFeeAmount ?? 0m;
+
         // Idempotent: nothing would change (e.g. an all-zero cancelled row no-showed at pct 0).
         if (session.Amount == fee && session.DiscountAmount == 0m
-            && session.ProviderAmount == 0m && session.GrossProfit == fee)
+            && session.ProviderAmount == 0m && session.GrossProfit == fee + lateFee)
         {
             return null;
         }
 
-        return new SessionTransitionMoneyPatch(fee, 0m, 0m, fee,
+        return new SessionTransitionMoneyPatch(fee, 0m, 0m, fee + lateFee,
             BuildMarker(NoShowMarkerPrefix, session));
     }
 
@@ -147,24 +170,8 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         => string.Create(CultureInfo.InvariantCulture,
             $"{prefix} {PanamaToday():yyyy-MM-dd}: was A:{session.Amount:0.00} D:{session.DiscountAmount:0.00} P:{session.ProviderAmount:0.00} G:{session.GrossProfit:0.00}]");
 
-    private static DateOnly PanamaToday()
-        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, PanamaTimeZone));
-
-    private static readonly TimeZoneInfo PanamaTimeZone = ResolvePanamaTimeZone();
-
-    // IANA id first (Linux container), Windows id as fallback, fixed UTC-5 as the last resort
-    // (slim k3s images may lack tzdata — the WP-26/WP-36 lesson; Panama has no DST).
-    private static TimeZoneInfo ResolvePanamaTimeZone()
-    {
-        foreach (var id in new[] { "America/Panama", "SA Pacific Standard Time" })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(id);
-            }
-            catch (TimeZoneNotFoundException) { /* try the next id */ }
-            catch (InvalidTimeZoneException) { /* corrupt zone data — try the next id */ }
-        }
-        return TimeZoneInfo.CreateCustomTimeZone("Panama (fixed)", TimeSpan.FromHours(-5), "Panama (UTC-5)", "Panama (UTC-5)");
-    }
+    // WP-49: the Panama timezone ladder that used to live here moved to ClinicClock so the
+    // late-fee clock shares it rather than growing a second copy. Pure move — the existing
+    // marker-date tests pass unmodified, which is the proof.
+    private static DateOnly PanamaToday() => ClinicClock.Today();
 }

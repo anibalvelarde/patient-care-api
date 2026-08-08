@@ -73,6 +73,11 @@ public class AccountStatementService : IAccountStatementService
             Amount = s.Amount,
             DiscountAmount = s.DiscountAmount,
             NetCharge = s.Amount - s.DiscountAmount,
+            // WP-49: itemize the add-on charges so NetCharge + these − AmountPaid == AmountDue.
+            // Without them the caretaker sees a balance larger than the service charge with
+            // nothing on the statement explaining the difference.
+            OnSiteChargeAmount = s.OnSiteChargeAmount,
+            LateFeeAmount = s.LateFeeAmount,
             AmountPaid = s.AmountPaid,
             AmountDue = s.AmountDue(),
             IsPastDue = s.GetPastDue(),
@@ -119,6 +124,8 @@ public class AccountStatementService : IAccountStatementService
             TotalCharges = charges.Sum(c => c.Amount),
             TotalDiscounts = charges.Sum(c => c.DiscountAmount),
             TotalNetCharges = charges.Sum(c => c.NetCharge),
+            TotalOnSiteCharges = charges.Sum(c => c.OnSiteChargeAmount ?? 0m),
+            TotalLateFees = charges.Sum(c => c.LateFeeAmount ?? 0m),
             TotalPayments = charges.Sum(c => c.AmountPaid),
             OutstandingBalance = charges.Sum(c => c.AmountDue),
             PastDueAmount = charges.Where(c => c.IsPastDue).Sum(c => c.AmountDue),

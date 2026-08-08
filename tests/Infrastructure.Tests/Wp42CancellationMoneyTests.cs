@@ -249,9 +249,9 @@ public class Wp42CancellationMoneyTests
     // ------------------------------------------------- 3) /noshow applies the site fee
 
     [Fact]
-    public async Task NoShow_AppliesDefaultThirtyPctFee_WhenSessionHasNoSite()
+    public async Task NoShow_AppliesDefaultFullPriceFee_WhenSessionHasNoSite()
     {
-        var options = NewOptions(nameof(NoShow_AppliesDefaultThirtyPctFee_WhenSessionHasNoSite));
+        var options = NewOptions(nameof(NoShow_AppliesDefaultFullPriceFee_WhenSessionHasNoSite));
         await SeedSessionAsync(options, amount: 85m, discount: 17m, provider: 40m, gross: 28m);
 
         using (var context = new ApplicationDbContext(options))
@@ -262,10 +262,12 @@ public class Wp42CancellationMoneyTests
         }
 
         var session = await GetSessionAsync(options);
-        Assert.Equal(25.50m, session.Amount);       // round(30% × 85.00, 2)
+        // WP-49 (BR1/D5): the default moved 30% → 100%, so a no-show now bills the full booked
+        // amount. This is a PERCENT change — 100% of 85.00 — not a $100 fee.
+        Assert.Equal(85.00m, session.Amount);       // round(100% × 85.00, 2)
         Assert.Equal(0m, session.DiscountAmount);
         Assert.Equal(0m, session.ProviderAmount);   // therapist rendered nothing (G2)
-        Assert.Equal(25.50m, session.GrossProfit);  // clinic keeps 100%
+        Assert.Equal(85.00m, session.GrossProfit);  // clinic keeps 100%
         Assert.Contains("[NOSHOW-FEE", session.Notes);
         Assert.Contains("was A:85.00 D:17.00 P:40.00 G:28.00", session.Notes);
     }
@@ -498,8 +500,9 @@ public class Wp42CancellationMoneyTests
 
         var updated = await GetSessionAsync(options);
         Assert.Equal(5, updated.AppointmentStatusId);
-        Assert.Equal(25.50m, updated.Amount);
-        Assert.Equal(25.50m, updated.GrossProfit);
+        // WP-49 (BR1/D5): 100% of 85.00, not 30%.
+        Assert.Equal(85.00m, updated.Amount);
+        Assert.Equal(85.00m, updated.GrossProfit);
         Assert.Equal(0m, updated.ProviderAmount);
         Assert.Contains("[NOSHOW-FEE", updated.Notes);
     }
