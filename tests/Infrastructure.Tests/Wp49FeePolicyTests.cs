@@ -277,6 +277,49 @@ public class Wp49FeePolicyTests
     }
 
     [Fact]
+    public async Task Cancel_IsStillBlocked_AfterTheSessionMovesOffNoShowStatus()
+    {
+        // ⭐ The case that rules out "just check AppointmentStatusId == 5".
+        //
+        // WP-42 restores nothing when a session transitions OUT of NoShow, so after a 5→2
+        // correction the fee money is still in Amount while the status reads Confirmed. A
+        // status-based test would report "no active fee" here and let anyone cancel the
+        // session, silently discarding money only a manager may forgive.
+        //
+        // Reproduced live on a restored production copy 2026-08-08: no-showed a $150 session
+        // (fee applied, marker stamped), moved it back to Confirmed, and the money was still
+        // there — status 2, amount 150.00, marker present.
+        var options = NewOptions(nameof(Cancel_IsStillBlocked_AfterTheSessionMovesOffNoShowStatus));
+        await SeedSessionAsync(options,
+            amount: 150m, discount: 0m, provider: 0m, gross: 150m,
+            statusId: 2,   // NOT NoShow any more…
+            notes: "[NOSHOW-FEE 2026-08-07: was A:150.00 D:0.00 P:60.00 G:90.00]");  // …but the fee is still on it
+
+        using var context = new ApplicationDbContext(options);
+        var service = CreateBookingService(context);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CancelAppointmentAsync(1, "probe"));
+        Assert.Equal(SessionTransitionMoneyService.ActiveFeeMessage, ex.Message);
+    }
+
+    [Fact]
+    public void NoShowStatusWithoutAMarker_IsNotTreatedAsFeeBearing()
+    {
+        // The converse, and the reason a status test would DEADLOCK a session: a status-5 row
+        // that never went through the WP-42 choke point (a legacy import, say) has no marker.
+        // A status-based guard would block cancelling it, while waive-fee refuses to act
+        // without a marker — leaving the session neither cancellable nor waivable.
+        var legacyNoShow = new TherapySession
+        {
+            Id = 1, Amount = 150m, DiscountAmount = 0m, AppointmentStatusId = 5, Notes = "no marker here",
+        };
+
+        Assert.False(SessionTransitionMoneyService.HasActiveFee(legacyNoShow));
+        Assert.False(legacyNoShow.HasNoShowFeeMarker());
+    }
+
+    [Fact]
     public async Task Cancel_IsUnaffected_OnAnOrdinaryFeeFreeSession()
     {
         // The guard must not change the everyday path.

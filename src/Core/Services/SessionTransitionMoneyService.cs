@@ -55,7 +55,8 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         "This session carries an active fee — a manager must waive the fee before it can be cancelled.";
 
     private const string CancelledMarkerPrefix = "[CANCELLED-ZEROED";
-    private const string NoShowMarkerPrefix = "[NOSHOW-FEE";
+    // The single definition lives on the entity (see TherapySession.HasNoShowFeeMarker).
+    private const string NoShowMarkerPrefix = TherapySession.NoShowFeeMarkerPrefix;
 
     private readonly ISessionServicePaymentRepository _sessionServicePaymentRepository;
     private readonly IRepository<Site> _siteRepository;
@@ -126,8 +127,7 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     {
         if ((session.LateFeeAmount ?? 0m) > 0m) return true;
 
-        var carriesNoShowMarker = session.Notes?.Contains(NoShowMarkerPrefix, StringComparison.Ordinal) == true;
-        return carriesNoShowMarker && session.Amount - session.DiscountAmount > 0m;
+        return session.HasNoShowFeeMarker() && session.Amount - session.DiscountAmount > 0m;
     }
 
     private static SessionTransitionMoneyPatch? PrepareCancel(TherapySession session)
@@ -152,7 +152,7 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     {
         // Fee already applied (marker on file) — e.g. a 5→2→5 correction round-trip. The fee
         // must never compound off itself; staff adjust it via the gated BK-3 discount edit (G3).
-        if (session.Notes?.Contains(NoShowMarkerPrefix, StringComparison.Ordinal) == true)
+        if (session.HasNoShowFeeMarker())
         {
             return null;
         }

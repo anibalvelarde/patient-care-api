@@ -98,9 +98,35 @@ public class TherapySession : AuditableEntityBase
     /// </summary>
     public bool CarriesFee()
     {
-        return LateFeeAppliedOn.HasValue
-               || Notes?.Contains("[NOSHOW-FEE", StringComparison.Ordinal) == true;
+        return LateFeeAppliedOn.HasValue || HasNoShowFeeMarker();
     }
+
+    /// <summary>The WP-42 marker stamped when a no-show fee is applied.</summary>
+    public const string NoShowFeeMarkerPrefix = "[NOSHOW-FEE";
+
+    /// <summary>
+    /// Has a no-show fee ever been applied to this session? THE single definition — previously
+    /// this literal was matched in four places across three files.
+    ///
+    /// <para><b>Why this is not <c>AppointmentStatusId == 5</c>.</b> It reads like the better
+    /// signal, and it would be if status and fee stayed in step. They do not: WP-42 deliberately
+    /// restores nothing when a session transitions OUT of NoShow, so after a 5→2 correction the
+    /// fee money is still sitting in <c>Amount</c> while the status says Confirmed. A
+    /// status-based test would report "no fee" on a session that demonstrably still carries one,
+    /// and the cancellation guard would then let anyone void it — silently discarding money that
+    /// only a manager is allowed to forgive.</para>
+    ///
+    /// <para>The converse fails too. A status-5 session with no marker (a legacy import, or any
+    /// row that never went through the WP-42 choke point) would be judged fee-bearing by a
+    /// status test, so cancelling it would be blocked — while <c>waive-fee</c> refuses to act
+    /// without a marker. That session could then be neither cancelled nor waived.</para>
+    ///
+    /// <para>So the marker is the accurate signal today. It is nonetheless a text match driving
+    /// an authorization-adjacent decision, which is a genuine weakness — the durable fix is the
+    /// fee-event table in WP-52 H3. When that lands, this method is the ONE place to change.</para>
+    /// </summary>
+    public bool HasNoShowFeeMarker()
+        => Notes?.Contains(NoShowFeeMarkerPrefix, StringComparison.Ordinal) == true;
 
     public bool GetPastDue()
     {

@@ -47,7 +47,8 @@ public class SessionFeeService : ISessionFeeService
 
     public const string LateFeeMarkerPrefix = "[LATE-FEE";
     public const string FeeWaivedMarkerPrefix = "[FEE-WAIVED";
-    private const string NoShowMarkerPrefix = "[NOSHOW-FEE";
+    // The single definition lives on the entity (see TherapySession.HasNoShowFeeMarker).
+    private const string NoShowMarkerPrefix = TherapySession.NoShowFeeMarkerPrefix;
 
     /// <summary>Wire-exact 400 messages — contract copies; the UI matches on them.</summary>
     public const string NoLateFeeMessage = "This session has no late fee to waive.";
@@ -274,7 +275,7 @@ public class SessionFeeService : ISessionFeeService
         decimal noShowFeeToWaive = 0m;
         if (waiveNoShow)
         {
-            if (session.Notes?.Contains(NoShowMarkerPrefix, StringComparison.Ordinal) != true)
+            if (!session.HasNoShowFeeMarker())
             {
                 throw new ArgumentException(NoNoShowFeeMessage);
             }
