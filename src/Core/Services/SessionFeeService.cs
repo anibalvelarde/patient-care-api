@@ -296,14 +296,24 @@ public class SessionFeeService : ISessionFeeService
 
         var waivedOn = ClinicClock.Today();
 
+        // ONE marker covering however many legs were waived, rather than one per leg. A
+        // two-leg waive is a single decision with a single reason, so repeating that reason
+        // verbatim on a second line stored it twice in a Notes field that is already carrying
+        // clinical text, import provenance and transition markers. Owner call, run-002.
+        //
+        // Shape is unchanged for the single-leg case, which is the overwhelming majority:
+        //   [FEE-WAIVED 2026-08-08: late 37.50 waived by u#3; reason: …]
+        //   [FEE-WAIVED 2026-08-08: late 25.50 + no-show 85.00 waived by u#3; reason: …]
+        // Still one bracket-bounded marker, so the print sanitizer is unaffected.
+        var waivedLegs = new List<string>();
+
         if (waiveLate)
         {
             // The amount goes to zero but LateFeeAppliedOn STAYS SET — that latch is what stops
             // the next batch run re-charging a fee a manager just forgave.
             session.LateFeeAmount = 0.00m;
             session.GrossProfit -= lateFeeToWaive;
-            session.Notes = AppendMarker(session.Notes, string.Create(CultureInfo.InvariantCulture,
-                $"{FeeWaivedMarkerPrefix} {waivedOn:yyyy-MM-dd}: late {lateFeeToWaive:0.00} waived by u#{actingUserId}; reason: {reason}]"));
+            waivedLegs.Add(string.Create(CultureInfo.InvariantCulture, $"late {lateFeeToWaive:0.00}"));
         }
 
         if (waiveNoShow)
@@ -311,9 +321,11 @@ public class SessionFeeService : ISessionFeeService
             // Amount is left alone as the historical record; the discount absorbs the fee.
             session.DiscountAmount = session.Amount;
             session.GrossProfit -= noShowFeeToWaive;
-            session.Notes = AppendMarker(session.Notes, string.Create(CultureInfo.InvariantCulture,
-                $"{FeeWaivedMarkerPrefix} {waivedOn:yyyy-MM-dd}: no-show {noShowFeeToWaive:0.00} waived by u#{actingUserId}; reason: {reason}]"));
+            waivedLegs.Add(string.Create(CultureInfo.InvariantCulture, $"no-show {noShowFeeToWaive:0.00}"));
         }
+
+        session.Notes = AppendMarker(session.Notes, string.Create(CultureInfo.InvariantCulture,
+            $"{FeeWaivedMarkerPrefix} {waivedOn:yyyy-MM-dd}: {string.Join(" + ", waivedLegs)} waived by u#{actingUserId}; reason: {reason}]"));
 
         session.FeeWaivedOn = waivedOn;
         session.FeeWaivedByUserId = actingUserId;

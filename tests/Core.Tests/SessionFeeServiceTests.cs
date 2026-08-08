@@ -263,7 +263,9 @@ public class SessionFeeServiceTests
         Assert.Equal(3, session.FeeWaivedByUserId);
         Assert.NotNull(session.FeeWaivedOn);
         Assert.Contains("[FEE-WAIVED", session.Notes);
+        // Single-leg shape is deliberately unchanged by the run-002 consolidation.
         Assert.Contains("late 37.50 waived by u#3; reason: caretaker hospitalized]", session.Notes);
+        Assert.Equal(1, CountMarkers(session.Notes, SessionFeeService.FeeWaivedMarkerPrefix));
     }
 
     [Fact]
@@ -319,7 +321,7 @@ public class SessionFeeServiceTests
     }
 
     [Fact]
-    public async Task Waive_Both_ClearsEachLeg_AndStampsOneMarkerPerLeg()
+    public async Task Waive_Both_ClearsEachLeg_AndStampsONE_CombinedMarker()
     {
         var session = Session(amount: 85m, discount: 0m, gross: 110.50m, statusId: 5,
             lateFee: 25.50m, lateFeeAppliedOn: new DateOnly(2026, 7, 10),
@@ -333,8 +335,23 @@ public class SessionFeeServiceTests
         Assert.Equal(85m, result.NoShowFeeWaived);
         Assert.Equal(0m, session.GrossProfit);
         Assert.Equal(0m, session.AmountDue());
-        Assert.Contains("late 25.50 waived by u#7", session.Notes);
-        Assert.Contains("no-show 85.00 waived by u#7", session.Notes);
+
+        // One marker, both legs, the reason stored ONCE.
+        Assert.Contains("late 25.50 + no-show 85.00 waived by u#7; reason: billed in error]", session.Notes);
+        Assert.Equal(1, CountMarkers(session.Notes, SessionFeeService.FeeWaivedMarkerPrefix));
+    }
+
+    /// <summary>How many times a marker family appears in the notes — the run-002 consolidation
+    /// means a two-leg waive must stamp exactly ONE, not one per leg.</summary>
+    private static int CountMarkers(string notes, string prefix)
+    {
+        var count = 0;
+        for (var i = notes.IndexOf(prefix, StringComparison.Ordinal); i >= 0;
+             i = notes.IndexOf(prefix, i + prefix.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+        return count;
     }
 
     [Fact]
