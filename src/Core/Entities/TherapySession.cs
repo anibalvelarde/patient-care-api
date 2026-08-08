@@ -74,12 +74,29 @@ public class TherapySession : AuditableEntityBase
     }
 
     /// <summary>
-    /// The full collectible balance. ⚠️ This formula is hand-mirrored in four other places —
-    /// the SQL past-due predicate in <c>SessionEventRepository</c>, the <c>IsPaidOff</c> writer
-    /// and the allocation cap in <c>PaymentRecordService</c>, and the delinquency sums in
-    /// <c>PatientsController</c>/<c>TherapistsController</c>. All of them must move in
-    /// lockstep; the SQL one carries a comment claiming parity with this method, and that
-    /// claim has to stay true.
+    /// The full collectible balance.
+    ///
+    /// <para>⚠️ <b>This formula is hand-mirrored elsewhere and the copies must move in
+    /// lockstep.</b> Deliberately no count here: WP-49's plan said "five places", the doc
+    /// comment that replaced it said four, and BOTH were wrong — the batched roll-up behind
+    /// <c>GET /api/patients/pastdue</c> was missed, so the delinquency list and the per-patient
+    /// detail disagreed about the same sessions. A number in a comment is a claim that rots;
+    /// re-derive it instead:</para>
+    ///
+    /// <code>
+    /// grep -rn "Amount - .*Discount" src/ --include=*.cs
+    /// </code>
+    ///
+    /// <para>Every hit is either a mirror of THIS method (must include the late fee and the
+    /// on-site charge) or a deliberately narrower figure. The narrow ones today: the provider-fee
+    /// base in <c>SessionEventHandler</c> (fees must never enter it), <c>StatementCharge.NetCharge</c>
+    /// (service charge only — the add-ons are itemized separately), and the no-show fee amount in
+    /// <c>SessionFeeService</c>/<c>SessionTransitionMoneyService</c>. If you add a hit, say in a
+    /// comment which kind it is.</para>
+    ///
+    /// <para>Roll-ups over <c>SessionEvent</c> DTOs should call <c>SessionEvent.TotalCharges()</c>
+    /// rather than re-deriving; the SQL predicate in <c>SessionEventRepository</c> carries a
+    /// comment claiming parity with this method, and that claim has to stay true.</para>
     /// </summary>
     public decimal AmountDue()
     {

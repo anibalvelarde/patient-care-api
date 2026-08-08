@@ -71,6 +71,9 @@ public class Wp49FeePolicyTests
         var patientService = new Mock<IPatientProfileService>();
         patientService.Setup(s => s.GetByIdAsync(It.IsAny<int>()))
             .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "Doe, John", HasSenadisDiscount = false });
+        patientService.Setup(s => s.GetByIdsAsync(It.IsAny<IReadOnlyCollection<int>>()))
+            .ReturnsAsync(new List<PatientProfile>
+                { new() { PatientId = 1, PatientName = "Doe, John", HasSenadisDiscount = false } });
         var therapistService = new Mock<ITherapistProfileService>();
         therapistService.Setup(s => s.GetByIdAsync(It.IsAny<int>()))
             .ReturnsAsync(new TherapistProfile { TherapistId = 1, TherapistName = "Smith, Jane", FeePerSession = therapistFee });
@@ -204,6 +207,48 @@ public class Wp49FeePolicyTests
         var repo = new SessionEventRepository(context);
 
         Assert.Empty(await repo.GetAllPastDueAsync());
+    }
+
+    // ── the delinquency LIST and the per-patient DETAIL must agree ───────────────────────
+
+    [Fact]
+    public async Task PastDueList_TotalsIncludeTheLateFeeAndTheOnSiteCharge()
+    {
+        // Found by review after WP-49 shipped: GetAllPatientsPastDueAsync — the BATCHED
+        // roll-up behind GET /api/patients/pastdue, which the delinquency tile reads — still
+        // summed `Amount − Discount`. The per-patient detail path had been moved onto
+        // TotalCharges(), so the two disagreed about the same sessions the moment a fee or an
+        // on-site charge existed. Both under-reported the on-site charge before WP-49 too.
+        var options = NewOptions(nameof(PastDueList_TotalsIncludeTheLateFeeAndTheOnSiteCharge));
+        await SeedSessionAsync(options,
+            amount: 200m, discount: 50m, amountPaid: 20m,
+            onSite: 15m, lateFee: 30m, lateFeeAppliedOn: new DateOnly(2026, 1, 10),
+            gross: 195m);
+        // Push it well past the 35-day window so it qualifies as past due.
+        using (var seed = new ApplicationDbContext(options))
+        {
+            var s = await seed.TherapySessions.SingleAsync(x => x.Id == 1);
+            s.SessionDate = new DateOnly(2026, 1, 1);
+            await seed.SaveChangesAsync();
+        }
+
+        using var context = new ApplicationDbContext(options);
+        var handler = CreateHandler(context);
+
+        var list = (await handler.GetAllPatientsPastDueAsync()).ToList();
+        var row = Assert.Single(list);
+
+        // charges = 200 − 50 + 15 (on-site) + 30 (late fee)
+        Assert.Equal(195m, row.PastDueTotalAmount);
+        Assert.Equal(20m, row.AmountPaidSoFar);
+
+        // The invariant that actually matters: the tile's headline figure must reconcile with
+        // the per-session balances shown when the row is expanded.
+        var detail = (await handler.GetPastDueByPatientAsync(1)).ToList();
+        Assert.Equal(detail.Sum(s => s.TotalCharges()), row.PastDueTotalAmount);
+        Assert.Equal(
+            detail.Sum(s => s.AmountDue),
+            row.PastDueTotalAmount - row.AmountPaidSoFar);
     }
 
     // ── the fee survives a later status transition ───────────────────────────────────────

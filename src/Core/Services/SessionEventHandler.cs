@@ -156,7 +156,12 @@ public class SessionEventHandler : IHandleSessionEvent
             {
                 Party = patient,
                 PastDueSessions = sessions.Count,
-                PastDueTotalAmount = sessions.Sum(s => s.Amount - s.Discount),
+                // WP-49: the BATCHED roll-up behind GET /api/patients/pastdue — the list the
+                // delinquency tile reads. It must use the same TotalCharges() as the
+                // per-patient detail path in PatientsController, or the list and the detail
+                // report different money for the same sessions the moment a fee or an on-site
+                // charge exists.
+                PastDueTotalAmount = sessions.Sum(s => s.TotalCharges()),
                 AmountPaidSoFar = sessions.Sum(s => s.AmountPaid),
                 Delinquency = sessions,
             });
