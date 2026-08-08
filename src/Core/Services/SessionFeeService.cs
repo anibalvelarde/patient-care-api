@@ -56,6 +56,8 @@ public class SessionFeeService : ISessionFeeService
     public const string NoShowFeeAlreadyWaivedMessage = "The no-show fee on this session has already been waived.";
     public const string WouldCreateCreditMessage =
         "Waiving this fee would leave the caretaker with a credit — record a refund instead.";
+    public const string InvalidFeeKindMessage =
+        "Specify which fee to waive: Late, NoShow, or Both.";
 
     private readonly ITherapySessionRepository _sessionRepository;
     private readonly ILogger<SessionFeeService> _logger;
@@ -237,16 +239,16 @@ public class SessionFeeService : ISessionFeeService
 
     public async Task<WaiveFeeResult> WaiveFeeAsync(int sessionId, WaiveFeeRequest request, int actingUserId)
     {
-        if (request.FeeKind is null)
+        // Parsed here rather than bound by the serializer — see WaiveFeeRequest.FeeKind. An
+        // unrecognised value gets a message naming the legal ones, not a JSON path.
+        if (!request.TryParseFeeKind(out var feeKind))
         {
-            throw new ArgumentException("Specify which fee to waive: Late, NoShow, or Both.");
+            throw new ArgumentException(InvalidFeeKindMessage);
         }
         if (string.IsNullOrWhiteSpace(request.Reason))
         {
             throw new ArgumentException("A reason is required to waive a fee.");
         }
-
-        var feeKind = request.FeeKind.Value;
         var reason = SanitizeReason(request.Reason);
         if (reason.Length == 0)
         {
@@ -328,7 +330,7 @@ public class SessionFeeService : ISessionFeeService
         return new WaiveFeeResult
         {
             SessionId = session.Id,
-            FeeKind = feeKind,
+            FeeKind = feeKind.ToString(),
             LateFeeWaived = lateFeeToWaive,
             NoShowFeeWaived = noShowFeeToWaive,
             AmountDueAfter = session.AmountDue(),

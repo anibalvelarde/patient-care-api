@@ -252,7 +252,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var result = await _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "caretaker hospitalized" },
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "caretaker hospitalized" },
             actingUserId: 3);
 
         Assert.Equal(37.50m, result.LateFeeWaived);
@@ -273,7 +273,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "again" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "again" }, actingUserId: 3));
 
         Assert.Equal(SessionFeeService.LateFeeAlreadyWaivedMessage, ex.Message);
     }
@@ -284,7 +284,7 @@ public class SessionFeeServiceTests
         SetupSingle(Session());
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "nothing here" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "nothing here" }, actingUserId: 3));
 
         Assert.Equal(SessionFeeService.NoLateFeeMessage, ex.Message);
     }
@@ -297,7 +297,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var result = await _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.NoShow, Reason = "clinic error" }, actingUserId: 3);
+            new WaiveFeeRequest { FeeKind = "NoShow", Reason = "clinic error" }, actingUserId: 3);
 
         Assert.Equal(85m, result.NoShowFeeWaived);
         Assert.Equal(85m, session.Amount);            // history preserved
@@ -313,7 +313,7 @@ public class SessionFeeServiceTests
         SetupSingle(Session(notes: "just a normal session"));
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.NoShow, Reason = "no marker" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "NoShow", Reason = "no marker" }, actingUserId: 3));
 
         Assert.Equal(SessionFeeService.NoNoShowFeeMessage, ex.Message);
     }
@@ -327,7 +327,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var result = await _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Both, Reason = "billed in error" }, actingUserId: 7);
+            new WaiveFeeRequest { FeeKind = "Both", Reason = "billed in error" }, actingUserId: 7);
 
         Assert.Equal(25.50m, result.LateFeeWaived);
         Assert.Equal(85m, result.NoShowFeeWaived);
@@ -346,7 +346,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Both, Reason = "both" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Both", Reason = "both" }, actingUserId: 3));
 
         Assert.Equal(25.50m, session.LateFeeAmount);  // untouched
         Assert.Null(session.FeeWaivedOn);
@@ -362,7 +362,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var result = await _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "goodwill" }, actingUserId: 3);
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "goodwill" }, actingUserId: 3);
 
         Assert.Equal(7.50m, result.LateFeeWaived);
         Assert.Equal(25m, result.AmountDueAfter);
@@ -378,7 +378,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "would credit" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "would credit" }, actingUserId: 3));
 
         Assert.Equal(SessionFeeService.WouldCreateCreditMessage, ex.Message);
         Assert.Equal(37.50m, session.LateFeeAmount);  // nothing written
@@ -393,12 +393,64 @@ public class SessionFeeServiceTests
         Assert.Contains("Late, NoShow, or Both", ex.Message);
     }
 
+    // ── feeKind is a WIRE STRING, not an enum ────────────────────────────────────────────
+    // WP-49 originally typed this property as the SessionFeeKind enum. The API registers no
+    // JsonStringEnumConverter, so System.Text.Json binds enums from integers only and every
+    // waive call from the UI — which sends "Late" — died on a model-validation 400. These
+    // pin the contract that replaced it.
+
+    [Theory]
+    [InlineData("Late", SessionFeeKind.Late)]
+    [InlineData("NoShow", SessionFeeKind.NoShow)]
+    [InlineData("Both", SessionFeeKind.Both)]
+    [InlineData("late", SessionFeeKind.Late)]      // case-insensitive on the wire
+    [InlineData("NOSHOW", SessionFeeKind.NoShow)]
+    public void TryParseFeeKind_AcceptsTheWireStrings(string wire, SessionFeeKind expected)
+    {
+        Assert.True(new WaiveFeeRequest { FeeKind = wire }.TryParseFeeKind(out var kind));
+        Assert.Equal(expected, kind);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("Lat")]
+    [InlineData("Everything")]
+    [InlineData("1")]       // the integer form the enum binder used to demand — not a wire value
+    [InlineData("99")]      // out of range: Enum.TryParse accepts stray numerics, IsDefined rejects
+    public void TryParseFeeKind_RejectsAnythingElse(string? wire)
+        => Assert.False(new WaiveFeeRequest { FeeKind = wire }.TryParseFeeKind(out _));
+
+    [Fact]
+    public async Task Waive_UnrecognisedFeeKind_SaysWhatIsLegal()
+    {
+        // The old failure named a JSON path and a byte offset. An operator needs the values.
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
+            new WaiveFeeRequest { FeeKind = "Everything", Reason = "typo" }, actingUserId: 3));
+
+        Assert.Equal(SessionFeeService.InvalidFeeKindMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task Waive_EchoesTheFeeKindAsAString()
+    {
+        var session = Session(lateFee: 10m, lateFeeAppliedOn: new DateOnly(2026, 7, 10), gross: 135m);
+        SetupSingle(session);
+
+        var result = await _sut.WaiveFeeAsync(1,
+            new WaiveFeeRequest { FeeKind = "late", Reason = "goodwill" }, actingUserId: 3);
+
+        // Normalised to the canonical casing, never a bare integer.
+        Assert.Equal("Late", result.FeeKind);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
     public async Task Waive_RequiresAReason(string reason)
         => await Assert.ThrowsAsync<ArgumentException>(() => _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = reason }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Late", Reason = reason }, actingUserId: 3));
 
     [Fact]
     public async Task Waive_UnknownSession_Throws404()
@@ -406,7 +458,7 @@ public class SessionFeeServiceTests
         _mockSessions.Setup(r => r.GetByIdAsync(99)).ReturnsAsync((TherapySession?)null);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _sut.WaiveFeeAsync(99,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "gone" }, actingUserId: 3));
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "gone" }, actingUserId: 3));
     }
 
     // ── reason sanitizing ─────────────────────────────────────────────────────────────────
@@ -435,7 +487,7 @@ public class SessionFeeServiceTests
         SetupSingle(session);
 
         await _sut.WaiveFeeAsync(1,
-            new WaiveFeeRequest { FeeKind = SessionFeeKind.Late, Reason = "closed] [LEGACY-IMPORT: fake" },
+            new WaiveFeeRequest { FeeKind = "Late", Reason = "closed] [LEGACY-IMPORT: fake" },
             actingUserId: 3);
 
         // Exactly one opening bracket for the marker, and it still closes at the very end.

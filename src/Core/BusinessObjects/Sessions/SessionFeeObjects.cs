@@ -93,6 +93,10 @@ public class ApplyLateFeesResult
 /// Which fee a waiver targets. Required with no default: a session can carry BOTH a no-show
 /// fee and a late fee, so "waive the fee" is ambiguous and defaulting either way would
 /// occasionally forgive money the manager did not mean to forgive.
+///
+/// ⚠️ This type is INTERNAL to the service layer and must not appear on a request or response
+/// DTO. See the note on <see cref="WaiveFeeRequest.FeeKind"/> — it shipped as a wire type in
+/// WP-49 and broke every waive call.
 /// </summary>
 public enum SessionFeeKind
 {
@@ -103,8 +107,23 @@ public enum SessionFeeKind
 
 public class WaiveFeeRequest
 {
+    /// <summary>
+    /// <c>"Late"</c> | <c>"NoShow"</c> | <c>"Both"</c>, case-insensitive.
+    ///
+    /// A STRING on the wire, not the <see cref="SessionFeeKind"/> enum, for two reasons. First,
+    /// it is the house convention — every other enum-ish DTO field in this API is a string
+    /// (<c>ConfirmationRequest.ConfirmationMethod</c>, <c>ConfirmationResult</c>, patient
+    /// <c>Gender</c>). Second, it is what actually works: the API registers no
+    /// <c>JsonStringEnumConverter</c>, so System.Text.Json binds enums from INTEGERS only, and
+    /// a bare enum property here rejected <c>"feeKind":"Late"</c> with a model-validation 400
+    /// that named the JSON path but explained nothing. That is exactly how WP-49 shipped, and
+    /// it broke every waive attempt from the UI — which sends the string.
+    ///
+    /// If a future change registers a global enum converter, this can become an enum again;
+    /// until then, do not "tidy" it back.
+    /// </summary>
     [Required(ErrorMessage = "Specify which fee to waive: Late, NoShow, or Both.")]
-    public SessionFeeKind? FeeKind { get; set; }
+    public string? FeeKind { get; set; }
 
     /// <summary>
     /// Mandatory, and sanitized server-side before it reaches the Notes marker. Capped at 200
@@ -113,12 +132,41 @@ public class WaiveFeeRequest
     [Required(ErrorMessage = "A reason is required to waive a fee.")]
     [MaxLength(200)]
     public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Parses <see cref="FeeKind"/> to the internal enum. Returns false for null, blank, or
+    /// anything unrecognised, so the caller can answer with a message that names the legal
+    /// values instead of leaking a serializer diagnostic.
+    ///
+    /// Matches against the enum NAMES rather than calling <c>Enum.TryParse</c> directly:
+    /// TryParse also accepts numeric strings, so <c>"1"</c> would quietly bind to
+    /// <see cref="SessionFeeKind.Late"/> — reviving, as an undocumented second encoding, the
+    /// very integer form this property exists to get away from.
+    /// </summary>
+    public bool TryParseFeeKind(out SessionFeeKind kind)
+    {
+        kind = default;
+        if (string.IsNullOrWhiteSpace(FeeKind)) return false;
+
+        var supplied = FeeKind.Trim();
+        foreach (var name in Enum.GetNames<SessionFeeKind>())
+        {
+            if (string.Equals(name, supplied, StringComparison.OrdinalIgnoreCase))
+            {
+                kind = Enum.Parse<SessionFeeKind>(name);
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 public class WaiveFeeResult
 {
     public int SessionId { get; set; }
-    public SessionFeeKind FeeKind { get; set; }
+
+    /// <summary>Echoed as a string for the same reason the request takes one.</summary>
+    public string FeeKind { get; set; } = string.Empty;
 
     /// <summary>Late fee removed by this waive (0 when the late leg was not waived).</summary>
     public decimal LateFeeWaived { get; set; }
