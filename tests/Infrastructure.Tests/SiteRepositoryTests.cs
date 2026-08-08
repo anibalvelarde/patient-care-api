@@ -144,13 +144,14 @@ public class SiteRepositoryTests
     }
 
     [Fact]
-    public async Task Site_NoShowFeePct_DefaultsTo30()
+    public async Task Site_NoShowFeePct_DefaultsToFullPrice()
     {
         var options = CreateInMemoryOptions("SiteRepository_NoShowFeePctDefault");
 
         using (var context = new ApplicationDbContext(options))
         {
-            // NoShowFeePct not set — the entity default mirrors the V032 column default.
+            // NoShowFeePct not set — the entity default mirrors the DB column default
+            // (V032 shipped 30.00; V033/WP-49 raised it to 100.00).
             context.Sites.Add(new Site { SiteName = "Default Clinic", InceptionDate = new DateTime(2026, 7, 1) });
             await context.SaveChangesAsync();
         }
@@ -158,7 +159,7 @@ public class SiteRepositoryTests
         using (var context = new ApplicationDbContext(options))
         {
             var site = await context.Sites.FirstAsync(s => s.SiteName == "Default Clinic");
-            Assert.Equal(30.00m, site.NoShowFeePct);
+            Assert.Equal(100.00m, site.NoShowFeePct);
         }
     }
 

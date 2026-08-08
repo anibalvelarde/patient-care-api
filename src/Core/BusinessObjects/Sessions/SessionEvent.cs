@@ -59,6 +59,31 @@ public class SessionEvent : IHasAudit
     // the create/derivation path only; null on list/read paths (the source is not persisted).
     public string? AmountSource { get; set; }
 
+    // WP-49 (BR3/BR4). Populated by ALL THREE SessionEvent projections — ExtractSessionEvent,
+    // BookingRepository.MapToSessionEvent, and the SessionEventHandler patch mapper. The
+    // discount-edit loophole guard reads CarriesFee, so a projection that forgets these fields
+    // does not just hide a number: it silently disables an authorization check.
+    // Late chargeback currently in force; null = never applied, 0.00 = applied then waived.
+    public decimal? LateFeeAmount { get; set; }
+    public DateOnly? LateFeeAppliedOn { get; set; }
+    public DateOnly? FeeWaivedOn { get; set; }
+
+    // Mirrors TherapySession.CarriesFee() — true when a late fee has been applied (even if
+    // since waived) or a [NOSHOW-FEE …] marker is on the notes. Drives both the API guard and
+    // the UI's read-only discount input.
+    public bool CarriesFee { get; set; }
+
+    /// <summary>
+    /// WP-49: the CHARGE side of the balance — everything billed, before payments. Exists so
+    /// the delinquency roll-ups in PatientsController/TherapistsController stop hand-copying
+    /// <c>Amount − Discount</c>, which silently dropped the on-site trip charge (a live
+    /// pre-existing bug) and would have dropped the late fee too.
+    ///
+    /// Invariant: <c>TotalCharges() − AmountPaid == AmountDue</c>.
+    /// </summary>
+    public decimal TotalCharges()
+        => Amount - Discount + (OnSiteChargeAmount ?? 0m) + (LateFeeAmount ?? 0m);
+
     // WP-31 (U1): additive audit block for the Session Details ⓘ popover. Populated by BOTH
     // SessionEvent mappers (ExtractSessionEvent + MapToSessionEvent — the two-mapper contract).
     public AuditInfo? Audit { get; set; }

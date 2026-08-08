@@ -251,9 +251,13 @@ public class SitesControllerTests
         _mockService.Verify(s => s.CreateAsync(It.IsAny<SiteProfileRequest>()), Times.Never);
     }
 
+    // WP-49 (BR1/D5): the platform default moved 30 → 100, so the privileged/unprivileged pivot
+    // inverts with it — 100 is now the value any Admin.Sites.Manage holder may set, and 30 has
+    // become a privileged (SYSADMIN-only) non-default. The gate tracks SiteDefaults.NoShowFeePct
+    // rather than a literal, so this is the only place the change surfaces.
     [Theory]
-    [InlineData(null)]  // omitted → server default 30
-    [InlineData("30")]  // explicit default — not a privileged value
+    [InlineData(null)]   // omitted → server default
+    [InlineData("100")]  // explicit default — not a privileged value
     public async Task CreateSite_DefaultFee_WithoutSysAdminRole_Creates(string? pct)
     {
         UseCaller(ManagerRole());
@@ -264,11 +268,30 @@ public class SitesControllerTests
             NoShowFeePct = pct is null ? null : decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture)
         };
         _mockService.Setup(s => s.CreateAsync(request))
-            .ReturnsAsync(new SiteProfile { SiteId = 5, SiteName = "New Clinic", NoShowFeePct = 30m });
+            .ReturnsAsync(new SiteProfile { SiteId = 5, SiteName = "New Clinic", NoShowFeePct = 100m });
 
         var result = await _controller.CreateSite(request);
 
         Assert.IsType<CreatedAtActionResult>(result);
+    }
+
+    [Fact]
+    public async Task CreateSite_OldThirtyPctDefault_WithoutSysAdminRole_Forbids()
+    {
+        // Guards the inversion above: 30 was the old default and is now a deliberate
+        // per-site override, so a non-SYSADMIN may no longer set it.
+        UseCaller(ManagerRole());
+        var request = new SiteProfileRequest
+        {
+            SiteName = "New Clinic",
+            InceptionDate = new DateTime(2026, 7, 1),
+            NoShowFeePct = 30m
+        };
+
+        var result = await _controller.CreateSite(request);
+
+        Assert.IsType<ForbidResult>(result);
+        _mockService.Verify(s => s.CreateAsync(It.IsAny<SiteProfileRequest>()), Times.Never);
     }
 
     [Fact]

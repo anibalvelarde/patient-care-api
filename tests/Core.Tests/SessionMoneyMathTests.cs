@@ -47,7 +47,18 @@ public class SessionMoneyMathTests
     [InlineData(80, 40, 25.0, 65)]  // charge adds to gross profit…
     public void GrossProfit_AddsOnSiteCharge_NeverToFeeBase(
         decimal net, decimal fee, double? charge, decimal expected)
-        => Assert.Equal(expected, SessionMoneyMath.GrossProfit(net, fee, (decimal?)charge));
+        => Assert.Equal(expected, SessionMoneyMath.GrossProfit(net, fee, (decimal?)charge, lateFee: null));
+
+    // WP-49 (D2): the late chargeback is clinic revenue — it reaches gross profit in full and
+    // never touches the provider-fee base (the therapist is not paid for a payment delay).
+    [Theory]
+    [InlineData(80, 40, null, null, 40)]      // neither add-on
+    [InlineData(80, 40, null, 37.50, 77.50)]  // late fee only
+    [InlineData(80, 40, 25.0, 37.50, 102.50)] // both add-ons stack
+    [InlineData(80, 40, null, 0.0, 40)]       // waived fee (0.00) contributes nothing
+    public void GrossProfit_AddsLateFee_NeverToFeeBase(
+        decimal net, decimal fee, double? charge, double? lateFee, decimal expected)
+        => Assert.Equal(expected, SessionMoneyMath.GrossProfit(net, fee, (decimal?)charge, (decimal?)lateFee));
 
     [Fact]
     public void MissingPriceMessage_IsTheContractCopy()

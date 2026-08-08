@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Services;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Sites;
 
 public class SiteProfile
@@ -19,6 +21,7 @@ public class SiteProfile
     // WP-39 (G4): flat per-on-site-visit trip charge; 0 = no charge configured.
     public decimal OnSiteTripChargeAmount { get; set; }
 
-    // WP-42 (G1): no-show fee as % of the booked gross Amount; 0 = no fee. Default 30 (V032).
-    public decimal NoShowFeePct { get; set; } = 30.00m;
+    // WP-42 (G1): no-show fee as % of the booked gross Amount; 0 = no fee.
+    // Default raised 30 → 100 by WP-49/BR1 (V033).
+    public decimal NoShowFeePct { get; set; } = SiteDefaults.NoShowFeePct;
 }

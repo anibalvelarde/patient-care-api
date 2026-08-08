@@ -162,22 +162,23 @@ public class SessionTransitionMoneyServiceTests
     }
 
     [Fact]
-    public async Task NoShow_NoSiteOnSession_UsesDefault30()
+    public async Task NoShow_NoSiteOnSession_UsesFullPriceDefault()
     {
         var patch = await _sut.PrepareTransitionAsync(Session(85m, 0m, 40m, 45m, siteId: null), 5);
 
-        Assert.Equal(25.50m, patch!.Amount); // 30% of 85.00
+        // WP-49 (BR1/D5): default moved 30% → 100%, so the fee is the full booked amount.
+        Assert.Equal(85.00m, patch!.Amount); // 100% of 85.00
         _mockSites.Verify(r => r.GetByIdAsync(It.IsAny<int>()), Times.Never);
     }
 
     [Fact]
-    public async Task NoShow_SiteRowMissing_UsesDefault30()
+    public async Task NoShow_SiteRowMissing_UsesFullPriceDefault()
     {
         _mockSites.Setup(r => r.GetByIdAsync(9)).ReturnsAsync((Site?)null);
 
         var patch = await _sut.PrepareTransitionAsync(Session(85m, 0m, 40m, 45m, siteId: 9), 5);
 
-        Assert.Equal(25.50m, patch!.Amount);
+        Assert.Equal(85.00m, patch!.Amount);
     }
 
     [Fact]

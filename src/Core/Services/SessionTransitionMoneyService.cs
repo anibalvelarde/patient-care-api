@@ -32,8 +32,11 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     public const int CancelledStatusId = 3;
     public const int NoShowStatusId = 5;
 
-    /// <summary>Default fee pct when the session has no Site on file — mirrors the V032 column default.</summary>
-    public const decimal DefaultNoShowFeePct = 30.00m;
+    /// <summary>
+    /// Default fee pct when the session has no Site on file — mirrors the DB column default
+    /// (V032, raised 30 → 100 by V033/WP-49). The name is kept because tests reference it.
+    /// </summary>
+    public const decimal DefaultNoShowFeePct = SiteDefaults.NoShowFeePct;
 
     /// <summary>Wire-exact 400 message for the AmountPaid guard (contract copy — the UI matches on it).</summary>
     public const string PaymentsRecordedMessage =
@@ -43,8 +46,17 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     public const string CoveredSessionMessage =
         "This session is covered by a service payment — reverse the covering payment first.";
 
+    /// <summary>
+    /// Wire-exact 400 message for the WP-49 active-fee guard on cancellation (contract copy —
+    /// the UI surfaces it verbatim). Names the required action, since the operator hitting it
+    /// may not hold the claim to perform it.
+    /// </summary>
+    public const string ActiveFeeMessage =
+        "This session carries an active fee — a manager must waive the fee before it can be cancelled.";
+
     private const string CancelledMarkerPrefix = "[CANCELLED-ZEROED";
-    private const string NoShowMarkerPrefix = "[NOSHOW-FEE";
+    // The single definition lives on the entity (see TherapySession.HasNoShowFeeMarker).
+    private const string NoShowMarkerPrefix = TherapySession.NoShowFeeMarkerPrefix;
 
     private readonly ISessionServicePaymentRepository _sessionServicePaymentRepository;
     private readonly IRepository<Site> _siteRepository;
@@ -82,13 +94,48 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
             throw new ArgumentException(CoveredSessionMessage);
         }
 
+        // WP-49 (owner ruling 2026-08-08): a session carrying an ACTIVE fee cannot be
+        // cancelled. Waive the fee first — a manager-only act with a recorded reason — and the
+        // cancellation then proceeds normally for FD/AM/MGR.
+        //
+        // This replaces the interim "cancel silently keeps the fee" behaviour. Both avoid the
+        // real hazard (any Appointments.Book holder erasing a manager's fee by cancelling), but
+        // blocking is the honest one: keeping the fee left a live receivable attached to a
+        // session the clinic had just voided, which is a state nobody would think to look for.
+        // Failing loudly forces the fee decision to be made explicitly, by someone entitled to
+        // make it, before the session disappears from the schedule.
+        if (targetStatusId == CancelledStatusId && HasActiveFee(session))
+        {
+            throw new ArgumentException(ActiveFeeMessage);
+        }
+
         return targetStatusId == CancelledStatusId
             ? PrepareCancel(session)
             : await PrepareNoShowAsync(session);
     }
 
+    /// <summary>
+    /// WP-49: does this session carry a fee that is still COLLECTIBLE?
+    ///
+    /// Deliberately keyed on the amounts, not on <c>TherapySession.CarriesFee()</c>. CarriesFee
+    /// uses the latch and the marker, so it stays true forever once a fee has existed — right
+    /// for the discount-edit guard, wrong here. A session whose fee was waived has
+    /// <c>LateFeeAmount == 0</c> and, for a no-show, <c>DiscountAmount == Amount</c>; nothing is
+    /// owed, so cancelling is fine. That is precisely what makes waive-then-cancel work.
+    /// </summary>
+    public static bool HasActiveFee(TherapySession session)
+    {
+        if ((session.LateFeeAmount ?? 0m) > 0m) return true;
+
+        return session.HasNoShowFeeMarker() && session.Amount - session.DiscountAmount > 0m;
+    }
+
     private static SessionTransitionMoneyPatch? PrepareCancel(TherapySession session)
     {
+        // Any active fee has already been rejected by the guard in PrepareTransitionAsync, so
+        // by here the session owes nothing beyond its service charge and GrossProfit goes to 0
+        // exactly as it did before WP-49. A waived late fee is 0.00 and contributes nothing.
+
         // Idempotent: an already-zero session (12338 pattern, or a re-cancel) transitions
         // status-only — no re-stamp, no duplicate marker.
         if (session.Amount == 0m && session.DiscountAmount == 0m
@@ -105,7 +152,7 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     {
         // Fee already applied (marker on file) — e.g. a 5→2→5 correction round-trip. The fee
         // must never compound off itself; staff adjust it via the gated BK-3 discount edit (G3).
-        if (session.Notes?.Contains(NoShowMarkerPrefix, StringComparison.Ordinal) == true)
+        if (session.HasNoShowFeeMarker())
         {
             return null;
         }
@@ -113,14 +160,20 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         var pct = await ResolveNoShowFeePctAsync(session);
         var fee = NoShowFee(pct, session.Amount);
 
+        // WP-49: an existing late fee survives the transition and stays in GrossProfit. The
+        // no-show fee lands in Amount; the late fee lives in its own column and is added on
+        // top, so the two never overwrite each other. (A session CAN carry both — an unpaid
+        // no-show fee can itself go late, which is why waive takes a fee-kind.)
+        var lateFee = session.LateFeeAmount ?? 0m;
+
         // Idempotent: nothing would change (e.g. an all-zero cancelled row no-showed at pct 0).
         if (session.Amount == fee && session.DiscountAmount == 0m
-            && session.ProviderAmount == 0m && session.GrossProfit == fee)
+            && session.ProviderAmount == 0m && session.GrossProfit == fee + lateFee)
         {
             return null;
         }
 
-        return new SessionTransitionMoneyPatch(fee, 0m, 0m, fee,
+        return new SessionTransitionMoneyPatch(fee, 0m, 0m, fee + lateFee,
             BuildMarker(NoShowMarkerPrefix, session));
     }
 
@@ -147,24 +200,8 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         => string.Create(CultureInfo.InvariantCulture,
             $"{prefix} {PanamaToday():yyyy-MM-dd}: was A:{session.Amount:0.00} D:{session.DiscountAmount:0.00} P:{session.ProviderAmount:0.00} G:{session.GrossProfit:0.00}]");
 
-    private static DateOnly PanamaToday()
-        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, PanamaTimeZone));
-
-    private static readonly TimeZoneInfo PanamaTimeZone = ResolvePanamaTimeZone();
-
-    // IANA id first (Linux container), Windows id as fallback, fixed UTC-5 as the last resort
-    // (slim k3s images may lack tzdata — the WP-26/WP-36 lesson; Panama has no DST).
-    private static TimeZoneInfo ResolvePanamaTimeZone()
-    {
-        foreach (var id in new[] { "America/Panama", "SA Pacific Standard Time" })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(id);
-            }
-            catch (TimeZoneNotFoundException) { /* try the next id */ }
-            catch (InvalidTimeZoneException) { /* corrupt zone data — try the next id */ }
-        }
-        return TimeZoneInfo.CreateCustomTimeZone("Panama (fixed)", TimeSpan.FromHours(-5), "Panama (UTC-5)", "Panama (UTC-5)");
-    }
+    // WP-49: the Panama timezone ladder that used to live here moved to ClinicClock so the
+    // late-fee clock shares it rather than growing a second copy. Pure move — the existing
+    // marker-date tests pass unmodified, which is the proof.
+    private static DateOnly PanamaToday() => ClinicClock.Today();
 }

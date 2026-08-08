@@ -63,14 +63,18 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         // table. Date filter is date-only (SessionDate <= today − 35d) — a strict superset of
         // the exact date+time GetPastDue() cutoff, so boundary rows can arrive with
         // IsPastDue == false; callers (SessionEventHandler) apply the exact filter. The money
-        // predicate (Amount − Discount − AmountPaid > 0) matches TherapySession.AmountDue()
-        // exactly. Includes and the client-side projection now run over dozens of rows, not 11k.
+        // predicate matches TherapySession.AmountDue() exactly — including the WP-49 late fee.
+        // ⚠️ That parity claim is load-bearing: AmountDue() is hand-mirrored in five places and
+        // this is the only one written in SQL, so it cannot be caught by a compiler. If you
+        // change AmountDue(), change this line in the same commit.
+        // Includes and the client-side projection now run over dozens of rows, not 11k.
         var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-TherapySession.DAYS_LATE_LIMIT));
 
         var query = _dbContext.TherapySessions
             .Where(ts => (ts.Patient != null) &&
                          (ts.Therapist != null) &&
-                         (ts.Amount - ts.DiscountAmount - ts.AmountPaid + (ts.OnSiteChargeAmount ?? 0m)) > 0 &&
+                         (ts.Amount - ts.DiscountAmount - ts.AmountPaid
+                            + (ts.OnSiteChargeAmount ?? 0m) + (ts.LateFeeAmount ?? 0m)) > 0 &&
                          ts.SessionDate <= cutoff);
 
         if (patientId.HasValue)
@@ -284,6 +288,13 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             ProviderAmount = ts.ProviderAmount,
             // WP-40: on-site trip charge snapshot (null = in-clinic).
             OnSiteChargeAmount = ts.OnSiteChargeAmount,
+            // WP-49 (BR3/BR4): fee state. CarriesFee drives the discount-edit loophole guard,
+            // so omitting it here would silently disable an authorization check, not just hide
+            // a number. KEEP IN STEP with the other two mappers.
+            LateFeeAmount = ts.LateFeeAmount,
+            LateFeeAppliedOn = ts.LateFeeAppliedOn,
+            FeeWaivedOn = ts.FeeWaivedOn,
+            CarriesFee = ts.CarriesFee(),
             // WP-31 (U1): audit from the session's own trio; updater name resolved in the handler.
             // KEEP IN STEP with BookingRepository.MapToSessionEvent (the two-mapper contract).
             Audit = AuditInfo.FromEntity(ts),

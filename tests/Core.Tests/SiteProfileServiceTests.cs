@@ -418,7 +418,7 @@ public class SiteProfileServiceTests
     }
 
     [Fact]
-    public async Task CreateAsync_DefaultsNoShowFeePct_To30_WhenOmitted()
+    public async Task CreateAsync_DefaultsNoShowFeePct_ToFullPrice_WhenOmitted()
     {
         // Arrange
         var fakeLogger = Mock.Of<ILogger<SiteProfileService>>();
@@ -440,8 +440,10 @@ public class SiteProfileServiceTests
 
         // Assert
         Assert.NotNull(captured);
-        Assert.Equal(30.00m, captured!.NoShowFeePct);
-        Assert.Equal(30.00m, result.NoShowFeePct);
+        // WP-49 (BR1/D5): the omitted-value default moved 30 → 100 (percent, not dollars).
+        Assert.Equal(SiteDefaults.NoShowFeePct, captured!.NoShowFeePct);
+        Assert.Equal(100.00m, captured.NoShowFeePct);
+        Assert.Equal(100.00m, result.NoShowFeePct);
     }
 
     [Fact]
