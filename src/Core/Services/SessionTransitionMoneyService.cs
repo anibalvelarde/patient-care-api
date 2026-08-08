@@ -46,6 +46,14 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     public const string CoveredSessionMessage =
         "This session is covered by a service payment — reverse the covering payment first.";
 
+    /// <summary>
+    /// Wire-exact 400 message for the WP-49 active-fee guard on cancellation (contract copy —
+    /// the UI surfaces it verbatim). Names the required action, since the operator hitting it
+    /// may not hold the claim to perform it.
+    /// </summary>
+    public const string ActiveFeeMessage =
+        "This session carries an active fee — a manager must waive the fee before it can be cancelled.";
+
     private const string CancelledMarkerPrefix = "[CANCELLED-ZEROED";
     private const string NoShowMarkerPrefix = "[NOSHOW-FEE";
 
@@ -85,36 +93,58 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
             throw new ArgumentException(CoveredSessionMessage);
         }
 
+        // WP-49 (owner ruling 2026-08-08): a session carrying an ACTIVE fee cannot be
+        // cancelled. Waive the fee first — a manager-only act with a recorded reason — and the
+        // cancellation then proceeds normally for FD/AM/MGR.
+        //
+        // This replaces the interim "cancel silently keeps the fee" behaviour. Both avoid the
+        // real hazard (any Appointments.Book holder erasing a manager's fee by cancelling), but
+        // blocking is the honest one: keeping the fee left a live receivable attached to a
+        // session the clinic had just voided, which is a state nobody would think to look for.
+        // Failing loudly forces the fee decision to be made explicitly, by someone entitled to
+        // make it, before the session disappears from the schedule.
+        if (targetStatusId == CancelledStatusId && HasActiveFee(session))
+        {
+            throw new ArgumentException(ActiveFeeMessage);
+        }
+
         return targetStatusId == CancelledStatusId
             ? PrepareCancel(session)
             : await PrepareNoShowAsync(session);
     }
 
+    /// <summary>
+    /// WP-49: does this session carry a fee that is still COLLECTIBLE?
+    ///
+    /// Deliberately keyed on the amounts, not on <c>TherapySession.CarriesFee()</c>. CarriesFee
+    /// uses the latch and the marker, so it stays true forever once a fee has existed — right
+    /// for the discount-edit guard, wrong here. A session whose fee was waived has
+    /// <c>LateFeeAmount == 0</c> and, for a no-show, <c>DiscountAmount == Amount</c>; nothing is
+    /// owed, so cancelling is fine. That is precisely what makes waive-then-cancel work.
+    /// </summary>
+    public static bool HasActiveFee(TherapySession session)
+    {
+        if ((session.LateFeeAmount ?? 0m) > 0m) return true;
+
+        var carriesNoShowMarker = session.Notes?.Contains(NoShowMarkerPrefix, StringComparison.Ordinal) == true;
+        return carriesNoShowMarker && session.Amount - session.DiscountAmount > 0m;
+    }
+
     private static SessionTransitionMoneyPatch? PrepareCancel(TherapySession session)
     {
-        // WP-49: a late fee SURVIVES cancellation, and GrossProfit must keep it.
-        //
-        // Cancelling zeroes the service money (BR2 — a cancelled session is not billed), but
-        // the BR3 chargeback penalises late PAYMENT, not the service, so voiding the session
-        // does not void a penalty already levied. Removing it is a deliberate, claim-gated
-        // waive. If cancel silently cleared the fee, any Appointments.Book holder (FD
-        // included) could erase a manager's charge by cancelling — exactly the loophole
-        // ruling 4 closes on the discount side.
-        //
-        // GrossProfit therefore lands on the retained fee rather than 0. Zeroing it would
-        // leave the fee collectible in AmountDue but absent from P&L — Finding 1's trap
-        // wearing a different hat.
-        var lateFee = session.LateFeeAmount ?? 0m;
+        // Any active fee has already been rejected by the guard in PrepareTransitionAsync, so
+        // by here the session owes nothing beyond its service charge and GrossProfit goes to 0
+        // exactly as it did before WP-49. A waived late fee is 0.00 and contributes nothing.
 
         // Idempotent: an already-zero session (12338 pattern, or a re-cancel) transitions
         // status-only — no re-stamp, no duplicate marker.
         if (session.Amount == 0m && session.DiscountAmount == 0m
-            && session.ProviderAmount == 0m && session.GrossProfit == lateFee)
+            && session.ProviderAmount == 0m && session.GrossProfit == 0m)
         {
             return null;
         }
 
-        return new SessionTransitionMoneyPatch(0m, 0m, 0m, lateFee,
+        return new SessionTransitionMoneyPatch(0m, 0m, 0m, 0m,
             BuildMarker(CancelledMarkerPrefix, session));
     }
 

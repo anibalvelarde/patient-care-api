@@ -90,6 +90,14 @@ public class Wp49FeePolicyTests
                 new SessionServicePaymentRepository(context), new SiteRepository(context)));
     }
 
+    private static BookingService CreateBookingService(ApplicationDbContext context)
+        => new(
+            Mock.Of<ILogger<BookingService>>(),
+            new BookingRepository(context),
+            new TherapySessionRepository(context),
+            new SessionTransitionMoneyService(
+                new SessionServicePaymentRepository(context), new SiteRepository(context)));
+
     private static SessionEventUpdateRequest EchoedUpdateRequest(TherapySession s) => new()
     {
         SessionTime = s.SessionTime,
@@ -201,24 +209,46 @@ public class Wp49FeePolicyTests
     // ── the fee survives a later status transition ───────────────────────────────────────
 
     [Fact]
-    public async Task Cancel_KeepsTheLateFee_AndKeepsItInGrossProfit()
+    public async Task Cancel_IsBlocked_WhenTheSessionCarriesAnActiveFee()
     {
-        // Cancelling voids the SERVICE charge (BR2), not a penalty already levied for late
-        // payment. If cancel cleared the fee, any Appointments.Book holder could erase a
-        // manager's charge without the fee claim — the loophole ruling 4 closes for discounts.
-        var options = NewOptions(nameof(Cancel_KeepsTheLateFee_AndKeepsItInGrossProfit));
+        // Owner ruling 2026-08-08. Cancelling a fee-bearing session fails loudly rather than
+        // silently deciding the fee's fate. The alternative considered — keeping the fee — left
+        // a live receivable attached to a voided session, a state nobody would look for.
+        var options = NewOptions(nameof(Cancel_IsBlocked_WhenTheSessionCarriesAnActiveFee));
         await SeedSessionAsync(options, amount: 125m, provider: 50m, gross: 112.50m,
             lateFee: 37.50m, lateFeeAppliedOn: new DateOnly(2026, 7, 10), statusId: 2);
 
         using (var context = new ApplicationDbContext(options))
         {
-            var service = new BookingService(
-                Mock.Of<ILogger<BookingService>>(),
-                new BookingRepository(context),
-                new TherapySessionRepository(context),
-                new SessionTransitionMoneyService(
-                    new SessionServicePaymentRepository(context), new SiteRepository(context)));
+            var service = CreateBookingService(context);
 
+            var ex = await Assert.ThrowsAsync<ArgumentException>(
+                () => service.CancelAppointmentAsync(1, "familia avisó"));
+            Assert.Equal(SessionTransitionMoneyService.ActiveFeeMessage, ex.Message);
+        }
+
+        // Nothing was written — status and money both untouched.
+        var session = await GetSessionAsync(options);
+        Assert.Equal(2, session.AppointmentStatusId);
+        Assert.Equal(125m, session.Amount);
+        Assert.Equal(37.50m, session.LateFeeAmount);
+        Assert.DoesNotContain("[CANCELLED-ZEROED", session.Notes);
+    }
+
+    [Fact]
+    public async Task Cancel_Succeeds_OnceTheFeeHasBeenWaived()
+    {
+        // The other half of the ruling: waive first (manager, with a reason), then anyone who
+        // can book may cancel. A waived fee is 0.00 with its latch still set, so the guard must
+        // key on the AMOUNT — not on CarriesFee(), which stays true forever.
+        var options = NewOptions(nameof(Cancel_Succeeds_OnceTheFeeHasBeenWaived));
+        await SeedSessionAsync(options, amount: 125m, provider: 50m, gross: 75m,
+            lateFee: 0.00m, lateFeeAppliedOn: new DateOnly(2026, 7, 10), statusId: 2,
+            notes: "[FEE-WAIVED 2026-08-08: late 37.50 waived by u#3; reason: goodwill]");
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var service = CreateBookingService(context);
             var result = await service.CancelAppointmentAsync(1, "familia avisó");
             Assert.Equal(3, result.AppointmentStatusId);
         }
@@ -226,9 +256,42 @@ public class Wp49FeePolicyTests
         var session = await GetSessionAsync(options);
         Assert.Equal(0m, session.Amount);
         Assert.Equal(0m, session.ProviderAmount);
-        Assert.Equal(37.50m, session.LateFeeAmount);   // the penalty stands
-        Assert.Equal(37.50m, session.GrossProfit);     // and still reaches P&L
-        Assert.Equal(37.50m, session.AmountDue());
+        Assert.Equal(0m, session.GrossProfit);
+        Assert.Equal(0m, session.AmountDue());
+        Assert.Contains("[CANCELLED-ZEROED", session.Notes);
+    }
+
+    [Fact]
+    public async Task Cancel_IsBlocked_ByAnUnwaivedNoShowFee()
+    {
+        var options = NewOptions(nameof(Cancel_IsBlocked_ByAnUnwaivedNoShowFee));
+        await SeedSessionAsync(options, amount: 85m, discount: 0m, provider: 0m, gross: 85m,
+            statusId: 5, notes: "[NOSHOW-FEE 2026-07-10: was A:85.00 D:0.00 P:40.00 G:45.00]");
+
+        using var context = new ApplicationDbContext(options);
+        var service = CreateBookingService(context);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => service.CancelAppointmentAsync(1, "correction"));
+        Assert.Equal(SessionTransitionMoneyService.ActiveFeeMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task Cancel_IsUnaffected_OnAnOrdinaryFeeFreeSession()
+    {
+        // The guard must not change the everyday path.
+        var options = NewOptions(nameof(Cancel_IsUnaffected_OnAnOrdinaryFeeFreeSession));
+        await SeedSessionAsync(options, amount: 125m, provider: 50m, gross: 75m, statusId: 2);
+
+        using (var context = new ApplicationDbContext(options))
+        {
+            var result = await CreateBookingService(context).CancelAppointmentAsync(1, "familia avisó");
+            Assert.Equal(3, result.AppointmentStatusId);
+        }
+
+        var session = await GetSessionAsync(options);
+        Assert.Equal(0m, session.Amount);
+        Assert.Equal(0m, session.GrossProfit);
         Assert.Contains("[CANCELLED-ZEROED", session.Notes);
     }
 }
