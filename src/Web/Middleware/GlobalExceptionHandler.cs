@@ -100,6 +100,17 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
         {
             return "A patient with this Medical Record Number already exists.";
         }
+        // WP-50: attaching a second identity to a SystemUser that already has it (e.g. two
+        // concurrent "make self-caretaker" calls racing past the pre-check). The UNIQUE index on
+        // the identity's UserID is the concurrency backstop; give the loser a clear message.
+        if (message.Contains("Caretaker.UserID_UNIQUE", StringComparison.OrdinalIgnoreCase))
+        {
+            return "This person already has a caretaker record.";
+        }
+        if (message.Contains("Patient.UserID_UNIQUE", StringComparison.OrdinalIgnoreCase))
+        {
+            return "This person already has a patient record.";
+        }
         return "A record with this value already exists.";
     }
 }

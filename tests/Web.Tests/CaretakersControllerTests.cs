@@ -133,4 +133,22 @@ public class CaretakersControllerTests
         var returnedCaretaker = Assert.IsType<CaretakerProfile>(okResult.Value);
         Assert.NotNull(returnedCaretaker);
     }
+
+    // WP-50B: POST /api/caretakers/self returns 201 with the resulting caretaker profile.
+    [Fact]
+    public async Task MakeSelfCaretaker_Returns201_WithProfile()
+    {
+        // Arrange
+        var profile = new CaretakerProfile { CaretakerId = 777, UserId = 12500 };
+        _mockService.Setup(s => s.MakeSelfCaretakerAsync(42, true)).ReturnsAsync(profile);
+
+        // Act
+        var result = await _controller.MakeSelfCaretaker(new SelfCaretakerRequest { PatientId = 42, IsPrimary = true });
+
+        // Assert
+        var created = Assert.IsType<CreatedAtActionResult>(result);
+        var returned = Assert.IsType<CaretakerProfile>(created.Value);
+        Assert.Equal(777, returned.CaretakerId);
+        Assert.Equal(nameof(CaretakersController.GetCaretaker), created.ActionName);
+    }
 }

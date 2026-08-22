@@ -27,4 +27,14 @@ public class PatientRepository(ApplicationDbContext dbContext) :
             .DefaultIfEmpty(0)
             .Max();
     }
+
+    // WP-50B: load the patient WITH its SystemUser, tracked, so the self-caretaker flow can attach
+    // a Caretaker role to the same user (assigning it as a navigation on the new Caretaker inserts
+    // the FK without re-inserting the user). Base GetByIdAsync (FindAsync) loads no navigations.
+    public async Task<Patient?> GetByIdWithUserAsync(int id)
+    {
+        return await _dbContext.Patients
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.Id == id);
+    }
 }

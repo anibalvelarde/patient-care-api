@@ -90,6 +90,22 @@ public class CaretakersController : ControllerBase
         return CreatedAtAction(nameof(GetCaretaker), new { id = createdCaretaker.CaretakerId }, createdCaretaker);
     }
 
+    // WP-50B: make an existing patient their own caretaker — attaches a Caretaker role to the
+    // patient's existing SystemUser (no new user) and self-links (RelationshipToPatient="Self").
+    // 404 (patient not found) / 409 (already self-linked) are shaped by GlobalExceptionHandler.
+    // Rides Caretakers.LinkPatient (all front-desk roles MGR/AM/FD hold it); the net effect is a
+    // caretaker↔patient link. Literal "self" segment does not collide with the {id}/patients route.
+    [HttpPost("self")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
+    [ProducesResponseType(StatusCodes.Status201Created, Type = typeof(CaretakerProfile))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> MakeSelfCaretaker([FromBody] SelfCaretakerRequest request)
+    {
+        var caretaker = await _caretakerProfileService.MakeSelfCaretakerAsync(request.PatientId, request.IsPrimary);
+        return CreatedAtAction(nameof(GetCaretaker), new { id = caretaker.CaretakerId }, caretaker);
+    }
+
     [HttpPut("{id}")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersEdit)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -137,6 +153,7 @@ public class CaretakersController : ControllerBase
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)] // WP-50: self links can't be removed
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UnlinkPatient(int id, int patientId)
     {

@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Exceptions;
+using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
 
@@ -15,6 +17,8 @@ public class CaretakerProfileService : ICaretakerProfileService
     private readonly ICaretakerRepository _caretakerRepo;
     private readonly IUserRoleRepository _userRoleRepo;
     private readonly IPatientCaretakerRepository _patientCaretakerRepo;
+    private readonly IPatientRepository? _patientRepo;
+    private readonly IUnitOfWork? _unitOfWork;
     private readonly IUserNameResolver? _userNameResolver;
     private readonly ILogger<CaretakerProfileService> _logger;
 
@@ -26,7 +30,12 @@ public class CaretakerProfileService : ICaretakerProfileService
         IUserRoleRepository userRoleRepo,
         IPatientCaretakerRepository patientCaretakerRepo,
         // WP-31 (U1): optional so existing test constructions compile unchanged; DI supplies the real one.
-        IUserNameResolver? userNameResolver = null)
+        IUserNameResolver? userNameResolver = null,
+        // WP-50B: patientRepo + unitOfWork power MakeSelfCaretakerAsync. Optional/trailing for the
+        // same reason as userNameResolver — existing test constructions compile unchanged; DI
+        // supplies both, and the self-caretaker tests pass real fakes.
+        IPatientRepository? patientRepo = null,
+        IUnitOfWork? unitOfWork = null)
     {
         _logger = logger;
         _repository = repo;
@@ -34,8 +43,9 @@ public class CaretakerProfileService : ICaretakerProfileService
         _caretakerRepo = caretakerRepo;
         _userRoleRepo = userRoleRepo;
         _patientCaretakerRepo = patientCaretakerRepo;
+        _patientRepo = patientRepo;
+        _unitOfWork = unitOfWork;
         _userNameResolver = userNameResolver;
-        _repository = repo;
     }
 
     // WP-31 (U1): resolve audit updater names for a materialized batch (no-op when unresolved/absent).
@@ -196,8 +206,82 @@ public class CaretakerProfileService : ICaretakerProfileService
             return false;
         }
 
+        // WP-50 (owner ruling 2026-08-22): a "Self" link is permanent — it can't be unlinked in-app.
+        // Removing it would strand the caretaker identity (Caretaker row + UserRole) minted on the
+        // patient's own SystemUser, and a subsequent MakeSelfCaretaker would mint a duplicate.
+        if (string.Equals(existing.RelationshipToPatient, "Self", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException("A self-caretaker link cannot be removed.");
+        }
+
         await _patientCaretakerRepo.DeleteAsync(existing);
         return true;
+    }
+
+    // WP-50B: make an existing patient their own caretaker. Attaches a Caretaker role to the
+    // patient's EXISTING SystemUser (never mints a second user — so no email is required and the
+    // unique-email login identity is untouched) and self-links with RelationshipToPatient="Self".
+    // The self-link row is inherently reciprocal (same SystemUser on both ends); a reverse row is
+    // deliberately NOT created — that would be a bug (the "recursion" the owner flagged in Q6.3).
+    public async Task<CaretakerProfile> MakeSelfCaretakerAsync(int patientId, bool isPrimary)
+    {
+        if (_patientRepo is null || _unitOfWork is null)
+        {
+            throw new InvalidOperationException(
+                "MakeSelfCaretakerAsync requires IPatientRepository and IUnitOfWork (supplied by DI).");
+        }
+
+        _logger.LogInformation("Making patient {PatientId} their own caretaker", patientId);
+
+        var patient = await _patientRepo.GetByIdWithUserAsync(patientId)
+            ?? throw new NotFoundException("Patient", patientId);
+        var user = patient.User
+            ?? throw new NotFoundException($"Patient {patientId} has no associated SystemUser.");
+
+        // Idempotency has two layers. (1) Fast path for the common sequential re-submit: if any
+        // existing caretaker link for this patient is backed by the patient's own SystemUser, they
+        // are already their own caretaker → friendly 409, no failed insert. (2) Concurrency
+        // backstop: `Caretaker.UserID` is UNIQUE in the schema (`Caretaker.UserID_UNIQUE`), so even
+        // if two concurrent calls race past this check, the second AddAsync below violates that
+        // index (1062) inside its own transaction, rolls back, and surfaces as a 409 (mapped by
+        // GlobalExceptionHandler). Duplicates are therefore impossible — this pre-check is an
+        // optimization, the schema is the guarantee. (Same reason UserRole(UserID,RoleID) is unique.)
+        var existingLinks = await _patientCaretakerRepo.GetByPatientIdAsync(patientId);
+        if (existingLinks.Any(l => l.Caretaker?.User?.Id == user.Id))
+        {
+            throw new ConflictException($"Patient {patientId} is already their own caretaker.");
+        }
+
+        return await _unitOfWork.ExecuteAsync(async () =>
+        {
+            // Attach a Caretaker identity to the patient's existing user (assigning User as a
+            // navigation writes the FK without re-inserting the user); MintNewRole reads User.Id.
+            var caretaker = await _caretakerRepo.AddAsync(new Caretaker { User = user, Notes = null });
+            var role = await _userRoleRepo.AddAsync(caretaker.MintNewRole());
+
+            await _patientCaretakerRepo.AddAsync(new PatientCaretaker
+            {
+                PatientId = patientId,
+                CaretakerId = caretaker.Id,
+                PrimaryCaretaker = isPrimary,
+                RelationshipToPatient = "Self"
+            });
+
+            _logger.LogInformation(
+                "Patient {PatientId} is now their own caretaker: Uid[{Uid}], Cid[{Cid}], Role[{RoleId}]",
+                patientId, user.Id, caretaker.Id, role.UserRoleId);
+
+            return new CaretakerProfile
+            {
+                CaretakerId = caretaker.Id,
+                UserId = user.Id,
+                CaretakerName = $"{user.LastName}, {user.FirstName} {user.MiddleName}".Trim(),
+                Email = user.Email,
+                PhoneNumber = user.PhoneNumber,
+                CreatedTimestamp = caretaker.CreatedTimestamp,
+                LastUpdated = MaxTimestamp(user.LastUpdatedTimestamp, caretaker.LastUpdatedTimestamp),
+            };
+        });
     }
 
     private static DateTime MaxTimestamp(DateTime timestamp1, DateTime timestamp2)

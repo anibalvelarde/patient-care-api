@@ -10,4 +10,12 @@ public interface IPatientRepository : IRepository<Patient>
     /// query — never materializes Patient entities.
     /// </summary>
     Task<int> GetMaxMrnSequenceAsync(string mrnPrefix);
+
+    /// <summary>
+    /// WP-50B: the patient with its <see cref="Neurocorp.Api.Core.Entities.User"/> navigation
+    /// eagerly loaded and TRACKED. The base <c>GetByIdAsync</c> uses <c>FindAsync</c> and does not
+    /// load navigations; the self-caretaker flow needs the patient's existing SystemUser so it can
+    /// attach a Caretaker role to it rather than mint a new user.
+    /// </summary>
+    Task<Patient?> GetByIdWithUserAsync(int id);
 }
