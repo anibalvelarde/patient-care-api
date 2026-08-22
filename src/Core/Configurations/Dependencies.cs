@@ -33,6 +33,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<IScheduleMatrixService, ScheduleMatrixService>();
         services.AddScoped<IPatientMergeService, PatientMergeService>();
         services.AddScoped<IAdminUserService, AdminUserService>(); // WP-41B
+        services.AddScoped<IChangeLogService, ChangeLogService>(); // WP-54B
 
         // Authentication / authorization (Chunk 1B). Token + current-user
         // implementations live in the Web layer (composition root) because they

@@ -1,8 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
+using Neurocorp.Api.Core.Configurations;
 using Neurocorp.Api.Core.Interfaces;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Infrastructure.Repositories;
 using Neurocorp.Api.Infrastructure.Data;
+using Neurocorp.Api.Infrastructure.Data.ChangeLog;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -36,17 +38,27 @@ public static class NeurocorpConfigurationExtensions
         // the real authenticated user. A scoped context is the standard pattern for
         // auditing; pooling can be re-introduced later with a pool-safe accessor if
         // profiling shows it is needed.
-        services.AddDbContext<ApplicationDbContext>(options =>
+        // WP-54: change-log capture interceptor. Scoped (per-context, holds per-save state);
+        // resolved through the (sp, options) overload so it can join the scoped DI graph.
+        // Default enabled; ChangeLog:Enabled=false (env ChangeLog__Enabled=false) is the kill-switch.
+        var changeLogEnabled = !bool.TryParse(configuration[$"{ChangeLogOptions.SectionName}:Enabled"], out var clEnabled) || clEnabled;
+        services.Configure<ChangeLogOptions>(o => o.Enabled = changeLogEnabled);
+        services.AddScoped<ChangeLogInterceptor>();
+
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+        {
             options.UseMySql(
                 cn!.ToString(),
                 ServerVersion.AutoDetect(cn),
-                options => options.EnableRetryOnFailure(
+                mysql => mysql.EnableRetryOnFailure(
                     maxRetryCount: 5,
                     maxRetryDelay: System.TimeSpan.FromSeconds(5),
-                    errorNumbersToAdd: null
-                )));
+                    errorNumbersToAdd: null));
+            options.AddInterceptors(sp.GetRequiredService<ChangeLogInterceptor>());
+        });
         services.AddHealthChecks()
-            .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks");
+            .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks")
+            .AddCheck<HealthChecks.ChangeLogHealthCheck>("changelog"); // WP-54
 
         // Register repositories
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
@@ -74,6 +86,7 @@ public static class NeurocorpConfigurationExtensions
         services.AddScoped<ITreatmentPlanRepository, TreatmentPlanRepository>();
         services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<IAdminUserRepository, AdminUserRepository>(); // WP-41B
+        services.AddScoped<IChangeLogRepository, ChangeLogRepository>(); // WP-54B
 
         // WP-31 (U1): batched audit updater-name resolution (shared by patient/caretaker/session flows).
         services.AddScoped<Core.Interfaces.Services.IUserNameResolver, Services.UserNameResolver>();

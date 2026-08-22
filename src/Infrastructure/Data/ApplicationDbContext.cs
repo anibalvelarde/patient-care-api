@@ -43,6 +43,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TreatmentPlan> TreatmentPlans { get; set; }
     public DbSet<TreatmentPlanLine> TreatmentPlanLines { get; set; }
     public DbSet<PatientMergeLog> PatientMergeLogs { get; set; }
+    public DbSet<EntityChangeLog> EntityChangeLogs { get; set; } // WP-54
 
     public override int SaveChanges()
     {
