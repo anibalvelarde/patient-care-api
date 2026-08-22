@@ -209,6 +209,44 @@ public class CaretakerProfileServiceTests
     }
 
     [Fact]
+    public async Task UnlinkPatientAsync_Throws409_ForSelfLink_AndDoesNotDelete()
+    {
+        // Arrange — the existing link is a "Self" relationship.
+        var selfLink = new PatientCaretaker { PatientId = 42, CaretakerId = 777, RelationshipToPatient = "Self" };
+        var mockPcRepo = new Mock<IPatientCaretakerRepository>();
+        mockPcRepo.Setup(r => r.GetByCompositeKeyAsync(42, 777)).ReturnsAsync(selfLink);
+
+        var svc = new CaretakerProfileService(Mock.Of<ILogger<CaretakerProfileService>>(),
+            Mock.Of<ICaretakerProfileRepository>(), Mock.Of<ICaretakerRepository>(), Mock.Of<IUserRepository>(),
+            Mock.Of<IUserRoleRepository>(), mockPcRepo.Object);
+
+        // Act & Assert — blocked, and nothing deleted.
+        await Assert.ThrowsAsync<ConflictException>(() => svc.UnlinkPatientAsync(777, 42));
+        mockPcRepo.Verify(r => r.DeleteAsync(It.IsAny<PatientCaretaker>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UnlinkPatientAsync_Deletes_ForNonSelfLink()
+    {
+        // Arrange — an ordinary (e.g. Mother) link is still removable.
+        var link = new PatientCaretaker { PatientId = 42, CaretakerId = 777, RelationshipToPatient = "Mother" };
+        var mockPcRepo = new Mock<IPatientCaretakerRepository>();
+        mockPcRepo.Setup(r => r.GetByCompositeKeyAsync(42, 777)).ReturnsAsync(link);
+        mockPcRepo.Setup(r => r.DeleteAsync(It.IsAny<PatientCaretaker>())).Returns(Task.CompletedTask);
+
+        var svc = new CaretakerProfileService(Mock.Of<ILogger<CaretakerProfileService>>(),
+            Mock.Of<ICaretakerProfileRepository>(), Mock.Of<ICaretakerRepository>(), Mock.Of<IUserRepository>(),
+            Mock.Of<IUserRoleRepository>(), mockPcRepo.Object);
+
+        // Act
+        var result = await svc.UnlinkPatientAsync(777, 42);
+
+        // Assert
+        Assert.True(result);
+        mockPcRepo.Verify(r => r.DeleteAsync(link), Times.Once);
+    }
+
+    [Fact]
     public async Task MakeSelfCaretakerAsync_Throws404_WhenPatientMissing()
     {
         // Arrange

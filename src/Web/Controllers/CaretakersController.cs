@@ -153,6 +153,7 @@ public class CaretakersController : ControllerBase
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)] // WP-50: self links can't be removed
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UnlinkPatient(int id, int patientId)
     {

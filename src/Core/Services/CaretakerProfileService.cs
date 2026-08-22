@@ -206,6 +206,14 @@ public class CaretakerProfileService : ICaretakerProfileService
             return false;
         }
 
+        // WP-50 (owner ruling 2026-08-22): a "Self" link is permanent — it can't be unlinked in-app.
+        // Removing it would strand the caretaker identity (Caretaker row + UserRole) minted on the
+        // patient's own SystemUser, and a subsequent MakeSelfCaretaker would mint a duplicate.
+        if (string.Equals(existing.RelationshipToPatient, "Self", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ConflictException("A self-caretaker link cannot be removed.");
+        }
+
         await _patientCaretakerRepo.DeleteAsync(existing);
         return true;
     }
