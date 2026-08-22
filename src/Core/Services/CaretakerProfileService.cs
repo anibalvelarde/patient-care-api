@@ -238,8 +238,14 @@ public class CaretakerProfileService : ICaretakerProfileService
         var user = patient.User
             ?? throw new NotFoundException($"Patient {patientId} has no associated SystemUser.");
 
-        // Idempotency: if any existing caretaker link for this patient is backed by the patient's
-        // own SystemUser, they are already their own caretaker → 409 (no duplicate role/link).
+        // Idempotency has two layers. (1) Fast path for the common sequential re-submit: if any
+        // existing caretaker link for this patient is backed by the patient's own SystemUser, they
+        // are already their own caretaker → friendly 409, no failed insert. (2) Concurrency
+        // backstop: `Caretaker.UserID` is UNIQUE in the schema (`Caretaker.UserID_UNIQUE`), so even
+        // if two concurrent calls race past this check, the second AddAsync below violates that
+        // index (1062) inside its own transaction, rolls back, and surfaces as a 409 (mapped by
+        // GlobalExceptionHandler). Duplicates are therefore impossible — this pre-check is an
+        // optimization, the schema is the guarantee. (Same reason UserRole(UserID,RoleID) is unique.)
         var existingLinks = await _patientCaretakerRepo.GetByPatientIdAsync(patientId);
         if (existingLinks.Any(l => l.Caretaker?.User?.Id == user.Id))
         {

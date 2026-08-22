@@ -65,6 +65,11 @@ public class GlobalExceptionHandlerTests
         "A user with this email address already exists.")]
     [InlineData("Duplicate entry '8-123-456' for key 'Patient.uq_patient_cedula'",
         "A patient with this Cedula already exists.")]
+    // WP-50: attaching a duplicate caretaker/patient identity to a SystemUser (self-caretaker race).
+    [InlineData("Duplicate entry '10117' for key 'Caretaker.UserID_UNIQUE'",
+        "This person already has a caretaker record.")]
+    [InlineData("Duplicate entry '10117' for key 'Patient.UserID_UNIQUE'",
+        "This person already has a patient record.")]
     [InlineData("Duplicate entry 'x' for key 'SomeTable.some_other_key'",
         "A record with this value already exists.")]
     public void DuplicateKeyMessageFor_maps_unique_key_to_friendly_message(string mysqlMessage, string expected)
