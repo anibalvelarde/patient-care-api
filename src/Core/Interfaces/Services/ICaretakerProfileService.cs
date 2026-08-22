@@ -16,4 +16,7 @@ public interface ICaretakerProfileService : IService<CaretakerProfile>
     Task<IEnumerable<CaretakerPatientSummary>> GetPatientsForCaretakerAsync(int caretakerId);
     Task<bool> LinkPatientAsync(int caretakerId, int patientId, bool isPrimary, string? relationship);
     Task<bool> UnlinkPatientAsync(int caretakerId, int patientId);
+    // WP-50B: make an existing patient their own caretaker — attach a Caretaker role to the
+    // patient's existing SystemUser (no new user) and self-link (RelationshipToPatient = "Self").
+    Task<CaretakerProfile> MakeSelfCaretakerAsync(int patientId, bool isPrimary);
 }
