@@ -1,0 +1,5 @@
+# WP-55 B-4 magic-value ratchet baseline — accepted bare-literal occurrences (see MagicValueRatchetTests).
+# This list can only SHRINK. Do NOT add rows to make a build pass without deliberate review;
+# route the literal through its constant home instead. Format: <relative-path>:<line>: <pattern-name>
+# Seeded 2026-08-23 after the WP-55B refactor: EMPTY — the code carries no bare status/role/
+# relationship/plan-status literals outside the constant homes.

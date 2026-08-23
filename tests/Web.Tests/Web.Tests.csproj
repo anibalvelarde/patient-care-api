@@ -34,6 +34,9 @@
              CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Authorization\conformance-baseline.txt" Link="conformance-baseline.txt"
              CopyToOutputDirectory="PreserveNewest" />
+    <!-- WP-55 B-4: magic-value ratchet baseline -->
+    <Content Include="Conventions\conventions-baseline.txt" Link="conventions-baseline.txt"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
