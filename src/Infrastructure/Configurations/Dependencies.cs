@@ -58,7 +58,8 @@ public static class NeurocorpConfigurationExtensions
         });
         services.AddHealthChecks()
             .AddCheck<HealthChecks.CustomDbHealthCheck>("DbChecks")
-            .AddCheck<HealthChecks.ChangeLogHealthCheck>("changelog"); // WP-54
+            .AddCheck<HealthChecks.ChangeLogHealthCheck>("changelog") // WP-54
+            .AddCheck<HealthChecks.LookupSeedHealthCheck>("lookupSeed"); // WP-55 B-3
 
         // Register repositories
         services.AddScoped<IUnitOfWork, EfUnitOfWork>();
