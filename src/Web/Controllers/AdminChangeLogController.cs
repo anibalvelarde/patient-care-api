@@ -23,8 +23,7 @@ public class AdminChangeLogController : ControllerBase
     private const int MaxWindowDays = 366;
     private const int PurgeDefaultOlderThanDays = 1100;
 
-    private static readonly HashSet<string> GroupByValues =
-        new(StringComparer.OrdinalIgnoreCase) { "day", "week", "month", "quarter", "year" };
+    private static readonly IReadOnlySet<string> GroupByValues = ChangeLogPeriods.All;
 
     private readonly IChangeLogService _service;
 
@@ -44,7 +43,7 @@ public class AdminChangeLogController : ControllerBase
         [FromQuery] DateTimeOffset? from = null,
         [FromQuery] DateTimeOffset? to = null,
         [FromQuery] int tzOffsetMinutes = 0,
-        [FromQuery] string groupBy = "day",
+        [FromQuery] string groupBy = ChangeLogPeriods.Day,
         [FromQuery] int? userId = null,
         [FromQuery] string? entityType = null,
         [FromQuery] string? action = null)
@@ -74,7 +73,7 @@ public class AdminChangeLogController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = DefaultPageSize)
     {
-        if (!TryBuildQuery(from, to, 0, "day", userId, entityType, entityId, action, page, pageSize, out var query, out var error))
+        if (!TryBuildQuery(from, to, 0, ChangeLogPeriods.Day, userId, entityType, entityId, action, page, pageSize, out var query, out var error))
         {
             return BadRequest(new { error });
         }
@@ -141,7 +140,7 @@ public class AdminChangeLogController : ControllerBase
             return false;
         }
 
-        var group = (groupBy ?? "day").Trim().ToLowerInvariant();
+        var group = (groupBy ?? ChangeLogPeriods.Day).Trim().ToLowerInvariant();
         if (!GroupByValues.Contains(group))
         {
             error = "groupBy must be one of: day, week, month, quarter, year.";

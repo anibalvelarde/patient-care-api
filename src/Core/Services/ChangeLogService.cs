@@ -131,7 +131,7 @@ public class ChangeLogService : IChangeLogService
 
         foreach (var d in days)
         {
-            var key = PeriodKey(d.LocalDay, query.GroupBy);
+            var key = ChangeLogPeriods.Key(d.LocalDay, query.GroupBy);
             if (byKey.TryGetValue(key, out var bucket))
             {
                 bucket.Inserts += d.Inserts;
@@ -171,50 +171,15 @@ public class ChangeLogService : IChangeLogService
     private static IEnumerable<PeriodSpec> EnumeratePeriods(DateTime localFrom, DateTime localTo, string groupBy)
     {
         // Walk from the period covering localFrom to the period covering localTo, inclusive.
-        var cursor = PeriodStart(localFrom.Date, groupBy);
-        var end = PeriodStart(localTo.Date, groupBy);
+        var cursor = ChangeLogPeriods.Start(localFrom.Date, groupBy);
+        var end = ChangeLogPeriods.Start(localTo.Date, groupBy);
         // Guard against a pathological window producing an unbounded loop.
         var guard = 0;
         while (cursor <= end && guard++ <= MaxPeriodBuckets + 1)
         {
-            yield return new PeriodSpec(PeriodKey(cursor, groupBy), cursor, PeriodLabel(cursor, groupBy));
-            cursor = NextPeriod(cursor, groupBy);
+            yield return new PeriodSpec(ChangeLogPeriods.Key(cursor, groupBy), cursor, ChangeLogPeriods.Label(cursor, groupBy));
+            cursor = ChangeLogPeriods.Next(cursor, groupBy);
         }
     }
 
-    private static DateTime PeriodStart(DateTime day, string groupBy) => groupBy switch
-    {
-        "week" => day.AddDays(-((int)day.DayOfWeek == 0 ? 6 : (int)day.DayOfWeek - 1)), // ISO week: Monday
-        "month" => new DateTime(day.Year, day.Month, 1),
-        "quarter" => new DateTime(day.Year, ((day.Month - 1) / 3) * 3 + 1, 1),
-        "year" => new DateTime(day.Year, 1, 1),
-        _ => day.Date, // day
-    };
-
-    private static DateTime NextPeriod(DateTime start, string groupBy) => groupBy switch
-    {
-        "week" => start.AddDays(7),
-        "month" => start.AddMonths(1),
-        "quarter" => start.AddMonths(3),
-        "year" => start.AddYears(1),
-        _ => start.AddDays(1),
-    };
-
-    private static string PeriodKey(DateTime day, string groupBy) => groupBy switch
-    {
-        "week" => $"W{ISOWeek.GetYear(day):0000}-{ISOWeek.GetWeekOfYear(day):00}",
-        "month" => $"{day.Year:0000}-{day.Month:00}",
-        "quarter" => $"{day.Year:0000}-Q{(day.Month - 1) / 3 + 1}",
-        "year" => $"{day.Year:0000}",
-        _ => day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-    };
-
-    private static string PeriodLabel(DateTime start, string groupBy) => groupBy switch
-    {
-        "week" => $"{ISOWeek.GetYear(start):0000}-W{ISOWeek.GetWeekOfYear(start):00}",
-        "month" => $"{start.Year:0000}-{start.Month:00}",
-        "quarter" => $"{start.Year:0000}-Q{(start.Month - 1) / 3 + 1}",
-        "year" => $"{start.Year:0000}",
-        _ => start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-    };
 }

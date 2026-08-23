@@ -21,12 +21,12 @@ public static class ChangeLogRegistry
     /// </summary>
     public static readonly IReadOnlySet<string> ExcludedFieldNames = new HashSet<string>(StringComparer.Ordinal)
     {
-        "CreatedTimestamp",
-        "LastUpdatedTimestamp",
-        "LastUpdatedByUserId",
-        "LastLoginAt",
-        "FailedLoginAttempts",
-        "LockoutUntil",
+        nameof(AuditableEntityBase.CreatedTimestamp),
+        nameof(AuditableEntityBase.LastUpdatedTimestamp),
+        nameof(AuditableEntityBase.LastUpdatedByUserId),
+        nameof(User.LastLoginAt),
+        nameof(User.FailedLoginAttempts),
+        nameof(User.LockoutUntil),
     };
 
     /// <summary>Every mapped entity is audited except the log table itself.</summary>
@@ -65,35 +65,35 @@ public static class ChangeLogLabeler
         var id = PrimaryKeyString(entry);
         switch (normalizedType)
         {
-            case "User":
+            case nameof(User):
             {
-                var last = Str(entry, "LastName");
-                var first = Str(entry, "FirstName");
+                var last = Str(entry, nameof(User.LastName));
+                var first = Str(entry, nameof(User.FirstName));
                 if (last is not null || first is not null)
                 {
                     return $"{last ?? "?"}, {first ?? "?"}";
                 }
                 return $"#{id}";
             }
-            case "Patient":
+            case nameof(Patient):
             {
-                var mrn = Str(entry, "MedicalRecordNumber");
+                var mrn = Str(entry, nameof(Patient.MedicalRecordNumber));
                 return string.IsNullOrWhiteSpace(mrn) ? $"#{id}" : mrn;
             }
-            case "TherapySession":
+            case nameof(TherapySession):
             {
                 // SessionDate is a DateOnly (not DateTime) — match it first, keep DateTime as a
                 // defensive fallback so a future type change can't silently drop the date again.
-                return Get(entry, "SessionDate") switch
+                return Get(entry, nameof(TherapySession.SessionDate)) switch
                 {
                     DateOnly d => $"#{id} · {d:yyyy-MM-dd}",
                     DateTime dt => $"#{id} · {dt:yyyy-MM-dd}",
                     _ => $"#{id}",
                 };
             }
-            case "Payment":
+            case nameof(Payment):
             {
-                var amt = Get(entry, "Amount");
+                var amt = Get(entry, nameof(Payment.Amount));
                 return amt is decimal m ? $"#{id} · ${m.ToString("0.00", CultureInfo.InvariantCulture)}" : $"#{id}";
             }
             default:
