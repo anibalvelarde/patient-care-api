@@ -9,7 +9,6 @@ namespace Neurocorp.Api.Core.Services;
 
 public class BookingService : IBookingService
 {
-    private static readonly HashSet<int> ConfirmedStatuses = [2, 4, 6, 7]; // Confirmed, Completed, CheckedIn, InTherapy
     private static readonly HashSet<int> ActiveStatuses = [1, 2, 6, 7]; // Proposed, Confirmed, CheckedIn, InTherapy
 
     private readonly ILogger<BookingService> _logger;

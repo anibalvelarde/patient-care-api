@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
@@ -27,8 +28,8 @@ public class SessionEvent : IHasAudit
     public string Notes { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set;}
-    public int AppointmentStatusId { get; set; } = 4;
-    public string StatusName { get; set; } = "Completed";
+    public int AppointmentStatusId { get; set; } = SessionStatus.Completed;
+    public string StatusName { get; set; } = SessionStatus.Names.Completed;
     public bool IsConfirmed { get; set; }
     public int? SiteId { get; set; }
     public string? SiteName { get; set; }

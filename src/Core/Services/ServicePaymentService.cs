@@ -10,7 +10,7 @@ namespace Neurocorp.Api.Core.Services;
 
 public class ServicePaymentService : IServicePaymentService
 {
-    private const string StatusCompleted = "Completed";
+    private const string StatusCompleted = SessionStatus.Names.Completed;
 
     private readonly IServicePaymentRepository _servicePaymentRepo;
     private readonly ISessionServicePaymentRepository _sessionServicePaymentRepo;

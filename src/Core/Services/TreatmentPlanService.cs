@@ -37,7 +37,7 @@ public class TreatmentPlanService : ITreatmentPlanService
             throw new ArgumentException("Discovery session does not belong to the specified patient.");
         if (discoverySession.SpecialtyType is null || !discoverySession.SpecialtyType.IsDiscovery)
             throw new ArgumentException("The referenced session is not a discovery session.");
-        if (discoverySession.AppointmentStatusId != 4)
+        if (discoverySession.AppointmentStatusId != SessionStatus.Completed)
             throw new ArgumentException("Discovery session must be completed before creating a treatment plan.");
 
         // Validate lines
@@ -191,9 +191,6 @@ public class TreatmentPlanService : ITreatmentPlanService
         return MapToProfile(plan);
     }
 
-    private const int CancelledStatusId = 3;
-    private const int CompletedStatusId = 4;
-
     public async Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync()
     {
         var activePlans = await _planRepository.GetActiveWithLinesAsync();
@@ -205,9 +202,9 @@ public class TreatmentPlanService : ITreatmentPlanService
             var sessions = await _sessionRepository.GetByTreatmentPlanIdAsync(plan.Id);
 
             var sessionsCreated = sessions.Count;
-            var sessionsCompleted = sessions.Count(s => s.AppointmentStatusId == CompletedStatusId);
-            var sessionsCancelled = sessions.Count(s => s.AppointmentStatusId == CancelledStatusId);
-            var sessionsRemaining = sessions.Count(s => s.AppointmentStatusId != CancelledStatusId && s.AppointmentStatusId != CompletedStatusId);
+            var sessionsCompleted = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Completed);
+            var sessionsCancelled = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Cancelled);
+            var sessionsRemaining = sessions.Count(s => s.AppointmentStatusId != SessionStatus.Cancelled && s.AppointmentStatusId != SessionStatus.Completed);
 
             summaries.Add(new ActivePlanSummary
             {
@@ -225,7 +222,7 @@ public class TreatmentPlanService : ITreatmentPlanService
                 SessionsCompleted = sessionsCompleted,
                 SessionsRemaining = sessionsRemaining,
                 NextUpcomingDate = sessions
-                    .Where(s => s.SessionDate >= today && s.AppointmentStatusId != CancelledStatusId)
+                    .Where(s => s.SessionDate >= today && s.AppointmentStatusId != SessionStatus.Cancelled)
                     .OrderBy(s => s.SessionDate)
                     .Select(s => (DateOnly?)s.SessionDate)
                     .FirstOrDefault(),

@@ -8,9 +8,9 @@ namespace Neurocorp.Api.Core.Services;
 
 public class TherapistStatementService : ITherapistStatementService
 {
-    private const string StatusCompleted = "Completed";
-    private const string StatusCancelled = "Cancelled";
-    private const string StatusNoShow = "NoShow";
+    private const string StatusCompleted = SessionStatus.Names.Completed;
+    private const string StatusCancelled = SessionStatus.Names.Cancelled;
+    private const string StatusNoShow = SessionStatus.Names.NoShow;
 
     private readonly ITherapistProfileService _therapistProfileService;
     private readonly ITherapySessionRepository _sessionRepo;

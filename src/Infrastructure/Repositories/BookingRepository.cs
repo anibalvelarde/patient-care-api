@@ -4,13 +4,13 @@ using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
+using Neurocorp.Api.Core.Services;
 using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
 public class BookingRepository : IBookingRepository
 {
-    private static readonly HashSet<int> ConfirmedStatuses = [2, 4, 6, 7];
     private readonly ApplicationDbContext _dbContext;
 
     public BookingRepository(ApplicationDbContext dbContext)
@@ -177,7 +177,7 @@ public class BookingRepository : IBookingRepository
 
     private static SessionEvent MapToSessionEvent(TherapySession ts)
     {
-        var statusName = ts.AppointmentStatus?.Name ?? "Completed";
+        var statusName = ts.AppointmentStatus?.Name ?? SessionStatus.Names.Completed;
 
         // B3: surface the primary caretaker's contact info (first link as fallback) —
         // keep in step with SessionEventRepository.ExtractSessionEvent.
@@ -205,7 +205,7 @@ public class BookingRepository : IBookingRepository
             Notes = ts.Notes,
             AppointmentStatusId = ts.AppointmentStatusId,
             StatusName = statusName,
-            IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
+            IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(ts.AppointmentStatusId),
             SiteId = ts.SiteId,
             SiteName = ts.Site?.SiteName,
             SpecialtyTypeId = ts.SpecialtyTypeId,

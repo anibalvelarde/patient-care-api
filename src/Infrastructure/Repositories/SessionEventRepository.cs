@@ -5,6 +5,7 @@ using Neurocorp.Api.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using Neurocorp.Api.Core.Entities;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
 
@@ -242,13 +243,12 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return therapySessionToUpdate;
     }
 
-    private static readonly HashSet<int> ConfirmedStatuses = [2, 4, 6, 7]; // Confirmed, Completed, CheckedIn, InTherapy
 
     private static SessionEvent ExtractSessionEvent(TherapySession ts)
     {
         ArgumentNullException.ThrowIfNull(ts, nameof(ts) + " must not be null");
 
-        var statusName = ts.AppointmentStatus?.Name ?? "Completed";
+        var statusName = ts.AppointmentStatus?.Name ?? SessionStatus.Names.Completed;
 
         // B3: surface the primary caretaker's contact info (first link as fallback).
         var caretakerUser = ts.Patient!.Caretakers
@@ -275,7 +275,7 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             Notes = ts.Notes,
             AppointmentStatusId = ts.AppointmentStatusId,
             StatusName = statusName,
-            IsConfirmed = ConfirmedStatuses.Contains(ts.AppointmentStatusId),
+            IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(ts.AppointmentStatusId),
             SiteId = ts.SiteId,
             SiteName = ts.Site?.SiteName,
             SpecialtyTypeId = ts.SpecialtyTypeId,

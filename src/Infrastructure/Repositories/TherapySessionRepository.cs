@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
+using Neurocorp.Api.Core.Services;
 using Neurocorp.Api.Infrastructure.Data;
 
 namespace Neurocorp.Api.Infrastructure.Repositories;
@@ -37,7 +38,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
         return await _dbContext.TherapySessions
             .Include(s => s.SpecialtyType)
             .AnyAsync(s => s.PatientId == patientId
-                && s.AppointmentStatusId == 4
+                && s.AppointmentStatusId == SessionStatus.Completed
                 && s.SpecialtyType != null
                 && s.SpecialtyType.IsDiscovery);
     }
@@ -50,7 +51,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
 
         return await _dbContext.TherapySessions
             .Where(s => patientIds.Contains(s.PatientId)
-                && s.AppointmentStatusId == 4
+                && s.AppointmentStatusId == SessionStatus.Completed
                 && s.SpecialtyType != null
                 && s.SpecialtyType.IsDiscovery)
             .Select(s => s.PatientId)
@@ -71,7 +72,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .Include(s => s.SpecialtyType)
             .Include(s => s.Therapist).ThenInclude(t => t!.User)
             .Where(s => s.PatientId == patientId
-                && s.AppointmentStatusId == 4
+                && s.AppointmentStatusId == SessionStatus.Completed
                 && s.SpecialtyType != null
                 && s.SpecialtyType.IsDiscovery)
             .OrderByDescending(s => s.SessionDate)
@@ -85,7 +86,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .Where(s => s.TherapistId == therapistId
                 && s.SessionDate >= fromDate
                 && s.SessionDate <= toDate
-                && s.AppointmentStatusId != 3) // Exclude cancelled
+                && s.AppointmentStatusId != SessionStatus.Cancelled) // Exclude cancelled
             .ToListAsync();
     }
 
@@ -150,7 +151,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
     public async Task<IReadOnlyList<int>> GetTherapistIdsForPatientAsync(int patientId)
     {
         return await _dbContext.TherapySessions
-            .Where(s => s.PatientId == patientId && s.AppointmentStatusId != 3)
+            .Where(s => s.PatientId == patientId && s.AppointmentStatusId != SessionStatus.Cancelled)
             .GroupBy(s => s.TherapistId)
             .OrderByDescending(g => g.Max(s => s.SessionDate))
             .Select(g => g.Key)
@@ -168,7 +169,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
         return await _dbContext.TherapySessions
             .AnyAsync(s => s.TreatmentPlanLineId != null
                 && s.TreatmentPlanLine!.TreatmentPlanId == treatmentPlanId
-                && s.AppointmentStatusId != 3); // Exclude cancelled
+                && s.AppointmentStatusId != SessionStatus.Cancelled); // Exclude cancelled
     }
 
     public async Task<IReadOnlyList<TherapySession>> GetBySiteAndDateRangeAsync(int siteId, DateOnly from, DateOnly to)
@@ -181,7 +182,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .Where(s => s.SiteId == siteId
                 && s.SessionDate >= from
                 && s.SessionDate <= to
-                && s.AppointmentStatusId != 3) // Exclude cancelled
+                && s.AppointmentStatusId != SessionStatus.Cancelled) // Exclude cancelled
             .OrderBy(s => s.SessionDate)
             .ThenBy(s => s.SessionTime)
             .ToListAsync();
@@ -204,7 +205,7 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .Where(s => s.LateFeeAppliedOn == null                       // the anti-compounding latch
                 && (s.Amount - s.DiscountAmount - s.AmountPaid + (s.OnSiteChargeAmount ?? 0m)) > 0
                 && s.SessionDate <= cutoff
-                && s.AppointmentStatusId != 3)                           // Cancelled is not billable
+                && s.AppointmentStatusId != SessionStatus.Cancelled)                           // Cancelled is not billable
                                                                          // NoShow (5) IS eligible — an unpaid
                                                                          // no-show fee can itself go late.
             .OrderBy(s => s.SessionDate)

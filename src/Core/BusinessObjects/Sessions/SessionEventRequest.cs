@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Services;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 public class SessionEventRequest
@@ -18,7 +20,7 @@ public class SessionEventRequest
     public decimal ProviderAmount { get; set; }
     public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
-    public int AppointmentStatusId { get; set; } = 1; // Default: Proposed
+    public int AppointmentStatusId { get; set; } = SessionStatus.Proposed;
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
     // WP-40 on-site leg: only valid when the resolved specialty is OfferedOnSite; requires

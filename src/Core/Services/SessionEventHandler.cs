@@ -283,7 +283,6 @@ public class SessionEventHandler : IHandleSessionEvent
         var newTherapySession = await _therapySessionRepository.AddAsync(
             MapToNewSessionEvent(pProfile!, tProfile!, request, specialty, amount, derivedDiscount, onSiteCharge));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
-        var confirmedStatuses = new HashSet<int> { 2, 4, 6, 7 };
         return new SessionEvent()
         {
             SessionId = newTherapySession.Id,
@@ -300,8 +299,8 @@ public class SessionEventHandler : IHandleSessionEvent
             IsPaidOff = false,
             Notes = newTherapySession.Notes,
             AppointmentStatusId = newTherapySession.AppointmentStatusId,
-            StatusName = newTherapySession.AppointmentStatus?.Name ?? "Proposed",
-            IsConfirmed = confirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
+            StatusName = newTherapySession.AppointmentStatus?.Name ?? SessionStatus.Names.Proposed,
+            IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
             SiteId = newTherapySession.SiteId,
             SiteName = newTherapySession.Site?.SiteName,
             SpecialtyTypeId = newTherapySession.SpecialtyTypeId,

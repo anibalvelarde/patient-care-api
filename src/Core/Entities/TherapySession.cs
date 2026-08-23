@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Reflection.Metadata.Ecma335;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.Entities;
 
@@ -27,7 +28,7 @@ public class TherapySession : AuditableEntityBase
     public bool IsPaidOff { get; set; }
     public string Notes { get; set; }
     public string TherapyTypes { get; set; }
-    public int AppointmentStatusId { get; set; } = 4; // Default: Completed
+    public int AppointmentStatusId { get; set; } = SessionStatus.Completed;
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
     public int? TreatmentPlanLineId { get; set; }

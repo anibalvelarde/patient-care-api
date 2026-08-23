@@ -29,8 +29,8 @@ namespace Neurocorp.Api.Core.Services;
 /// </summary>
 public class SessionTransitionMoneyService : ISessionTransitionMoneyService
 {
-    public const int CancelledStatusId = 3;
-    public const int NoShowStatusId = 5;
+    public const int CancelledStatusId = SessionStatus.Cancelled;
+    public const int NoShowStatusId = SessionStatus.NoShow;
 
     /// <summary>
     /// Default fee pct when the session has no Site on file — mirrors the DB column default
