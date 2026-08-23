@@ -7,7 +7,7 @@ public class SessionMoneyMathTests
 {
     [Theory]
     [InlineData(30, true)]
-    [InlineData(40, true)]  // 2026-07-27 addendum: 40-min interview services are real
+    [InlineData(40, false)] // WP-55 G5 (2026-08-23): reverses the 2026-07-27 addendum — NO 40-min sessions
     [InlineData(45, true)]
     [InlineData(60, true)]
     [InlineData(90, true)]
@@ -21,7 +21,7 @@ public class SessionMoneyMathTests
 
     [Fact]
     public void BookableDurations_AreExactlyThePriceSheetDurations()
-        => Assert.Equal([30, 40, 45, 60, 90, 120], SpecialtyPricing.AllowedDurations);
+        => Assert.Equal([30, 45, 60, 90, 120], SpecialtyPricing.AllowedDurations);
 
     [Theory]
     [InlineData(100, true, 20)]     // active SENADIS ⇒ exactly 20%

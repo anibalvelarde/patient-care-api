@@ -566,7 +566,7 @@ public class SessionEventHandlerTests
 
     [Theory]
     [InlineData(30)]
-    [InlineData(40)] // 2026-07-27 addendum: real 40-min interview services exist
+    [InlineData(45)]
     [InlineData(120)]
     public async Task CreateAsync_BookableDuration_Creates(int duration)
     {
@@ -586,6 +586,7 @@ public class SessionEventHandlerTests
 
     [Theory]
     [InlineData(15)]
+    [InlineData(40)] // WP-55 G5 (2026-08-23): 40 is no longer bookable (reverses WP-40 addendum)
     [InlineData(50)]
     [InlineData(75)]
     public async Task CreateAsync_NonBookableDuration_Throws(int duration)

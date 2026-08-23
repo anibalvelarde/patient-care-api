@@ -49,6 +49,7 @@ public class SpecialtyPriceValidationTests
     [InlineData(0)]
     [InlineData(15)]
     [InlineData(31)]
+    [InlineData(40)]   // WP-55 G5: 40 removed from the sheet (reverses the WP-40 addendum)
     [InlineData(75)]   // a future 75-min offering is a deliberate value change, not accepted today
     [InlineData(-60)]
     public void Row_Rejects_DurationsOutsideTheSheet(int duration)
