@@ -19,13 +19,16 @@ namespace Core.Tests;
 /// </summary>
 public class AdminUserServiceTests
 {
-    // RoleType fixture — ids mirror the V017 seed shape (identity: 1/2/4; operators: rest).
+    // RoleType fixture — identity ids 1/2/4 match prod; operator ids are illustrative for the
+    // assignment logic under test. WP-55 B-2d: id 7 = FrontDesk per prod ground truth
+    // (patient-care-db/tools/wp-55/lookup-ground-truth.md) — this fixture previously mislabeled
+    // 7 as "Owner", contradicting AdminUserRepositoryTests which correctly had 7 = FrontDesk.
     private const int TherapistRoleId = 1;
     private const int PatientRoleId = 2;
     private const int CaretakerRoleId = 4;
     private const int SysAdminRoleId = 5;
     private const int ManagerRoleId = 6;
-    private const int OwnerRoleId = 7;
+    private const int FrontDeskRoleId = 7;
 
     private static IReadOnlyList<RoleType> AllRoleTypes() =>
     [
@@ -34,7 +37,7 @@ public class AdminUserServiceTests
         new RoleType { Id = CaretakerRoleId, Name = "Caretaker", Abbreviation = "CARETAKER" },
         new RoleType { Id = SysAdminRoleId, Name = "SystemAdmin", Abbreviation = "SYSADMIN" },
         new RoleType { Id = ManagerRoleId, Name = "Manager", Abbreviation = "MGR" },
-        new RoleType { Id = OwnerRoleId, Name = "Owner", Abbreviation = "OWN" },
+        new RoleType { Id = FrontDeskRoleId, Name = "FrontDesk", Abbreviation = "FD" },
     ];
 
     private readonly Mock<IAdminUserRepository> _repo = new();
@@ -240,10 +243,10 @@ public class AdminUserServiceTests
             .Callback<User, IReadOnlyCollection<UserRole>, IReadOnlyCollection<int>>((_, rem, add) => { removed = rem; added = add; })
             .Returns(Task.CompletedTask);
 
-        await svc.UpdateAsync(7, new AdminUserUpdateRequest { OperatorRoleTypeIds = [OwnerRoleId] }, callerUserId: 1);
+        await svc.UpdateAsync(7, new AdminUserUpdateRequest { OperatorRoleTypeIds = [FrontDeskRoleId] }, callerUserId: 1);
 
         Assert.Equal([managerLink], removed!.ToArray());
-        Assert.Equal([OwnerRoleId], added!.ToArray());
+        Assert.Equal([FrontDeskRoleId], added!.ToArray());
     }
 
     [Fact]
@@ -258,11 +261,11 @@ public class AdminUserServiceTests
         _repo.Setup(r => r.ApplyUpdateAsync(user, It.IsAny<IReadOnlyCollection<UserRole>>(), It.IsAny<IReadOnlyCollection<int>>()))
             .Returns(Task.CompletedTask);
 
-        await svc.UpdateAsync(7, new AdminUserUpdateRequest { OperatorRoleTypeIds = [ManagerRoleId, OwnerRoleId] }, callerUserId: 1);
+        await svc.UpdateAsync(7, new AdminUserUpdateRequest { OperatorRoleTypeIds = [ManagerRoleId, FrontDeskRoleId] }, callerUserId: 1);
 
         _repo.Verify(r => r.ApplyUpdateAsync(user,
             It.Is<IReadOnlyCollection<UserRole>>(rem => rem.Count == 0),
-            It.Is<IReadOnlyCollection<int>>(add => add.SequenceEqual(new[] { OwnerRoleId }))), Times.Once);
+            It.Is<IReadOnlyCollection<int>>(add => add.SequenceEqual(new[] { FrontDeskRoleId }))), Times.Once);
     }
 
     [Fact]
