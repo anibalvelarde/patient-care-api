@@ -18,7 +18,11 @@ public class SessionEvent : IHasAudit
     public TimeOnly SessionTime { get; set; }
     public string Patient { get; set; }
     public string Therapist { get; set; }
-    public string? TherapyTypes { get; set; } = "N/A";
+    /// <summary>WP-55 (B-1): sentinel for "no therapy type recorded" — was the bare string "N/A"
+    /// in ~7 places incl. two duplicated ResolveTherapyType() methods and a control-flow compare.</summary>
+    public const string NotApplicable = "N/A";
+
+    public string? TherapyTypes { get; set; } = NotApplicable;
     public decimal Amount { get; set; }
     public decimal Discount { get; set; }
     public decimal AmountPaid { get; set; }

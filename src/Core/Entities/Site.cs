@@ -17,7 +17,7 @@ public class Site : AuditableEntityBase
     public decimal? Longitude { get; set; }
 
     /// <summary>Idle auto-logoff for UI sessions, in minutes; 0 = disabled (WP-32, U4).</summary>
-    public int IdleLogoffMinutes { get; set; } = 60;
+    public int IdleLogoffMinutes { get; set; } = SiteDefaults.IdleLogoffMinutes;
 
     /// <summary>
     /// WP-39 (G4): flat clinic-wide trip charge attached to a session booked as an on-site

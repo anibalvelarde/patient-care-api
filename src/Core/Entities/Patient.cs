@@ -10,6 +10,14 @@ public class Patient : PersonBase
         this.Caretakers = [];
     }
 
+    /// <summary>WP-55 (B-1): provenance-marker prefix the WP-19 legacy import writes into
+    /// <see cref="Notes"/> (<c>[LEGACY-IMPORT: …]</c>). Documented here beside the TEMP-MRN marker;
+    /// no live code path matches on it today (Notes is never surfaced), kept for grep + convention.</summary>
+    public const string LegacyImportMarkerPrefix = "[LEGACY-IMPORT:";
+
+    /// <summary>WP-55 (B-1): prefix of the pre-WP-36 temporary MRN. Retire with the TEMP- cleanup WP.</summary>
+    public const string TempMrnPrefix = "TEMP-";
+
     public DateTime? DateOfBirth { get; set; }
     public string? Gender { get; set; }
     public string? MedicalRecordNumber { get; set; }
@@ -52,7 +60,7 @@ public class Patient : PersonBase
     public bool HasTemporaryMrn()
     {
         return string.IsNullOrEmpty(MedicalRecordNumber)
-            || MedicalRecordNumber.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase);
+            || MedicalRecordNumber.StartsWith(TempMrnPrefix, StringComparison.OrdinalIgnoreCase);
     }
 
     public override string ToString()

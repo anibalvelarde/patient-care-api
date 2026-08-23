@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Payments;
 using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
 using Neurocorp.Api.Core.Entities;
@@ -508,6 +509,6 @@ public class ServicePaymentService : IServicePaymentService
             return s.SpecialtyType.Name;
         if (!string.IsNullOrWhiteSpace(s.TherapyTypes))
             return s.TherapyTypes;
-        return "N/A";
+        return SessionEvent.NotApplicable;
     }
 }

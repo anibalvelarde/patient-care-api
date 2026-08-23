@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -204,7 +205,7 @@ public class TherapistStatementService : ITherapistStatementService
         {
             return s.TherapyTypes;
         }
-        return "N/A";
+        return SessionEvent.NotApplicable;
     }
 
     private static string ResolvePatientName(Patient? patient)

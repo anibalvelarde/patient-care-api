@@ -494,7 +494,7 @@ public class SessionEventHandler : IHandleSessionEvent
         }
 
         // If only free-text TherapyType is provided, try to resolve by abbreviation
-        if (!string.IsNullOrEmpty(request.TherapyType) && request.TherapyType != "N/A")
+        if (!string.IsNullOrEmpty(request.TherapyType) && request.TherapyType != SessionEvent.NotApplicable)
         {
             var allSpecialties = await _specialtyTypeRepository.GetAllAsync();
             var matched = allSpecialties.FirstOrDefault(s =>
@@ -516,7 +516,7 @@ public class SessionEventHandler : IHandleSessionEvent
         {
             SessionId = s.Id,
             SessionDate = s.SessionDate,
-            SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? "N/A",
+            SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? SessionEvent.NotApplicable,
             TherapistName = s.Therapist?.User?.GetFullName() ?? "Unknown",
         });
     }

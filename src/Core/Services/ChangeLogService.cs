@@ -21,7 +21,7 @@ public class ChangeLogService : IChangeLogService
     /// <summary>Beyond this many period buckets the trend strip is omitted (window cap keeps day ≤366).</summary>
     public const int MaxPeriodBuckets = 372;
 
-    private const string SystemName = "System";
+    private const string SystemName = AuditInfo.SystemActor;
 
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 

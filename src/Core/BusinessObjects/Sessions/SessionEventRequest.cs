@@ -13,7 +13,7 @@ public class SessionEventRequest
     public TimeOnly SessionTime { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set; }
-    public string TherapyType { get; set; } = "N/A";
+    public string TherapyType { get; set; } = SessionEvent.NotApplicable;
     public int Duration { get; set; } = 60;
     public decimal Amount { get; set; }
     public decimal Discount { get; set; }
