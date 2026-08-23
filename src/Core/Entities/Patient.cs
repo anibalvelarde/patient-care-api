@@ -1,4 +1,5 @@
 using System.Text;
+using Neurocorp.Api.Core.Authorization;
 
 namespace Neurocorp.Api.Core.Entities;
 
@@ -70,7 +71,7 @@ public class Patient : PersonBase
     {
         return new UserRole() {
             UserId = this.User!.Id,
-            RoleId = 2 // as defined in table UserRole for Patients
+            RoleId = RoleTaxonomy.PatientRoleId
         };
     }
 }

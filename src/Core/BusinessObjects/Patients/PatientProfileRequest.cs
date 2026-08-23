@@ -36,7 +36,7 @@ public class PatientProfileRequest
     public string PhoneNumber { get; set; }
     // B1: must match the DB enum — anything else used to surface as MySQL 1265 → opaque 500.
     [Required]
-    [AllowedValues("Male", "Female", "Other")]
+    [AllowedValues(Genders.Male, Genders.Female, Genders.Other)]
     public string Gender { get; set; }
     // WP-23 (F7): settable at create by any patient-creating role (Questionnaire E gates edits only).
     public bool HasSenadisDiscount { get; set; }

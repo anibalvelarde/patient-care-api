@@ -47,7 +47,7 @@ public class BulkSchedulingService : IBulkSchedulingService
         var plan = await _planRepository.GetByIdWithLinesAsync(planId)
             ?? throw new ArgumentException($"Treatment plan {planId} not found.");
 
-        if (plan.PlanStatus != "Active")
+        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Active)
             throw new ArgumentException($"Cannot schedule sessions for a plan with status '{plan.PlanStatus}'. Plan must be Active.");
 
         if (await _sessionRepository.HasSessionsForPlanAsync(planId))

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.Authorization;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Exceptions;
@@ -18,7 +19,7 @@ public class PatientMergeService : IPatientMergeService
     // Greppable prefix on Caretaker.Notes identifying WP-19 placeholder caretakers
     // (see patient-care-db tools/legacy-import/importer/caretaker_backfill.py).
     private const string SyntheticCaretakerNotesPrefix = "SYNTHETIC placeholder";
-    private const int PatientRoleId = 2;
+    private const int PatientRoleId = RoleTaxonomy.PatientRoleId;
 
     private readonly IPatientMergeRepository _repository;
     private readonly ICurrentUserService _currentUser;

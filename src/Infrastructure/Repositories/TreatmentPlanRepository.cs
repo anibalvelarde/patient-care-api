@@ -40,7 +40,7 @@ public class TreatmentPlanRepository(ApplicationDbContext dbContext) :
             .Include(tp => tp.CreatedByTherapist).ThenInclude(t => t!.User)
             .Include(tp => tp.Lines).ThenInclude(l => l.SpecialtyType)
             .Include(tp => tp.Lines).ThenInclude(l => l.PreferredTherapist).ThenInclude(t => t!.User)
-            .Where(tp => tp.PlanStatus == "Active")
+            .Where(tp => tp.PlanStatus == TreatmentPlan.PlanStatuses.Active)
             .OrderByDescending(tp => tp.CreatedTimestamp)
             .ToListAsync();
     }

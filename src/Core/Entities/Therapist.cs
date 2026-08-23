@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Neurocorp.Api.Core.Authorization;
 
 namespace Neurocorp.Api.Core.Entities;
 
@@ -14,7 +15,7 @@ public class Therapist : PersonBase
     {
         return new UserRole() {
             UserId = this.UserId,
-            RoleId = 1 // as defined in table UserRole for Therapists
+            RoleId = RoleTaxonomy.TherapistRoleId
         };
     }
 }

@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Entities;
+
 namespace Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 
 public class ActivePlanSummary
@@ -6,7 +8,7 @@ public class ActivePlanSummary
     public string DisplayTitle { get; set; } = string.Empty;
     public int PatientId { get; set; }
     public string PatientName { get; set; } = string.Empty;
-    public string PlanStatus { get; set; } = "Active";
+    public string PlanStatus { get; set; } = TreatmentPlan.PlanStatuses.Active;
     public int WeeklyFrequency { get; set; }
     public int DurationWeeks { get; set; }
     public int TotalPlanned { get; set; }

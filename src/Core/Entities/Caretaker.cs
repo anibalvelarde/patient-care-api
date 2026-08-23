@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Authorization;
+
 namespace Neurocorp.Api.Core.Entities;
 
 public class Caretaker : PersonBase
@@ -14,7 +16,7 @@ public class Caretaker : PersonBase
     {
         return new UserRole() {
             UserId = this.User!.Id,
-            RoleId = 4 // as defined in table UserRole for Caretakers
+            RoleId = RoleTaxonomy.CaretakerRoleId
         };
     }
 }

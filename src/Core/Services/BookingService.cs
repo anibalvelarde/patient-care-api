@@ -54,7 +54,7 @@ public class BookingService : IBookingService
         // WP-42: Declined ≡ Cancelled — the full cancel money semantics + guards apply, and the
         // guard runs BEFORE the confirmation attempt is recorded (per contract: a blocked
         // Declined leaves NO AppointmentConfirmation row).
-        if (string.Equals(result, "Declined", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(result, ConfirmationValues.Declined, StringComparison.OrdinalIgnoreCase))
         {
             var patch = await PrepareTransitionAsync(sessionId, 3);
             await _bookingRepository.AddConfirmationAsync(sessionId, request);
@@ -64,7 +64,7 @@ public class BookingService : IBookingService
         // Create confirmation record
         await _bookingRepository.AddConfirmationAsync(sessionId, request);
 
-        if (string.Equals(result, "Confirmed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(result, ConfirmationValues.Confirmed, StringComparison.OrdinalIgnoreCase))
         {
             return await _bookingRepository.UpdateStatusAsync(sessionId, 2); // Confirmed
         }
