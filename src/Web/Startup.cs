@@ -122,6 +122,7 @@ public class Startup(IConfiguration configuration, IWebHostEnvironment environme
         // --- Authentication & Authorization (Chunk 1B) ---
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IRequestCorrelation, RequestCorrelation>(); // WP-54 change-log correlation id
         services.AddSingleton<ITokenService, JwtTokenService>();
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
         // Dynamic policy provider so [Authorize(Policy = "claim:Type:Value")] works without
