@@ -177,4 +177,16 @@ public class ChangeLogInterceptorTests
         // not recursively log itself.
         Assert.Single(Logs(db));
     }
+
+    [Fact]
+    public void Label_for_TherapySession_includes_the_session_date()
+    {
+        // Regression (Bugbot): SessionDate is a DateOnly, so a `is DateTime` match never succeeded
+        // and session rows got a bare "#id" instead of "#id · yyyy-MM-dd".
+        using var ctx = NewContext(nameof(Label_for_TherapySession_includes_the_session_date));
+        var session = new TherapySession { SessionDate = new DateOnly(2026, 8, 20) };
+        ctx.Add(session);
+        var label = ChangeLogLabeler.Describe(ctx.Entry(session), "TherapySession");
+        Assert.Contains("2026-08-20", label ?? string.Empty);
+    }
 }

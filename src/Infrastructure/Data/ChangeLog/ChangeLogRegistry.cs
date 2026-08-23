@@ -82,8 +82,14 @@ public static class ChangeLogLabeler
             }
             case "TherapySession":
             {
-                var d = Get(entry, "SessionDate");
-                return d is DateTime dt ? $"#{id} · {dt:yyyy-MM-dd}" : $"#{id}";
+                // SessionDate is a DateOnly (not DateTime) — match it first, keep DateTime as a
+                // defensive fallback so a future type change can't silently drop the date again.
+                return Get(entry, "SessionDate") switch
+                {
+                    DateOnly d => $"#{id} · {d:yyyy-MM-dd}",
+                    DateTime dt => $"#{id} · {dt:yyyy-MM-dd}",
+                    _ => $"#{id}",
+                };
             }
             case "Payment":
             {
