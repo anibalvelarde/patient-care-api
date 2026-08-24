@@ -9,7 +9,6 @@ namespace Neurocorp.Api.Core.Services;
 
 public class BookingService : IBookingService
 {
-    private static readonly HashSet<int> ActiveStatuses = [1, 2, 6, 7]; // Proposed, Confirmed, CheckedIn, InTherapy
 
     private readonly ILogger<BookingService> _logger;
     private readonly IBookingRepository _bookingRepository;
@@ -115,7 +114,7 @@ public class BookingService : IBookingService
     public async Task<IEnumerable<SessionEvent>> GetUpcomingAsync(DateOnly from, DateOnly to)
     {
         _logger.LogInformation("Fetching upcoming sessions from {From} to {To}", from, to);
-        return await _bookingRepository.GetByStatusesAndDateRangeAsync(ActiveStatuses, from, to);
+        return await _bookingRepository.GetByStatusesAndDateRangeAsync(SessionStatus.ActiveStatuses, from, to);
     }
 
     public async Task<IEnumerable<ConfirmationRecord>> GetConfirmationsAsync(int sessionId)

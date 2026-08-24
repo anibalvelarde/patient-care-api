@@ -30,8 +30,16 @@ public class MagicValueRatchetTests
         ("role-id-literal", new Regex(@"\bRoleId\s*=\s*\d", RegexOptions.Compiled)),
         ("plan-status-literal", new Regex(@"PlanStatus\s*[=!]=\s*""", RegexOptions.Compiled)),
         ("confirmed-statuses-redeclare", new Regex(@"ConfirmedStatuses\s*=\s*(\[|new)", RegexOptions.Compiled)),
+        ("active-statuses-redeclare", new Regex(@"ActiveStatuses\s*=\s*(\[|new)", RegexOptions.Compiled)),
         ("self-relationship-literal", new Regex(@"""Self""", RegexOptions.Compiled)),
     ];
+
+    // Constant-home files legitimately DEFINE these sets as `static readonly` (not `const`, so the
+    // per-line `const ` exemption doesn't cover them). Skip them by path so the ratchet can't flag
+    // its own source of truth if a definition is ever reformatted onto one line. Const-STRING homes
+    // (CaretakerRelationships, TreatmentPlan.PlanStatuses, …) need no entry — their `const ` lines
+    // are already exempt.
+    private static readonly string[] ConstantHomes = { "SessionStatus.cs" };
 
     [Fact]
     public void MagicValueLiterals_DoNotExceedTheBaseline()
@@ -45,6 +53,8 @@ public class MagicValueRatchetTests
             if (file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") ||
                 file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
                 continue;
+            if (ConstantHomes.Any(h => file.EndsWith(h, System.StringComparison.OrdinalIgnoreCase)))
+                continue; // the definition IS the one source (L-1)
 
             var rel = Path.GetRelativePath(srcDir!, file).Replace('\\', '/');
             var lines = StripComments(File.ReadAllText(file)).Split('\n');

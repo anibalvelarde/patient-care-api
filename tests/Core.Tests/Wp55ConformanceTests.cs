@@ -46,6 +46,7 @@ public class Wp55ConformanceTests
     [InlineData("PatientCaretaker.sql", "RelationshipToPatient")]
     [InlineData("Patient.sql", "Gender")]
     [InlineData("AppointmentConfirmation.sql", "ConfirmationResult")]
+    [InlineData("AppointmentConfirmation.sql", "ConfirmationMethod")]
     public void CSharpEnumConstants_MatchDbEnum_IncludingOrder(string schemaFile, string column)
     {
         var tablesDir = FindSiblingSchemaTablesDir();
@@ -60,6 +61,7 @@ public class Wp55ConformanceTests
             "RelationshipToPatient" => CaretakerRelationships.All,
             "Gender" => Genders.All,
             "ConfirmationResult" => ConfirmationValues.AllResults,
+            "ConfirmationMethod" => ConfirmationValues.AllMethods,
             _ => throw new System.ArgumentOutOfRangeException(nameof(column)),
         };
 

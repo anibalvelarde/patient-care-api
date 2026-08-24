@@ -4,6 +4,10 @@ namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 public class ConfirmationRequest
 {
+    // WP-55 M-2: same enum-500 hole as B-2e, closed for the method field — an unknown method
+    // truncated into the MySQL enum column → 500; [AllowedValues] makes it a clean 400.
+    [AllowedValues(ConfirmationValues.MethodPhone, ConfirmationValues.MethodEmail,
+        ConfirmationValues.MethodText, ConfirmationValues.MethodInPerson)]
     public string ConfirmationMethod { get; set; } = ConfirmationValues.MethodPhone;
 
     // WP-55 B-2e: must be one of the four results, else 400. Before this an unrecognized value

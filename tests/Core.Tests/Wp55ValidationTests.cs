@@ -60,4 +60,24 @@ public class Wp55ValidationTests
     public void ConfirmationResult_Rejects_UnknownValues(string result)
         => Assert.True(HasError(new ConfirmationRequest { ConfirmationResult = result },
             nameof(ConfirmationRequest.ConfirmationResult)));
+
+    // ---- M-2: ConfirmationRequest.ConfirmationMethod --------------------------------------------
+    [Theory]
+    [InlineData("Phone")]
+    [InlineData("Email")]
+    [InlineData("Text")]
+    [InlineData("InPerson")]
+    public void ConfirmationMethod_Accepts_ValidValues(string method)
+        => Assert.False(HasError(
+            new ConfirmationRequest { ConfirmationResult = "Confirmed", ConfirmationMethod = method },
+            nameof(ConfirmationRequest.ConfirmationMethod)));
+
+    [Theory]
+    [InlineData("Fax")]
+    [InlineData("phone")]   // case-sensitive — MySQL enum values are exact
+    [InlineData("")]
+    public void ConfirmationMethod_Rejects_UnknownValues(string method)
+        => Assert.True(HasError(
+            new ConfirmationRequest { ConfirmationResult = "Confirmed", ConfirmationMethod = method },
+            nameof(ConfirmationRequest.ConfirmationMethod)));
 }
