@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Auth;
 
@@ -17,5 +18,5 @@ public class CurrentUserResponse
     /// Idle auto-logoff for UI sessions, in minutes; 0 = disabled (WP-32, U4). Additive field
     /// every operator needs; sourced from the (single) Site row, 60 if no Site exists.
     /// </summary>
-    public int IdleLogoffMinutes { get; set; } = 60;
+    public int IdleLogoffMinutes { get; set; } = SiteDefaults.IdleLogoffMinutes;
 }

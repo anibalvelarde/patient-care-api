@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.Common;
 using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
 using Neurocorp.Api.Core.Entities;
@@ -240,7 +241,7 @@ public class PatientProfileService : IPatientProfileService
         for (Exception? e = exception; e != null; e = e.InnerException)
         {
             if (e.Message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase)
-                && e.Message.Contains("MedicalRecordNumber", StringComparison.OrdinalIgnoreCase))
+                && e.Message.Contains(DbConstraintNames.PatientMrnColumn, StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -260,7 +261,7 @@ public class PatientProfileService : IPatientProfileService
             // this guard only fires for straggler TEMP- rows that predate the deploy-time
             // backfill (0 on prod at build time). Remove with the TEMP- convention cleanup WP.
             if (updateRequest.ActiveStatus
-                && (profileOnFile.MedicalRecordNumber?.StartsWith("TEMP-", StringComparison.OrdinalIgnoreCase) ?? false))
+                && (profileOnFile.MedicalRecordNumber?.StartsWith(Patient.TempMrnPrefix, StringComparison.OrdinalIgnoreCase) ?? false))
             {
                 throw new InvalidOperationException(
                     "Cannot activate a patient with a temporary Medical Record Number. Assign a permanent MRN first.");

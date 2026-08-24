@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Neurocorp.Api.Core.BusinessObjects.Common;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
@@ -17,7 +18,11 @@ public class SessionEvent : IHasAudit
     public TimeOnly SessionTime { get; set; }
     public string Patient { get; set; }
     public string Therapist { get; set; }
-    public string? TherapyTypes { get; set; } = "N/A";
+    /// <summary>WP-55 (B-1): sentinel for "no therapy type recorded" — was the bare string "N/A"
+    /// in ~7 places incl. two duplicated ResolveTherapyType() methods and a control-flow compare.</summary>
+    public const string NotApplicable = "N/A";
+
+    public string? TherapyTypes { get; set; } = NotApplicable;
     public decimal Amount { get; set; }
     public decimal Discount { get; set; }
     public decimal AmountPaid { get; set; }
@@ -27,8 +32,8 @@ public class SessionEvent : IHasAudit
     public string Notes { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set;}
-    public int AppointmentStatusId { get; set; } = 4;
-    public string StatusName { get; set; } = "Completed";
+    public int AppointmentStatusId { get; set; } = SessionStatus.Completed;
+    public string StatusName { get; set; } = SessionStatus.Names.Completed;
     public bool IsConfirmed { get; set; }
     public int? SiteId { get; set; }
     public string? SiteName { get; set; }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Threading;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -110,20 +111,23 @@ public class AccessControlTestFactory : WebApplicationFactory<Program>
     }
 
     // ── manifest grants (mirrors the vendored access-control-matrix.json) ─────────────
-    private static IReadOnlyList<string>? _claimsCache;
-    private static readonly Dictionary<string, List<string>> GrantsByRole = new();
+    // Built exactly once, race-proof: xUnit runs test classes in parallel, so two authorization
+    // classes can hit this concurrently. A plain lazy null-check + shared-Dictionary mutation
+    // corrupted the dict under that race (intermittent "collection was modified" failures);
+    // Lazy<T> with ExecutionAndPublication serialises the build and publishes it atomically.
+    private static readonly Lazy<(IReadOnlyList<string> Claims, Dictionary<string, List<string>> Grants)>
+        _manifest = new(BuildManifest, LazyThreadSafetyMode.ExecutionAndPublication);
 
-    private static IEnumerable<string> ManifestGrantsFor(string roleAbbreviation)
-    {
-        if (_claimsCache is null) LoadManifest();
-        return GrantsByRole.TryGetValue(roleAbbreviation, out var grants) ? grants : Enumerable.Empty<string>();
-    }
+    private static IEnumerable<string> ManifestGrantsFor(string roleAbbreviation) =>
+        _manifest.Value.Grants.TryGetValue(roleAbbreviation, out var grants)
+            ? grants : Enumerable.Empty<string>();
 
-    private static void LoadManifest()
+    private static (IReadOnlyList<string>, Dictionary<string, List<string>>) BuildManifest()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "access-control-matrix.json");
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         var claims = new List<string>();
+        var grants = new Dictionary<string, List<string>>();
         foreach (var entry in doc.RootElement.GetProperty("claims").EnumerateArray())
         {
             var claim = entry.GetProperty("claim").GetString()!;
@@ -131,11 +135,10 @@ public class AccessControlTestFactory : WebApplicationFactory<Program>
             foreach (var grant in entry.GetProperty("grants").EnumerateArray())
             {
                 var role = grant.GetString()!;
-                if (!GrantsByRole.TryGetValue(role, out var list))
-                    GrantsByRole[role] = list = new List<string>();
+                if (!grants.TryGetValue(role, out var list)) grants[role] = list = new List<string>();
                 list.Add(claim);
             }
         }
-        _claimsCache = claims;
+        return (claims, grants);
     }
 }

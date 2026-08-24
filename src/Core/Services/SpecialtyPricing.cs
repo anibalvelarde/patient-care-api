@@ -13,11 +13,16 @@ public static class SpecialtyPricing
 {
     /// <summary>
     /// Durations the price sheet accepts, API-enforced (no DB CHECK — a future 75-min offering
-    /// is a value change here, not a migration). 40 added by WP-40 (2026-07-27 addendum): the
-    /// 2026 price sheet carries real 40-minute interview services (Ent-TC, Ent-TC-P).
-    /// WP-40 booking validation (SessionMoneyMath.IsBookableDuration) reads this same list.
+    /// is a value change here, not a migration). This is the ONE source: booking validation
+    /// (SessionMoneyMath.IsBookableDuration) and the WP-55 B-4 conformance test both read it, and
+    /// SpecialtyPricesPutRequest's [AllowedValues] must equal it (the guard test enforces that).
+    ///
+    /// WP-55 G5 (owner ruling 2026-08-23) REMOVED 40, reversing the WP-40 2026-07-27 addendum that
+    /// added it for the Ent-TC/Ent-TC-P interview services: there are no 40-minute sessions —
+    /// durations are 30/45/60/90/120 only. The two orphan 40-min price rows were deleted in WP-55A.
+    /// Do NOT "helpfully" re-add 40.
     /// </summary>
-    public static readonly IReadOnlyList<int> AllowedDurations = [30, 40, 45, 60, 90, 120];
+    public static readonly IReadOnlyList<int> AllowedDurations = [30, 45, 60, 90, 120];
 
     /// <summary>
     /// The current-effective set as of <paramref name="asOf"/>: per duration, the row with the

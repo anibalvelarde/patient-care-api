@@ -27,4 +27,18 @@ public static class SiteDefaults
     /// time, so it bills in full. The per-site knob is deliberately retained.
     /// </summary>
     public const decimal NoShowFeePct = 100.00m;
+
+    /// <summary>
+    /// Default idle auto-logoff window in minutes for a new site / when a session has no Site on
+    /// file. Was copied as a bare <c>60</c> in five places (the entity, the profile DTO, the
+    /// current-user response, the auth service, and the site-profile update path). 0 = disabled.
+    /// </summary>
+    public const int IdleLogoffMinutes = 60;
+
+    /// <summary>
+    /// Maximum accepted idle auto-logoff window, minutes. The 0–480 range is documented in the DB
+    /// <c>Site.sql</c> but was never enforced by the API; WP-55 bug B-2c adds the clamp in the
+    /// site-profile update path using this bound.
+    /// </summary>
+    public const int IdleLogoffMaxMinutes = 480;
 }

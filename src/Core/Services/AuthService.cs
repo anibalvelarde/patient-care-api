@@ -20,7 +20,7 @@ public class AuthService : IAuthService
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
     private const string InvalidCredentialsMessage = "Invalid email or password.";
 
-    private const int DefaultIdleLogoffMinutes = 60;
+    private const int DefaultIdleLogoffMinutes = SiteDefaults.IdleLogoffMinutes;
 
     private readonly IAuthRepository _authRepository;
     private readonly IPasswordHasher _passwordHasher;

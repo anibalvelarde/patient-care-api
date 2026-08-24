@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -8,9 +9,9 @@ namespace Neurocorp.Api.Core.Services;
 
 public class TherapistStatementService : ITherapistStatementService
 {
-    private const string StatusCompleted = "Completed";
-    private const string StatusCancelled = "Cancelled";
-    private const string StatusNoShow = "NoShow";
+    private const string StatusCompleted = SessionStatus.Names.Completed;
+    private const string StatusCancelled = SessionStatus.Names.Cancelled;
+    private const string StatusNoShow = SessionStatus.Names.NoShow;
 
     private readonly ITherapistProfileService _therapistProfileService;
     private readonly ITherapySessionRepository _sessionRepo;
@@ -204,7 +205,7 @@ public class TherapistStatementService : ITherapistStatementService
         {
             return s.TherapyTypes;
         }
-        return "N/A";
+        return SessionEvent.NotApplicable;
     }
 
     private static string ResolvePatientName(Patient? patient)

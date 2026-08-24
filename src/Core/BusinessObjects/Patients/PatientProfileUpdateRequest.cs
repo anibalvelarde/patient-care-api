@@ -24,7 +24,7 @@ public class PatientProfileUpdateRequest
     public string PhoneNumber { get; set; }
     // B1: empty/null means "unchanged" (the repository only applies non-empty values);
     // a supplied value must match the DB enum or MySQL 1265 surfaced as an opaque 500.
-    [AllowedValues(null, "", "Male", "Female", "Other")]
+    [AllowedValues(null, "", Genders.Male, Genders.Female, Genders.Other)]
     public string Gender { get; set; }
     public bool ActiveStatus { get; set; }
     public string? MedicalRecordNumber { get; set; }

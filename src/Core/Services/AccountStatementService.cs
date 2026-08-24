@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.BusinessObjects.Statements;
 using Neurocorp.Api.Core.Interfaces.Repositories;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -69,7 +70,7 @@ public class AccountStatementService : IAccountStatementService
             TherapistName = s.Therapist?.User != null
                 ? $"{s.Therapist.User.LastName}, {s.Therapist.User.FirstName}".Trim()
                 : string.Empty,
-            TherapyType = s.TherapyTypes ?? "N/A",
+            TherapyType = s.TherapyTypes ?? SessionEvent.NotApplicable,
             Amount = s.Amount,
             DiscountAmount = s.DiscountAmount,
             NetCharge = s.Amount - s.DiscountAmount,

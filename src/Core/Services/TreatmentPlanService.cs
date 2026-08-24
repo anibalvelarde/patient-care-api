@@ -37,7 +37,7 @@ public class TreatmentPlanService : ITreatmentPlanService
             throw new ArgumentException("Discovery session does not belong to the specified patient.");
         if (discoverySession.SpecialtyType is null || !discoverySession.SpecialtyType.IsDiscovery)
             throw new ArgumentException("The referenced session is not a discovery session.");
-        if (discoverySession.AppointmentStatusId != 4)
+        if (discoverySession.AppointmentStatusId != SessionStatus.Completed)
             throw new ArgumentException("Discovery session must be completed before creating a treatment plan.");
 
         // Validate lines
@@ -61,7 +61,7 @@ public class TreatmentPlanService : ITreatmentPlanService
             PatientId = request.PatientId,
             DiscoverySessionId = request.DiscoverySessionId,
             CreatedByTherapistId = request.CreatedByTherapistId,
-            PlanStatus = "Draft",
+            PlanStatus = TreatmentPlan.PlanStatuses.Draft,
             ResultsDocumentUrl = request.ResultsDocumentUrl,
             WeeklyFrequency = request.WeeklyFrequency,
             DurationWeeks = request.DurationWeeks,
@@ -102,7 +102,7 @@ public class TreatmentPlanService : ITreatmentPlanService
         var plan = await _planRepository.GetByIdWithLinesAsync(id)
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
 
-        if (plan.PlanStatus != "Draft")
+        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Draft)
             throw new ArgumentException("Only draft treatment plans can be edited.");
 
         // Validate lines (same as create)
@@ -150,7 +150,7 @@ public class TreatmentPlanService : ITreatmentPlanService
     {
         var plan = await _planRepository.GetByIdWithLinesAsync(id)
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
-        if (plan.PlanStatus != "Draft")
+        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Draft)
             throw new ArgumentException($"Cannot activate a plan with status '{plan.PlanStatus}'. Only Draft plans can be activated.");
 
         // Line count must match weekly frequency
@@ -160,11 +160,11 @@ public class TreatmentPlanService : ITreatmentPlanService
 
         // Check for existing active plan
         var existingPlans = await _planRepository.GetByPatientIdAsync(plan.PatientId);
-        var activePlan = existingPlans.FirstOrDefault(p => p.PlanStatus == "Active" && p.Id != id);
+        var activePlan = existingPlans.FirstOrDefault(p => p.PlanStatus == TreatmentPlan.PlanStatuses.Active && p.Id != id);
         if (activePlan != null)
             throw new ArgumentException($"Patient already has an active treatment plan (Plan #{activePlan.Id}). Cancel or complete it before activating another.");
 
-        plan.PlanStatus = "Active";
+        plan.PlanStatus = TreatmentPlan.PlanStatuses.Active;
         await _planRepository.UpdateAsync(plan);
         return MapToProfile(plan);
     }
@@ -173,9 +173,9 @@ public class TreatmentPlanService : ITreatmentPlanService
     {
         var plan = await _planRepository.GetByIdWithLinesAsync(id)
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
-        if (plan.PlanStatus != "Active")
+        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Active)
             throw new ArgumentException($"Cannot complete a plan with status '{plan.PlanStatus}'. Only Active plans can be completed.");
-        plan.PlanStatus = "Completed";
+        plan.PlanStatus = TreatmentPlan.PlanStatuses.Completed;
         await _planRepository.UpdateAsync(plan);
         return MapToProfile(plan);
     }
@@ -184,15 +184,12 @@ public class TreatmentPlanService : ITreatmentPlanService
     {
         var plan = await _planRepository.GetByIdWithLinesAsync(id)
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
-        if (plan.PlanStatus == "Cancelled")
+        if (plan.PlanStatus == TreatmentPlan.PlanStatuses.Cancelled)
             throw new ArgumentException("Plan is already cancelled.");
-        plan.PlanStatus = "Cancelled";
+        plan.PlanStatus = TreatmentPlan.PlanStatuses.Cancelled;
         await _planRepository.UpdateAsync(plan);
         return MapToProfile(plan);
     }
-
-    private const int CancelledStatusId = 3;
-    private const int CompletedStatusId = 4;
 
     public async Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync()
     {
@@ -205,9 +202,9 @@ public class TreatmentPlanService : ITreatmentPlanService
             var sessions = await _sessionRepository.GetByTreatmentPlanIdAsync(plan.Id);
 
             var sessionsCreated = sessions.Count;
-            var sessionsCompleted = sessions.Count(s => s.AppointmentStatusId == CompletedStatusId);
-            var sessionsCancelled = sessions.Count(s => s.AppointmentStatusId == CancelledStatusId);
-            var sessionsRemaining = sessions.Count(s => s.AppointmentStatusId != CancelledStatusId && s.AppointmentStatusId != CompletedStatusId);
+            var sessionsCompleted = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Completed);
+            var sessionsCancelled = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Cancelled);
+            var sessionsRemaining = sessions.Count(s => s.AppointmentStatusId != SessionStatus.Cancelled && s.AppointmentStatusId != SessionStatus.Completed);
 
             summaries.Add(new ActivePlanSummary
             {
@@ -225,7 +222,7 @@ public class TreatmentPlanService : ITreatmentPlanService
                 SessionsCompleted = sessionsCompleted,
                 SessionsRemaining = sessionsRemaining,
                 NextUpcomingDate = sessions
-                    .Where(s => s.SessionDate >= today && s.AppointmentStatusId != CancelledStatusId)
+                    .Where(s => s.SessionDate >= today && s.AppointmentStatusId != SessionStatus.Cancelled)
                     .OrderBy(s => s.SessionDate)
                     .Select(s => (DateOnly?)s.SessionDate)
                     .FirstOrDefault(),

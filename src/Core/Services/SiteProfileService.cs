@@ -94,7 +94,7 @@ public class SiteProfileService : ISiteProfileService
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             // Optional on create; the DB default is also 60 (V029).
-            IdleLogoffMinutes = request.IdleLogoffMinutes ?? 60,
+            IdleLogoffMinutes = request.IdleLogoffMinutes ?? SiteDefaults.IdleLogoffMinutes,
             // WP-39 (G4): optional on create; the DB default is also 0 (V030).
             OnSiteTripChargeAmount = request.OnSiteTripChargeAmount ?? 0m,
             // WP-42 (G1): optional on create; the DB default matches (V032, raised by V033).

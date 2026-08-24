@@ -18,6 +18,16 @@ public static class RoleTaxonomy
     /// </summary>
     public const string SystemAdminRoleName = "SystemAdmin";
 
+    /// <summary>
+    /// RoleType.RoleID values of the three identity roles (V017 seed; prod ground truth
+    /// 2026-08-23, <c>patient-care-db/tools/wp-55/lookup-ground-truth.md</c>). Used by the
+    /// identity <c>MintNewRole()</c> factories. Note the DB ids are NOT contiguous
+    /// (Caretaker = 4, not 3 — 3 is Manager).
+    /// </summary>
+    public const int TherapistRoleId = 1;
+    public const int PatientRoleId = 2;
+    public const int CaretakerRoleId = 4;
+
     /// <summary>RoleType.RoleName values of the three identity roles (V017 seed).</summary>
     public static readonly IReadOnlyList<string> IdentityRoleNames =
         new[] { "Patient", "Therapist", "Caretaker" };

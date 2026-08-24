@@ -9,10 +9,6 @@ namespace Neurocorp.Api.Core.Services;
 
 public class BulkSchedulingService : IBulkSchedulingService
 {
-    private const int CancelledStatusId = 3;
-    private const int CompletedStatusId = 4;
-    private const int ProposedStatusId = 1;
-
     private readonly ILogger<BulkSchedulingService> _logger;
     private readonly ITreatmentPlanRepository _planRepository;
     private readonly ITherapySessionRepository _sessionRepository;
@@ -51,7 +47,7 @@ public class BulkSchedulingService : IBulkSchedulingService
         var plan = await _planRepository.GetByIdWithLinesAsync(planId)
             ?? throw new ArgumentException($"Treatment plan {planId} not found.");
 
-        if (plan.PlanStatus != "Active")
+        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Active)
             throw new ArgumentException($"Cannot schedule sessions for a plan with status '{plan.PlanStatus}'. Plan must be Active.");
 
         if (await _sessionRepository.HasSessionsForPlanAsync(planId))
@@ -253,7 +249,7 @@ public class BulkSchedulingService : IBulkSchedulingService
                     ProviderAmount = providerAmount,
                     GrossProfit = grossProfit,
                     TherapyTypes = line.SpecialtyAbbreviation,
-                    AppointmentStatusId = ProposedStatusId,
+                    AppointmentStatusId = SessionStatus.Proposed,
                     SiteId = request.SiteId,
                     SpecialtyTypeId = line.SpecialtyTypeId,
                     TreatmentPlanLineId = line.LineId,
@@ -331,11 +327,11 @@ public class BulkSchedulingService : IBulkSchedulingService
             PlanId = planId,
             TotalPlanned = plan.DurationWeeks * plan.WeeklyFrequency,
             SessionsCreated = sessions.Count,
-            SessionsCompleted = sessions.Count(s => s.AppointmentStatusId == CompletedStatusId),
-            SessionsCancelled = sessions.Count(s => s.AppointmentStatusId == CancelledStatusId),
-            SessionsRemaining = sessions.Count(s => s.AppointmentStatusId != CancelledStatusId && s.AppointmentStatusId != CompletedStatusId),
+            SessionsCompleted = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Completed),
+            SessionsCancelled = sessions.Count(s => s.AppointmentStatusId == SessionStatus.Cancelled),
+            SessionsRemaining = sessions.Count(s => s.AppointmentStatusId != SessionStatus.Cancelled && s.AppointmentStatusId != SessionStatus.Completed),
             NextUpcomingDate = sessions
-                .Where(s => s.SessionDate >= today && s.AppointmentStatusId != CancelledStatusId)
+                .Where(s => s.SessionDate >= today && s.AppointmentStatusId != SessionStatus.Cancelled)
                 .OrderBy(s => s.SessionDate)
                 .Select(s => (DateOnly?)s.SessionDate)
                 .FirstOrDefault(),

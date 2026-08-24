@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
+using Neurocorp.Api.Core.Common;
 using Neurocorp.Api.Core.Exceptions;
 
 namespace Neurocorp.Api.Web.Middleware;
@@ -87,27 +88,27 @@ public sealed class GlobalExceptionHandler : IExceptionHandler
     /// <summary>Maps a MySQL 1062 message to a client-friendly conflict message by unique-key name.</summary>
     public static string DuplicateKeyMessageFor(string message)
     {
-        if (message.Contains("uq_systemuser_email", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains(DbConstraintNames.SystemUserEmailUnique, StringComparison.OrdinalIgnoreCase))
         {
             return "A user with this email address already exists.";
         }
-        if (message.Contains("uq_patient_cedula", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains(DbConstraintNames.PatientCedulaUnique, StringComparison.OrdinalIgnoreCase))
         {
             return "A patient with this Cedula already exists.";
         }
         // The Patient MRN unique key is named after the column itself, not uq_patient_mrn (B1).
-        if (message.Contains("MedicalRecordNumber", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains(DbConstraintNames.PatientMrnColumn, StringComparison.OrdinalIgnoreCase))
         {
             return "A patient with this Medical Record Number already exists.";
         }
         // WP-50: attaching a second identity to a SystemUser that already has it (e.g. two
         // concurrent "make self-caretaker" calls racing past the pre-check). The UNIQUE index on
         // the identity's UserID is the concurrency backstop; give the loser a clear message.
-        if (message.Contains("Caretaker.UserID_UNIQUE", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains(DbConstraintNames.CaretakerUserIdUnique, StringComparison.OrdinalIgnoreCase))
         {
             return "This person already has a caretaker record.";
         }
-        if (message.Contains("Patient.UserID_UNIQUE", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains(DbConstraintNames.PatientUserIdUnique, StringComparison.OrdinalIgnoreCase))
         {
             return "This person already has a patient record.";
         }

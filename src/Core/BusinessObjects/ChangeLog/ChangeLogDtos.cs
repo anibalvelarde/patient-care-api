@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.Entities;
 
 namespace Neurocorp.Api.Core.BusinessObjects.ChangeLog;
@@ -6,7 +7,7 @@ namespace Neurocorp.Api.Core.BusinessObjects.ChangeLog;
 public class ChangeLogUser
 {
     public int UserId { get; set; }
-    public string DisplayName { get; set; } = "System";
+    public string DisplayName { get; set; } = AuditInfo.SystemActor;
 }
 
 /// <summary>One change-log entry as returned by the detail list. Field NAMES only — never values (G2).</summary>
@@ -36,7 +37,7 @@ public class ChangeLogTotals
 public class ChangeLogUserCount
 {
     public int UserId { get; set; }
-    public string DisplayName { get; set; } = "System";
+    public string DisplayName { get; set; } = AuditInfo.SystemActor;
     public int Inserts { get; set; }
     public int Updates { get; set; }
     public int Deletes { get; set; }

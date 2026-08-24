@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Neurocorp.Api.Core.Services;
 
 namespace Neurocorp.Api.Core.BusinessObjects.Sites;
 
@@ -19,7 +20,8 @@ public class SiteProfileRequest
     public decimal? Longitude { get; set; }
 
     // WP-32 (U4): optional on create; defaults to 60 when omitted. 0 = disabled.
-    [Range(0, 480)]
+    // WP-55 B-2c: upper bound sourced from SiteDefaults (was a bare 480 literal).
+    [Range(0, SiteDefaults.IdleLogoffMaxMinutes)]
     public int? IdleLogoffMinutes { get; set; }
 
     // WP-39 (G4): optional on create; defaults to 0 (no charge) when omitted. 400 if negative.

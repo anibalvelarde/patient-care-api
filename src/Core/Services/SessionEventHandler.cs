@@ -283,7 +283,6 @@ public class SessionEventHandler : IHandleSessionEvent
         var newTherapySession = await _therapySessionRepository.AddAsync(
             MapToNewSessionEvent(pProfile!, tProfile!, request, specialty, amount, derivedDiscount, onSiteCharge));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
-        var confirmedStatuses = new HashSet<int> { 2, 4, 6, 7 };
         return new SessionEvent()
         {
             SessionId = newTherapySession.Id,
@@ -300,8 +299,8 @@ public class SessionEventHandler : IHandleSessionEvent
             IsPaidOff = false,
             Notes = newTherapySession.Notes,
             AppointmentStatusId = newTherapySession.AppointmentStatusId,
-            StatusName = newTherapySession.AppointmentStatus?.Name ?? "Proposed",
-            IsConfirmed = confirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
+            StatusName = newTherapySession.AppointmentStatus?.Name ?? SessionStatus.Names.Proposed,
+            IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
             SiteId = newTherapySession.SiteId,
             SiteName = newTherapySession.Site?.SiteName,
             SpecialtyTypeId = newTherapySession.SpecialtyTypeId,
@@ -495,7 +494,7 @@ public class SessionEventHandler : IHandleSessionEvent
         }
 
         // If only free-text TherapyType is provided, try to resolve by abbreviation
-        if (!string.IsNullOrEmpty(request.TherapyType) && request.TherapyType != "N/A")
+        if (!string.IsNullOrEmpty(request.TherapyType) && request.TherapyType != SessionEvent.NotApplicable)
         {
             var allSpecialties = await _specialtyTypeRepository.GetAllAsync();
             var matched = allSpecialties.FirstOrDefault(s =>
@@ -517,7 +516,7 @@ public class SessionEventHandler : IHandleSessionEvent
         {
             SessionId = s.Id,
             SessionDate = s.SessionDate,
-            SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? "N/A",
+            SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? SessionEvent.NotApplicable,
             TherapistName = s.Therapist?.User?.GetFullName() ?? "Unknown",
         });
     }

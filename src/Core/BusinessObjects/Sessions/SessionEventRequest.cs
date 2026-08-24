@@ -1,3 +1,5 @@
+using Neurocorp.Api.Core.Services;
+
 namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 public class SessionEventRequest
@@ -11,14 +13,14 @@ public class SessionEventRequest
     public TimeOnly SessionTime { get; set; }
     public int PatientId { get; set; }
     public int TherapistId { get; set; }
-    public string TherapyType { get; set; } = "N/A";
+    public string TherapyType { get; set; } = SessionEvent.NotApplicable;
     public int Duration { get; set; } = 60;
     public decimal Amount { get; set; }
     public decimal Discount { get; set; }
     public decimal ProviderAmount { get; set; }
     public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
-    public int AppointmentStatusId { get; set; } = 1; // Default: Proposed
+    public int AppointmentStatusId { get; set; } = SessionStatus.Proposed;
     public int? SiteId { get; set; }
     public int? SpecialtyTypeId { get; set; }
     // WP-40 on-site leg: only valid when the resolved specialty is OfferedOnSite; requires

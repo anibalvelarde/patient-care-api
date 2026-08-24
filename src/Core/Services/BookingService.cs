@@ -9,8 +9,6 @@ namespace Neurocorp.Api.Core.Services;
 
 public class BookingService : IBookingService
 {
-    private static readonly HashSet<int> ConfirmedStatuses = [2, 4, 6, 7]; // Confirmed, Completed, CheckedIn, InTherapy
-    private static readonly HashSet<int> ActiveStatuses = [1, 2, 6, 7]; // Proposed, Confirmed, CheckedIn, InTherapy
 
     private readonly ILogger<BookingService> _logger;
     private readonly IBookingRepository _bookingRepository;
@@ -55,7 +53,7 @@ public class BookingService : IBookingService
         // WP-42: Declined ≡ Cancelled — the full cancel money semantics + guards apply, and the
         // guard runs BEFORE the confirmation attempt is recorded (per contract: a blocked
         // Declined leaves NO AppointmentConfirmation row).
-        if (string.Equals(result, "Declined", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(result, ConfirmationValues.Declined, StringComparison.OrdinalIgnoreCase))
         {
             var patch = await PrepareTransitionAsync(sessionId, 3);
             await _bookingRepository.AddConfirmationAsync(sessionId, request);
@@ -65,7 +63,7 @@ public class BookingService : IBookingService
         // Create confirmation record
         await _bookingRepository.AddConfirmationAsync(sessionId, request);
 
-        if (string.Equals(result, "Confirmed", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(result, ConfirmationValues.Confirmed, StringComparison.OrdinalIgnoreCase))
         {
             return await _bookingRepository.UpdateStatusAsync(sessionId, 2); // Confirmed
         }
@@ -116,7 +114,7 @@ public class BookingService : IBookingService
     public async Task<IEnumerable<SessionEvent>> GetUpcomingAsync(DateOnly from, DateOnly to)
     {
         _logger.LogInformation("Fetching upcoming sessions from {From} to {To}", from, to);
-        return await _bookingRepository.GetByStatusesAndDateRangeAsync(ActiveStatuses, from, to);
+        return await _bookingRepository.GetByStatusesAndDateRangeAsync(SessionStatus.ActiveStatuses, from, to);
     }
 
     public async Task<IEnumerable<ConfirmationRecord>> GetConfirmationsAsync(int sessionId)
