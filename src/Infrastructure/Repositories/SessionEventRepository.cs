@@ -181,6 +181,30 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         return await Task.FromException<SessionEvent>(new NotImplementedException());
     }
 
+    // Found in the WP-59 E2E: changing an FK (therapist reassign, status, site, specialty) to a principal
+    // this context hasn't loaded makes EF NULL the navigation. The save is fine, but the response
+    // mapper then 500'd on Therapist!.User (or reported the wrong status name). Reload what's missing.
+    private async Task ReloadChangedReferencesAsync(TherapySession ts)
+    {
+        var entry = _dbContext.Entry(ts);
+        if (ts.Therapist is null || ts.Therapist.User is null)
+        {
+            ts.Therapist = await _dbContext.Therapists.Include(t => t.User).FirstOrDefaultAsync(t => t.Id == ts.TherapistId);
+        }
+        if (ts.AppointmentStatus is null || ts.AppointmentStatus.Id != ts.AppointmentStatusId)
+        {
+            await entry.Reference(x => x.AppointmentStatus).LoadAsync();
+        }
+        if (ts.SiteId.HasValue && ts.Site is null)
+        {
+            await entry.Reference(x => x.Site).LoadAsync();
+        }
+        if (ts.SpecialtyTypeId.HasValue && ts.SpecialtyType is null)
+        {
+            await entry.Reference(x => x.SpecialtyType).LoadAsync();
+        }
+    }
+
     public async Task<SessionEvent> UpdateAsync(int therapySessionId, SessionEventUpdateRequest updateRequest, SessionMoneyPatch? moneyPatch = null)
     {
         // fetch the therapy session
@@ -200,7 +224,8 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         therapySessionToUpdate = MapUpdatedTherapySession(updateRequest, therapySessionToUpdate, moneyPatch);
         _dbContext.ChangeTracker.DetectChanges();
         await _dbContext.SaveChangesAsync();
-        
+
+        await ReloadChangedReferencesAsync(therapySessionToUpdate);
         return ExtractSessionEvent(therapySessionToUpdate);
     }
 
