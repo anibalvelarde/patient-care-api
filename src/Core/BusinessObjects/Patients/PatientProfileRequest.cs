@@ -11,7 +11,6 @@ public class PatientProfileRequest
         this.MiddleName = string.Empty;
         this.MedicalRecordNumber = string.Empty;
         this.Cedula = string.Empty;
-        this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Gender = string.Empty;
     }
@@ -30,8 +29,9 @@ public class PatientProfileRequest
     public string Cedula { get; set; }
     [Required]
     public DateTime DateOfBirth { get; set; }
-    [Required]
-    public string Email { get; set; }
+    // WP-57: optional at create (WP-50C intent; the UI omits a blank email). Blank/whitespace is
+    // stored as NULL by the service — SystemUser.Email is UNIQUE, so "" would collide.
+    public string? Email { get; set; }
     [Required]
     public string PhoneNumber { get; set; }
     // B1: must match the DB enum — anything else used to surface as MySQL 1265 → opaque 500.

@@ -340,7 +340,8 @@ public class PatientProfileService : IPatientProfileService
             FirstName = patientRequest.FirstName,
             MiddleName = patientRequest.MiddleName,
             LastName = patientRequest.LastName,
-            Email = patientRequest.Email,
+            // WP-57: blank → NULL (uq_systemuser_email allows many NULLs, not many "").
+            Email = string.IsNullOrWhiteSpace(patientRequest.Email) ? null : patientRequest.Email.Trim(),
             PhoneNumber = patientRequest.PhoneNumber,
             CreatedTimestamp = DateTime.UtcNow,
             // WP-36 (G5): patients are ACTIVE at create — the inactive-until-MRN gate existed

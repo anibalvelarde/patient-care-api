@@ -362,6 +362,38 @@ public class PatientProfileServiceTests
         Assert.Equal(expectedCedula, result.Cedula);
     }
 
+    // WP-57: SystemUser.Email is UNIQUE (uq_systemuser_email). A blank email must reach the DB
+    // as NULL (MySQL allows many NULLs) — never "" (the second email-less create would collide).
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData("  j@d.com ", "j@d.com")]
+    public async Task CreateAsync_NormalizesBlankEmail_ToNull(string? requestEmail, string? expectedEmail)
+    {
+        var fakeLogger = Mock.Of<ILogger<PatientProfileService>>();
+        var mockProfileRepo = Mock.Of<IPatientProfileRepository>();
+        var mockPatientRepo = new Mock<IPatientRepository>();
+        var mockUserRepo = new Mock<IUserRepository>();
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+
+        User? capturedUser = null;
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>()))
+            .Callback<User>(u => capturedUser = u)
+            .ReturnsAsync((User u) => { u.Id = 10; return u; });
+        mockPatientRepo.Setup(r => r.AddAsync(It.IsAny<Patient>()))
+            .ReturnsAsync((Patient p) => { p.Id = 5; return p; });
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+
+        var svc = new PatientProfileService(fakeLogger, mockProfileRepo, mockPatientRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, Mock.Of<IPatientCaretakerRepository>(), FakeTherapySessionRepo(), PassThroughUow());
+        var request = new PatientProfileRequest { FirstName = "Jane", LastName = "Doe", Email = requestEmail, PhoneNumber = "555", Gender = "Female", DateOfBirth = DateTime.Today, Cedula = "8-123-456" };
+
+        await svc.CreateAsync(request);
+
+        Assert.NotNull(capturedUser);
+        Assert.Equal(expectedEmail, capturedUser!.Email);
+    }
+
     // WP-37 (SEN-1/SEN-2): the expiry is settable at CREATE by any patient-creating role —
     // ungated, same rule as the flag (the claim gates later edits only) — and flows to both
     // the new entity and the create response.
