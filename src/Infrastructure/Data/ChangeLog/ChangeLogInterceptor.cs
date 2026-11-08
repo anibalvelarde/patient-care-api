@@ -159,12 +159,26 @@ public class ChangeLogInterceptor : SaveChangesInterceptor
             var pkNames = entry.Metadata.FindPrimaryKey()?.Properties
                 .Select(p => p.Name).ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>();
 
-            var fields = entry.Properties
+            var candidates = entry.Properties
                 .Where(p => !pkNames.Contains(p.Metadata.Name)
                             && !ChangeLogRegistry.ExcludedFieldNames.Contains(p.Metadata.Name)
                             && (action != ChangeAction.Update || p.IsModified))
-                .Select(p => p.Metadata.Name)
                 .ToList();
+
+            // WP-60 (F-15b): for an Update, list only columns whose VALUE changed. A row re-marked
+            // Modified wholesale flags every column; comparing original vs current trims it to the
+            // truth. If NOTHING differs, the originals are unknown (a detached row attached as
+            // Modified has original == current everywhere) — keep the modified list rather than
+            // silently dropping a real update.
+            if (action == ChangeAction.Update)
+            {
+                var valueChanged = candidates
+                    .Where(p => !p.Metadata.GetValueComparer().Equals(p.OriginalValue, p.CurrentValue))
+                    .ToList();
+                if (valueChanged.Count > 0) candidates = valueChanged;
+            }
+
+            var fields = candidates.Select(p => p.Metadata.Name).ToList();
 
             // An Update whose only touched columns are excluded (login bookkeeping, audit trio) is noise.
             if (action == ChangeAction.Update && fields.Count == 0)

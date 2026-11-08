@@ -43,7 +43,13 @@ public class EfRepository<T> : IRepository<T> where T : class
 
     public virtual async Task UpdateAsync(T entity)
     {
-        _dbContext.Entry(entity).State = EntityState.Modified;
+        // WP-60 (F-15b): a TRACKED entity already knows what changed — forcing State=Modified flagged
+        // every column, so the change log listed 20+ "changed" fields for a 4-field late-fee write.
+        // Only a detached entity needs to be attached as Modified (same guard as AuthRepository).
+        if (_dbContext.Entry(entity).State == EntityState.Detached)
+        {
+            _dbContext.Entry(entity).State = EntityState.Modified;
+        }
         await _dbContext.SaveChangesAsync();
     }
 }

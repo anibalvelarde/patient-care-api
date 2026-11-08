@@ -49,8 +49,8 @@ public class TherapistStatementService : ITherapistStatementService
         }
 
         // 2. Default date range: last 90 days
-        var periodStart = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-90));
-        var periodEnd = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var periodStart = from ?? ClinicClock.Today().AddDays(-90);
+        var periodEnd = to ?? ClinicClock.Today();
 
         if (periodEnd < periodStart)
         {
@@ -160,7 +160,7 @@ public class TherapistStatementService : ITherapistStatementService
         {
             TherapistId = therapist.TherapistId,
             TherapistName = therapist.TherapistName,
-            StatementDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            StatementDate = ClinicClock.Today().ToString("yyyy-MM-dd"),
             PeriodStart = periodStart.ToString("yyyy-MM-dd"),
             PeriodEnd = periodEnd.ToString("yyyy-MM-dd"),
             IsProForma = isProForma,

@@ -189,4 +189,68 @@ public class ChangeLogInterceptorTests
         var label = ChangeLogLabeler.Describe(ctx.Entry(session), "TherapySession");
         Assert.Contains("2026-08-20", label ?? string.Empty);
     }
+
+    // ── WP-60 (F-15b): changedFields lists only columns whose VALUE changed ──
+
+    [Fact]
+    public void Wp60_TrackedRow_ReMarkedModified_LogsOnlyTheColumnThatChanged()
+    {
+        var db = nameof(Wp60_TrackedRow_ReMarkedModified_LogsOnlyTheColumnThatChanged);
+        using (var ctx = NewContext(db))
+        {
+            ctx.RoleTypes.Add(new RoleType { Abbreviation = "W1", Name = "Before", SortOrder = 1 });
+            ctx.SaveChanges();
+        }
+        using (var ctx = NewContext(db))
+        {
+            var role = ctx.RoleTypes.First(r => r.Abbreviation == "W1");
+            role.Name = "After";
+            ctx.Entry(role).State = EntityState.Modified; // the late-fee batch pattern: every column flagged
+            ctx.SaveChanges();
+        }
+
+        var update = Logs(db).Single(l => l.Action == ChangeAction.Update);
+        Assert.Equal(["Name"], Fields(update));
+    }
+
+    [Fact]
+    public void Wp60_DetachedRow_AttachedAsModified_StillLogs()
+    {
+        var db = nameof(Wp60_DetachedRow_AttachedAsModified_StillLogs);
+        int id;
+        using (var ctx = NewContext(db))
+        {
+            var r = new RoleType { Abbreviation = "W2", Name = "Before", SortOrder = 1 };
+            ctx.RoleTypes.Add(r);
+            ctx.SaveChanges();
+            id = r.Id;
+        }
+        using (var ctx = NewContext(db))
+        {
+            var detached = new RoleType { Id = id, Abbreviation = "W2", Name = "After", SortOrder = 1 };
+            ctx.Entry(detached).State = EntityState.Modified; // originals unknown → can't value-compare
+            ctx.SaveChanges();
+        }
+
+        var update = Logs(db).Single(l => l.Action == ChangeAction.Update);
+        Assert.Contains("Name", Fields(update)); // never silently dropped
+    }
+
+    [Fact]
+    public async Task Wp60_GenericRepositoryUpdate_OfAnUnchangedTrackedRow_LogsNothing()
+    {
+        var db = nameof(Wp60_GenericRepositoryUpdate_OfAnUnchangedTrackedRow_LogsNothing);
+        using (var ctx = NewContext(db))
+        {
+            ctx.RoleTypes.Add(new RoleType { Abbreviation = "W3", Name = "Same", SortOrder = 1 });
+            ctx.SaveChanges();
+        }
+        using (var ctx = NewContext(db))
+        {
+            var role = ctx.RoleTypes.First(r => r.Abbreviation == "W3");
+            await new Neurocorp.Api.Infrastructure.Repositories.EfRepository<RoleType>(ctx).UpdateAsync(role);
+        }
+
+        Assert.Equal(0, Logs(db).Count(l => l.Action == ChangeAction.Update));
+    }
 }

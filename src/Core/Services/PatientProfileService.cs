@@ -203,32 +203,14 @@ public class PatientProfileService : IPatientProfileService
     // prefix (and reset the sequence) 5 hours early. Panama is fixed UTC-5 with no DST.
     private async Task<string> MintMrnAsync()
     {
-        var panamaNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, PanamaTimeZone);
+        var panamaNow = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, ClinicClock.PanamaTimeZone);
         var prefix = $"NC{panamaNow.Year % 100:D2}-";
         var maxSequence = await _patientRepo.GetMaxMrnSequenceAsync(prefix);
         // First mint of a year (or an empty table — prod ships with zero NC rows) => {yy}-0001.
         return $"{prefix}{maxSequence + 1:D4}";
     }
 
-    private static readonly TimeZoneInfo PanamaTimeZone = ResolvePanamaTimeZone();
-
-    // IANA id first (Linux container / .NET-ICU Windows), Windows id as fallback, and — because
-    // the k3s containers are slim images that may lack tzdata entirely (the WP-26 lesson) — a
-    // fixed UTC-5 custom zone as the last resort. Panama has no DST, so the fixed offset is
-    // exactly equivalent, honoring the G6 ruling's intent on any host.
-    private static TimeZoneInfo ResolvePanamaTimeZone()
-    {
-        foreach (var id in new[] { "America/Panama", "SA Pacific Standard Time" })
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(id);
-            }
-            catch (TimeZoneNotFoundException) { /* try the next id */ }
-            catch (InvalidTimeZoneException) { /* corrupt zone data — try the next id */ }
-        }
-        return TimeZoneInfo.CreateCustomTimeZone("Panama (fixed)", TimeSpan.FromHours(-5), "Panama (UTC-5)", "Panama (UTC-5)");
-    }
+    // WP-60: the private copy of the Panama timezone ladder is gone — ClinicClock is the one source.
 
     // WP-36 (G1a): discriminates the violated unique key the way GlobalExceptionHandler does —
     // by key name in the MySQL 1062 message ("Duplicate entry '…' for key '…'") — but without an

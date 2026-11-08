@@ -14,7 +14,10 @@ public class ChangeLogUser
 public class ChangeLogEntry
 {
     public long Id { get; set; }
-    public DateTime OccurredAtUtc { get; set; }
+    // WP-60 (F-15): stored as UTC but read back from MySQL with Kind=Unspecified, which serialized
+    // WITHOUT a 'Z' and made browsers show the time 5 h off. The setter pins the kind (no shift).
+    private DateTime _occurredAtUtc;
+    public DateTime OccurredAtUtc { get => _occurredAtUtc; set => _occurredAtUtc = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
     public ChangeLogUser User { get; set; } = new();
     public string EntityType { get; set; } = string.Empty;
     public string EntityId { get; set; } = string.Empty;
@@ -42,7 +45,8 @@ public class ChangeLogUserCount
     public int Updates { get; set; }
     public int Deletes { get; set; }
     public int Total { get; set; }
-    public DateTime LastOccurredAtUtc { get; set; }
+    private DateTime _lastOccurredAtUtc; // WP-60: UTC kind pinned → serializes with 'Z'
+    public DateTime LastOccurredAtUtc { get => _lastOccurredAtUtc; set => _lastOccurredAtUtc = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
 }
 
 public class ChangeLogEntityTypeCount
@@ -52,7 +56,8 @@ public class ChangeLogEntityTypeCount
     public int Updates { get; set; }
     public int Deletes { get; set; }
     public int Total { get; set; }
-    public DateTime LastOccurredAtUtc { get; set; }
+    private DateTime _lastOccurredAtUtc; // WP-60: UTC kind pinned → serializes with 'Z'
+    public DateTime LastOccurredAtUtc { get => _lastOccurredAtUtc; set => _lastOccurredAtUtc = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
 }
 
 /// <summary>One bucket of the trend strip. PeriodStart = ISO date of the bucket's first day in observer-local time.</summary>

@@ -194,7 +194,7 @@ public class TreatmentPlanService : ITreatmentPlanService
     public async Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync()
     {
         var activePlans = await _planRepository.GetActiveWithLinesAsync();
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = ClinicClock.Today();
         var summaries = new List<ActivePlanSummary>();
 
         foreach (var plan in activePlans)

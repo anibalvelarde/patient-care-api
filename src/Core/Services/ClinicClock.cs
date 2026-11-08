@@ -21,8 +21,12 @@ namespace Neurocorp.Api.Core.Services;
 public static class ClinicClock
 {
     /// <summary>The clinic's (Panama) current calendar day.</summary>
-    public static DateOnly Today()
-        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, PanamaTimeZone));
+    public static DateOnly Today() => Today(DateTime.UtcNow);
+
+    /// <summary>WP-60: the clinic day for a given UTC instant (the seam the tests pin 19:00+ Panama with).</summary>
+    internal static DateOnly Today(DateTime utcNow)
+        => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), PanamaTimeZone));
 
     /// <summary>The clinic's timezone, resolved once at startup.</summary>
     public static TimeZoneInfo PanamaTimeZone { get; } = ResolvePanamaTimeZone();

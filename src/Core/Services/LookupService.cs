@@ -201,7 +201,7 @@ public class LookupService : ILookupService
             DurationPrices = specialty is null
                 ? []
                 : SpecialtyPricing.CurrentEffective(
-                    specialty.DurationPrices, DateOnly.FromDateTime(DateTime.UtcNow)),
+                    specialty.DurationPrices, ClinicClock.Today()),
             CreatedTimestamp = entity.CreatedTimestamp,
             LastUpdatedTimestamp = entity.LastUpdatedTimestamp,
         };
