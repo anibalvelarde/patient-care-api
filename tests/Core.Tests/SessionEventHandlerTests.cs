@@ -866,6 +866,53 @@ public class SessionEventHandlerTests
         Assert.Contains("between 0 and the session amount", ex.Message);
     }
 
+    // ── WP-58 (E2E 2026-11-08) — money integrity on the session PUT ──
+
+    [Fact]
+    public async Task UpdateAsync_ActiveSenadis_DiscountAboveAmount_Throws()
+    {
+        // F-16 repro (#12358): SENADIS session A=50, D=60 used to be accepted → provider −4, GP −6.
+        SessionOnFile(amount: 50m, discount: 10m);
+        _mockPatientService.Setup(s => s.GetByIdAsync(1))
+            .ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "P", HasSenadisDiscount = true });
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _sut.UpdateAsync(77, MakeUpdate(amount: 50m, discount: 60m)));
+
+        Assert.Contains("between 0 and the session amount", ex.Message);
+        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<SessionEventUpdateRequest>(),
+            It.IsAny<SessionMoneyPatch?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AmountOmitted_KeepsStoredAmount_AndDoesNotRecompute()
+    {
+        // F-17 repro (#12366): a notes-only PUT without "amount" used to set Amount = 0 and
+        // re-derive a negative fee and gross profit.
+        SessionOnFile(amount: 70m, discount: 14m, providerAmount: 22.40m, grossProfit: 33.60m);
+        var request = new SessionEventUpdateRequest
+        {
+            SessionTime = TimeOnly.Parse("11:00"), Discount = 14m, Notes = "note only",
+        };
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u => u.Amount == 70m),
+            It.Is<SessionMoneyPatch?>(p => p == null)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_AmountOmitted_DiscountChanged_ValidatesAgainstStoredAmount()
+    {
+        SessionOnFile(amount: 50m, discount: 0m);
+        _mockPatientService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "P" });
+        var request = new SessionEventUpdateRequest { SessionTime = TimeOnly.Parse("10:00"), Discount = 60m };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => _sut.UpdateAsync(77, request));
+    }
+
     [Fact]
     public async Task UpdateAsync_UnknownSession_ReturnsFalse()
     {

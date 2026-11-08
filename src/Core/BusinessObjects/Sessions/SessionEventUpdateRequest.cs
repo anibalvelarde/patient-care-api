@@ -15,11 +15,16 @@ public class SessionEventUpdateRequest
     // carry the session's duration and used to hardcode 60, silently overwriting it). A
     // provided value that CHANGES the stored duration is validated against the bookable set.
     public int? Duration { get; set; }
-    public decimal Amount { get; set; }
-    public decimal AmountPaid { get; set; }
+    // WP-58 (F-17): nullable, same as Duration. Omitted means "keep the stored amount". Before
+    // WP-58 an omitted amount bound as 0, which counted as a money change and re-derived a
+    // negative fee and gross profit.
+    public decimal? Amount { get; set; }
+    // WP-58 (F-18): AmountPaid / IsPaidOff are deliberately NOT part of this request. They are
+    // derived from the payment ledger only (PaymentRecordService). A stale client used to send
+    // back the AmountPaid it had loaded and silently erase payments recorded in the meantime.
+    // Clients that still send them are harmless: unknown JSON fields are ignored.
     public decimal Discount { get; set; }
     public decimal ProviderAmount { get; set; }
-    public bool IsPaidOff { get; set; } = false;
     public string Notes { get; set; }
     public int? AppointmentStatusId { get; set; }
     public int? TherapistId { get; set; }

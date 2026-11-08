@@ -336,6 +336,11 @@ public class SessionEventHandler : IHandleSessionEvent
         var onFile = await _therapySessionRepository.GetByIdAsync(sessionEventId);
         if (onFile is null) return false;
 
+        // WP-58 (F-17): an omitted amount means "keep the stored amount" (resolved once, up front,
+        // so everything below works on the final value).
+        request.Amount ??= onFile.Amount;
+        var amount = request.Amount.Value;
+
         // WP-40 (G1): validate the duration only when the edit actually CHANGES it — historical
         // (legacy-import) durations must never block an unrelated edit. Null = keep stored.
         if (request.Duration.HasValue && request.Duration.Value != onFile.Duration
@@ -350,7 +355,7 @@ public class SessionEventHandler : IHandleSessionEvent
         // BEFORE the WP-40 recompute below, closing the known gap where a gated discount edit
         // silently changed ProviderAmount on an already-paid session. Echoed-unchanged values
         // pass; non-money edits stay allowed.
-        var amountChanged = request.Amount != onFile.Amount;
+        var amountChanged = amount != onFile.Amount;
         var discountChanged = request.Discount != onFile.DiscountAmount;
         var therapistChanged = request.TherapistId.HasValue && request.TherapistId.Value != onFile.TherapistId;
         if ((amountChanged || discountChanged || therapistChanged)
@@ -375,7 +380,7 @@ public class SessionEventHandler : IHandleSessionEvent
             var patch = await _transitionMoney.PrepareTransitionAsync(onFile, request.AppointmentStatusId!.Value);
             if (patch is not null)
             {
-                request.Amount = patch.Amount;
+                request.Amount = amount = patch.Amount;
                 request.Discount = patch.DiscountAmount;
                 moneyPatch = new SessionMoneyPatch(patch.ProviderAmount, patch.GrossProfit);
                 if (!string.IsNullOrEmpty(patch.NotesMarker))
@@ -389,7 +394,7 @@ public class SessionEventHandler : IHandleSessionEvent
             {
                 // Idempotent transition (already zeroed / fee already applied): status-only —
                 // stored money stays byte-identical.
-                request.Amount = onFile.Amount;
+                request.Amount = amount = onFile.Amount;
                 request.Discount = onFile.DiscountAmount;
             }
         }
@@ -400,25 +405,28 @@ public class SessionEventHandler : IHandleSessionEvent
         else if (amountChanged || discountChanged)
         {
             var patient = await _patientService.GetByIdAsync(onFile.PatientId);
+            // WP-58 (F-16): the 0 ≤ discount ≤ amount bound applies to EVERY session. It used to sit in
+            // the else-branch only, so an active-SENADIS session accepted a discount above its amount
+            // and re-derived a negative provider fee and gross profit.
+            if (request.Discount < 0 || request.Discount > amount)
+            {
+                throw new ArgumentException("Discount must be between 0 and the session amount.");
+            }
             if (patient?.HasActiveSenadisDiscount(onFile.SessionDate) == true)
             {
-                var floor = SessionMoneyMath.SenadisFloor(request.Amount);
+                var floor = SessionMoneyMath.SenadisFloor(amount);
                 if (request.Discount < floor)
                 {
                     throw new ArgumentException(
                         $"Discount {request.Discount:0.00} is below the SENADIS floor {floor:0.00} " +
-                        $"(20% of {request.Amount:0.00}) — an active-SENADIS session may be discounted more, never less.");
+                        $"(20% of {amount:0.00}) — an active-SENADIS session may be discounted more, never less.");
                 }
-            }
-            else if (request.Discount < 0 || request.Discount > request.Amount)
-            {
-                throw new ArgumentException("Discount must be between 0 and the session amount.");
             }
 
             var therapistId = request.TherapistId ?? onFile.TherapistId;
             var tProfile = await _therapistService.GetByIdAsync(therapistId)
                 ?? throw new ArgumentException($"Therapist {therapistId} not found.");
-            var net = request.Amount - request.Discount;
+            var net = amount - request.Discount;
             var fee = tProfile.CalculateFee(net);
             // WP-49 Finding 1 — the highest-risk line in the WP. This recompute fires on EVERY
             // discount edit, long after a late fee was applied. Passing onFile.LateFeeAmount

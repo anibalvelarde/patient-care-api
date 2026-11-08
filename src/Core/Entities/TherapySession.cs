@@ -22,6 +22,12 @@ public class TherapySession : AuditableEntityBase
     public int Duration { get; set; }
     public decimal Amount { get; set; }
     public decimal AmountPaid { get; set; }
+    /// <summary>
+    /// WP-58 (V037): paid amount imported from the legacy spreadsheets, with no Payment rows behind it.
+    /// Invariant maintained by <c>PaymentRecordService</c>:
+    /// <c>AmountPaid = LegacyAmountPaid + SUM(SessionPayment.AmountAllocated)</c>.
+    /// </summary>
+    public decimal LegacyAmountPaid { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal ProviderAmount { get; set; }
     public decimal GrossProfit  { get; set; }

@@ -211,8 +211,12 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         {
             therapySessionToUpdate.Duration = updateRequest.Duration.Value;
         }
-        therapySessionToUpdate.Amount = updateRequest.Amount;
-        therapySessionToUpdate.AmountPaid = updateRequest.AmountPaid;
+        // WP-58 (F-17): null Amount = keep stored. (F-18): AmountPaid is never taken from the
+        // request; only the payment ledger writes it (PaymentRecordService).
+        if (updateRequest.Amount.HasValue)
+        {
+            therapySessionToUpdate.Amount = updateRequest.Amount.Value;
+        }
         therapySessionToUpdate.DiscountAmount = updateRequest.Discount;
         // WP-40: the client's providerAmount is never applied — ProviderAmount/GrossProfit come
         // from the server-derived money patch (present iff amount/discount changed).
