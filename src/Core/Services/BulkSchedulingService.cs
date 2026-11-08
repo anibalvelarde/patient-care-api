@@ -187,6 +187,23 @@ public class BulkSchedulingService : IBulkSchedulingService
                     continue;
                 }
 
+                // WP-59: patient clash BEFORE therapist assignment — another therapist can't fix it (so no
+                // alternatives), and an auto-assign miss must not hide it behind "no therapist available".
+                var patientClash = patientBusy.FirstOrDefault(b => b.Date == targetDate
+                    && SessionSlot.Overlaps(b.Start, b.Duration, targetTime, line.Duration));
+                if (patientClash is not null)
+                {
+                    result.Conflicts.Add(new ScheduleConflict
+                    {
+                        WeekNumber = week,
+                        LineId = line.LineId,
+                        Date = targetDate,
+                        Reason = $"Patient already has a session from {SessionConflictGuard.Range(patientClash.Start, patientClash.Duration)} " +
+                                 $"on {targetDate:yyyy-MM-dd}{(patientClash.SessionId is int sid ? $" (session #{sid})" : string.Empty)}.",
+                    });
+                    continue;
+                }
+
                 // Determine therapist
                 int? assignedTherapistId = line.TherapistId;
 
@@ -208,23 +225,7 @@ public class BulkSchedulingService : IBulkSchedulingService
                         Reason = "No qualified therapist available at this time.",
                         SuggestedAlternatives = BuildAlternatives(
                             line.SpecialtyTypeId, targetDate, targetTime, line.Duration,
-                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap)
-                    });
-                    continue;
-                }
-
-                // WP-59: patient clash first — another therapist can't fix it, so no alternatives.
-                var patientClash = patientBusy.FirstOrDefault(b => b.Date == targetDate
-                    && SessionSlot.Overlaps(b.Start, b.Duration, targetTime, line.Duration));
-                if (patientClash is not null)
-                {
-                    result.Conflicts.Add(new ScheduleConflict
-                    {
-                        WeekNumber = week,
-                        LineId = line.LineId,
-                        Date = targetDate,
-                        Reason = $"Patient already has a session from {SessionConflictGuard.Range(patientClash.Start, patientClash.Duration)} " +
-                                 $"on {targetDate:yyyy-MM-dd}{(patientClash.SessionId is int sid ? $" (session #{sid})" : string.Empty)}.",
+                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap, patientBusy)
                     });
                     continue;
                 }
@@ -241,7 +242,7 @@ public class BulkSchedulingService : IBulkSchedulingService
                         Reason = $"Therapist {therapistName} is already booked at {targetTime:HH:mm} on {targetDate}.",
                         SuggestedAlternatives = BuildAlternatives(
                             line.SpecialtyTypeId, targetDate, targetTime, line.Duration,
-                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap)
+                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap, patientBusy)
                     });
                     continue;
                 }
@@ -463,9 +464,13 @@ public class BulkSchedulingService : IBulkSchedulingService
         int specialtyTypeId, DateOnly date, TimeOnly time, int duration,
         Dictionary<int, IReadOnlyList<int>> qualifiedBySpecialty,
         Dictionary<int, List<(DateOnly Date, TimeOnly Start, int Duration)>> sessionMap,
-        Dictionary<int, Therapist> therapistMap)
+        Dictionary<int, Therapist> therapistMap,
+        IReadOnlyList<PatientSlot> patientBusy)
     {
         var alternatives = new List<SuggestedAlternative>();
+        // WP-59: never suggest a time the patient is already busy (any therapist). The requested
+        // time itself is patient-free here — the patient clash is reported before alternatives are built.
+        bool PatientFree(TimeOnly t) => !patientBusy.Any(b => b.Date == date && SessionSlot.Overlaps(b.Start, b.Duration, t, duration));
 
         if (!qualifiedBySpecialty.TryGetValue(specialtyTypeId, out var qualified))
             return alternatives;
@@ -492,6 +497,7 @@ public class BulkSchedulingService : IBulkSchedulingService
         {
             if (alternatives.Count >= 4) break;
             var altTime = time.AddMinutes(offset);
+            if (!PatientFree(altTime)) continue;
             foreach (var candidateId in qualified)
             {
                 if (alternatives.Count >= 4) break;

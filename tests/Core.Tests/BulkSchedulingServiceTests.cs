@@ -636,4 +636,58 @@ public class BulkSchedulingServiceTests
         var conflict = Assert.Single(result.Conflicts);
         Assert.Equal("Patient already has a session from 10:00 to 11:00 on 2026-04-13.", conflict.Reason);
     }
+
+    // ── WP-59 Bugbot follow-up: patient occupancy in auto-assign misses and in alternatives ──
+
+    [Fact]
+    public async Task Wp59_ScheduleAsync_AutoAssignMiss_ButPatientBusy_ReportsThePatientClash()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        plan.Lines.First().PreferredTherapistId = null; // auto-assign
+        SetupCommonMocks(plan);
+        _mockTherapistRepo.Setup(r => r.GetByIdsWithUserAsync(It.IsAny<IEnumerable<int>>())).ReturnsAsync(new List<Therapist>());
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int>()); // nobody qualified
+        _mockSessionRepo.Setup(r => r.GetByPatientIdsAndDateRangeAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { Id = 902, PatientId = plan.PatientId, TherapistId = 99, SessionDate = new DateOnly(2026, 4, 13),
+                        SessionTime = new TimeOnly(10, 0), Duration = 60, AppointmentStatusId = 2 },
+            });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var conflict = Assert.Single(result.Conflicts);
+        Assert.StartsWith("Patient already has a session from 10:00 to 11:00", conflict.Reason);
+    }
+
+    [Fact]
+    public async Task Wp59_ScheduleAsync_TherapistClash_AlternativesNeverOverlapThePatientsOtherSessions()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1); // line: Monday 10:00, 60 min, therapist 10
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        // therapist 10 busy 10:00–10:30 → the line clashes; 10:30 would be free for the therapist…
+        _mockSessionRepo.Setup(r => r.GetByTherapistAndDateRangeAsync(10, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { TherapistId = 10, SessionDate = new DateOnly(2026, 4, 13), SessionTime = new TimeOnly(10, 0),
+                        Duration = 30, AppointmentStatusId = 2 },
+            });
+        // …but the patient is busy 11:00–11:30 with another therapist, so 10:30 (→11:30) and 11:00 must not be suggested.
+        _mockSessionRepo.Setup(r => r.GetByPatientIdsAndDateRangeAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { Id = 903, PatientId = plan.PatientId, TherapistId = 99, SessionDate = new DateOnly(2026, 4, 13),
+                        SessionTime = new TimeOnly(11, 0), Duration = 30, AppointmentStatusId = 2 },
+            });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var conflict = Assert.Single(result.Conflicts);
+        Assert.Contains("already booked", conflict.Reason);
+        Assert.DoesNotContain(conflict.SuggestedAlternatives, a => a.Time == new TimeOnly(10, 30));
+        Assert.All(conflict.SuggestedAlternatives,
+            a => Assert.False(SessionSlot.Overlaps(a.Time, 60, new TimeOnly(11, 0), 30)));
+    }
 }
