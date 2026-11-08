@@ -39,6 +39,7 @@ public class BookingService : IBookingService
         // WP-42: transitions into Cancelled (3) / NoShow (5) carry money side-effects — guards
         // run first (throwing 400 before anything is written), the patch applies atomically
         // with the status write. Other statuses pass through untouched (patch = null).
+        await EnsureReinstateFitsAsync(sessionId, statusId);
         var patch = await PrepareTransitionAsync(sessionId, statusId);
         return await _bookingRepository.UpdateStatusAsync(sessionId, statusId, patch);
     }
@@ -58,6 +59,12 @@ public class BookingService : IBookingService
             var patch = await PrepareTransitionAsync(sessionId, 3);
             await _bookingRepository.AddConfirmationAsync(sessionId, request);
             return await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch); // Cancelled
+        }
+
+        // WP-59: confirming a Cancelled session reinstates it — guard BEFORE the attempt is recorded.
+        if (string.Equals(result, ConfirmationValues.Confirmed, StringComparison.OrdinalIgnoreCase))
+        {
+            await EnsureReinstateFitsAsync(sessionId, SessionStatus.Confirmed);
         }
 
         // Create confirmation record
@@ -87,6 +94,19 @@ public class BookingService : IBookingService
         }
 
         return await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch); // Cancelled
+    }
+
+    // WP-59 (F-2): moving a session OUT of Cancelled puts it back on the calendar, so the slot must
+    // still be free (double-booking guard → 409). Moves between busy statuses, and cancelling, are
+    // never checked — a legacy overlap must not block a check-in.
+    private async Task EnsureReinstateFitsAsync(int sessionId, int statusId)
+    {
+        if (!SessionSlot.OccupiesSlot(statusId)) return;
+        var session = await _therapySessionRepository.GetByIdAsync(sessionId);
+        if (session is null || session.AppointmentStatusId != SessionStatus.Cancelled) return;
+        await SessionConflictGuard.EnsureNoConflictAsync(_therapySessionRepository,
+            session.SessionDate, session.SessionTime, session.Duration,
+            session.TherapistId, session.PatientId, excludeSessionId: session.Id);
     }
 
     // WP-42: shared entry to the money-at-transition choke point for the booking-lifecycle

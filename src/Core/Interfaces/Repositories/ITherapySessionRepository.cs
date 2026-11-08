@@ -13,6 +13,12 @@ public interface ITherapySessionRepository : IRepository<TherapySession>
     Task<TherapySession?> GetByIdWithSpecialtyAsync(int id);
     Task<IReadOnlyList<TherapySession>> GetCompletedDiscoverySessionsAsync(int patientId);
     Task<IReadOnlyList<TherapySession>> GetByTherapistAndDateRangeAsync(int therapistId, DateOnly fromDate, DateOnly toDate);
+    /// <summary>
+    /// WP-59: non-cancelled sessions on <paramref name="date"/> for the therapist OR the patient
+    /// (minus <paramref name="excludeSessionId"/>), with therapist names — the double-booking
+    /// guard's candidate set. Overlap itself is decided in memory by <c>SessionSlot</c>.
+    /// </summary>
+    Task<IReadOnlyList<TherapySession>> GetSlotCandidatesAsync(DateOnly date, int therapistId, int patientId, int? excludeSessionId);
     Task<IReadOnlyList<TherapySession>> GetByTherapistIdAndDateRangeAsync(int therapistId, DateOnly from, DateOnly to, IEnumerable<int> statusIds);
     // WP-29 (U3): one slim SQL query feeds the pending-summary/report — sessions in range that
     // still owe the therapist (ProviderAmount − SUM(allocations) > 0), no entity includes.

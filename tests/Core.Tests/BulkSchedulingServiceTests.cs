@@ -570,4 +570,70 @@ public class BulkSchedulingServiceTests
         Assert.Equal(1, progress.SessionsCancelled);
         Assert.Equal(1, progress.SessionsRemaining); // Proposed
     }
+
+    // ── WP-59 (F-2): the patient side of the double-booking guard ──
+
+    [Fact]
+    public async Task Wp59_ScheduleAsync_PatientAlreadyBookedWithOtherTherapist_ReportsPatientConflict_NothingCreated()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        _mockSessionRepo.Setup(r => r.GetByPatientIdsAndDateRangeAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { Id = 900, PatientId = plan.PatientId, TherapistId = 99, SessionDate = new DateOnly(2026, 4, 13),
+                        SessionTime = new TimeOnly(10, 30), Duration = 30, AppointmentStatusId = 2 },
+            });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Equal(0, result.SessionsCreated);
+        var conflict = Assert.Single(result.Conflicts);
+        Assert.Equal("Patient already has a session from 10:30 to 11:00 on 2026-04-13 (session #900).", conflict.Reason);
+        Assert.Empty(conflict.SuggestedAlternatives);
+        _mockSessionRepo.Verify(r => r.AddRangeAsync(It.IsAny<IEnumerable<TherapySession>>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Wp59_ScheduleAsync_PatientCancelledSession_DoesNotBlock()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+        _mockSessionRepo.Setup(r => r.GetByPatientIdsAndDateRangeAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { Id = 901, PatientId = plan.PatientId, TherapistId = 99, SessionDate = new DateOnly(2026, 4, 13),
+                        SessionTime = new TimeOnly(10, 0), Duration = 60, AppointmentStatusId = 3 },
+            });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        Assert.Empty(result.Conflicts);
+        Assert.Single(result.Sessions);
+    }
+
+    [Fact]
+    public async Task Wp59_ScheduleAsync_TwoLinesOfTheSameRun_SameSlot_ReportsPatientConflict()
+    {
+        var plan = CreateActivePlan(weeks: 1, frequency: 1);
+        var first = plan.Lines.First();
+        plan.Lines.Add(new TreatmentPlanLine
+        {
+            Id = first.Id + 1, SpecialtyTypeId = first.SpecialtyTypeId, PreferredTherapistId = 10,
+            DayOfWeek = first.DayOfWeek, PreferredTime = first.PreferredTime, Duration = 60, SortOrder = 1,
+            SpecialtyType = first.SpecialtyType,
+        });
+        SetupCommonMocks(plan);
+        SetupTherapist(10, "Dr.", "Smith", feePct: 0.40m);
+        _mockSpecialtyRepo.Setup(r => r.GetTherapistIdsBySpecialtyAsync(5)).ReturnsAsync(new List<int> { 10 });
+
+        var result = await _sut.ScheduleAsync(1, new BulkScheduleRequest { StartDate = new DateOnly(2026, 4, 13), SiteId = 1 });
+
+        var conflict = Assert.Single(result.Conflicts);
+        Assert.Equal("Patient already has a session from 10:00 to 11:00 on 2026-04-13.", conflict.Reason);
+    }
 }

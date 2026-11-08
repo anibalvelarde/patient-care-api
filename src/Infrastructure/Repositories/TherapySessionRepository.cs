@@ -90,6 +90,21 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
             .ToListAsync();
     }
 
+    // WP-59: double-booking candidates — a handful of rows (one day, one therapist + one patient).
+    public async Task<IReadOnlyList<TherapySession>> GetSlotCandidatesAsync(
+        DateOnly date, int therapistId, int patientId, int? excludeSessionId)
+    {
+        return await _dbContext.TherapySessions
+            .AsNoTracking()
+            .Include(s => s.Therapist).ThenInclude(t => t!.User)
+            .Where(s => s.SessionDate == date
+                && (s.TherapistId == therapistId || s.PatientId == patientId)
+                && s.AppointmentStatusId != SessionStatus.Cancelled
+                && (excludeSessionId == null || s.Id != excludeSessionId))
+            .OrderBy(s => s.SessionTime)
+            .ToListAsync();
+    }
+
     public async Task<IReadOnlyList<TherapySession>> GetByTherapistIdAndDateRangeAsync(
         int therapistId, DateOnly from, DateOnly to, IEnumerable<int> statusIds)
     {
