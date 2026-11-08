@@ -111,7 +111,7 @@ public class PaymentRecordServiceTests
     [Fact]
     public async Task Create_SessionOfAnUnlinkedPatient_Is400_AndWritesNothing()
     {
-        // F-3 repro: caretaker 1135 (Duarte) paying session 12342 of patient 140 (Rivas) → was 201.
+        // F-3 repro: a caretaker paying a session of a patient they are not linked to → was 201.
         Session(12342, patientId: OtherPatientId, amount: 75m, discount: 0m);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => _sut.CreateAsync(Create(5m, (12342, 5m))));
@@ -135,7 +135,7 @@ public class PaymentRecordServiceTests
     [Fact]
     public async Task Create_OnALegacySession_KeepsTheImportedPaidBaseline()
     {
-        // VERGARA #11042: $175 billed, $50 paid per the legacy spreadsheet (no Payment row).
+        // A legacy-imported session: $175 billed, $50 paid per the legacy spreadsheet (no Payment row).
         // Before WP-58 the recompute was SUM(allocations) only, so this $20 payment would have
         // dropped AmountPaid from 50 to 20.
         var legacy = Session(11042, amount: 175m, discount: 0m, amountPaid: 50m, legacyPaid: 50m);

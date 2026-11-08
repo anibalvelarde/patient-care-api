@@ -29,9 +29,9 @@ public class Wp58MoneyIntegrityTests
     private static async Task SeedAsync(DbContextOptions<ApplicationDbContext> options)
     {
         using var ctx = new ApplicationDbContext(options);
-        ctx.Set<Caretaker>().Add(new Caretaker { Id = 1135, Notes = string.Empty, User = new User { Id = 50, FirstName = "Juliana", LastName = "Duarte" } });
+        ctx.Set<Caretaker>().Add(new Caretaker { Id = 1135, Notes = string.Empty, User = new User { Id = 50, FirstName = "Test", LastName = "Caretaker" } });
         ctx.Set<PaymentType>().Add(new PaymentType { Id = 4, Name = "Cash", Abbreviation = "CASH" });
-        ctx.Set<Patient>().Add(new Patient { Id = 871, User = new User { Id = 871, FirstName = "Hernan", LastName = "Vergara" } });
+        ctx.Set<Patient>().Add(new Patient { Id = 871, User = new User { Id = 871, FirstName = "Test", LastName = "Patient" } });
         ctx.Set<PatientCaretaker>().Add(new PatientCaretaker { Id = 1, PatientId = 871, CaretakerId = 1135 });
         // Legacy-imported session: $175 billed, $50 paid per the spreadsheet, no Payment rows.
         ctx.TherapySessions.Add(new TherapySession
