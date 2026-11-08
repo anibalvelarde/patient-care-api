@@ -135,6 +135,15 @@ public class BulkSchedulingService : IBulkSchedulingService
                 .ToList();
         }
 
+        // WP-59 (F-2): the patient side of the double-booking guard — the plan's patient may not have
+        // two overlapping busy sessions with ANY therapist (every status but Cancelled occupies a slot).
+        // Lines booked in this run are added as they go (Id = null) so two lines can't collide either.
+        var patientBusy = ((await _sessionRepository.GetByPatientIdsAndDateRangeAsync(
+                new[] { plan.PatientId }, request.StartDate, endDate)) ?? Array.Empty<TherapySession>())
+            .Where(s => SessionSlot.OccupiesSlot(s.AppointmentStatusId))
+            .Select(s => new PatientSlot(s.Id, s.SessionDate, s.SessionTime, s.Duration))
+            .ToList();
+
         var result = new BulkScheduleResult { PlanId = planId };
         var sessionsToCreate = new List<TherapySession>();
 
@@ -178,6 +187,23 @@ public class BulkSchedulingService : IBulkSchedulingService
                     continue;
                 }
 
+                // WP-59: patient clash BEFORE therapist assignment — another therapist can't fix it (so no
+                // alternatives), and an auto-assign miss must not hide it behind "no therapist available".
+                var patientClash = patientBusy.FirstOrDefault(b => b.Date == targetDate
+                    && SessionSlot.Overlaps(b.Start, b.Duration, targetTime, line.Duration));
+                if (patientClash is not null)
+                {
+                    result.Conflicts.Add(new ScheduleConflict
+                    {
+                        WeekNumber = week,
+                        LineId = line.LineId,
+                        Date = targetDate,
+                        Reason = $"Patient already has a session from {SessionConflictGuard.Range(patientClash.Start, patientClash.Duration)} " +
+                                 $"on {targetDate:yyyy-MM-dd}{(patientClash.SessionId is int sid ? $" (session #{sid})" : string.Empty)}.",
+                    });
+                    continue;
+                }
+
                 // Determine therapist
                 int? assignedTherapistId = line.TherapistId;
 
@@ -199,7 +225,7 @@ public class BulkSchedulingService : IBulkSchedulingService
                         Reason = "No qualified therapist available at this time.",
                         SuggestedAlternatives = BuildAlternatives(
                             line.SpecialtyTypeId, targetDate, targetTime, line.Duration,
-                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap)
+                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap, patientBusy)
                     });
                     continue;
                 }
@@ -216,7 +242,7 @@ public class BulkSchedulingService : IBulkSchedulingService
                         Reason = $"Therapist {therapistName} is already booked at {targetTime:HH:mm} on {targetDate}.",
                         SuggestedAlternatives = BuildAlternatives(
                             line.SpecialtyTypeId, targetDate, targetTime, line.Duration,
-                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap)
+                            qualifiedTherapistsBySpecialty, existingSessionsByTherapist, therapistMap, patientBusy)
                     });
                     continue;
                 }
@@ -256,6 +282,8 @@ public class BulkSchedulingService : IBulkSchedulingService
                     Notes = string.Empty,
                 };
                 sessionsToCreate.Add(session);
+
+                patientBusy.Add(new PatientSlot(null, targetDate, targetTime, line.Duration));
 
                 // Update in-memory conflict map so subsequent iterations see this session
                 if (!existingSessionsByTherapist.ContainsKey(assignedTherapistId.Value))
@@ -384,12 +412,11 @@ public class BulkSchedulingService : IBulkSchedulingService
         return weekStart.AddDays(daysAhead);
     }
 
+    private sealed record PatientSlot(int? SessionId, DateOnly Date, TimeOnly Start, int Duration);
+
+    // WP-59: one overlap definition, shared with the single-session double-booking guard.
     private static bool TimesOverlap(TimeOnly start1, int duration1, TimeOnly start2, int duration2)
-    {
-        var end1 = start1.AddMinutes(duration1);
-        var end2 = start2.AddMinutes(duration2);
-        return start1 < end2 && start2 < end1;
-    }
+        => SessionSlot.Overlaps(start1, duration1, start2, duration2);
 
     private static bool HasConflict(int therapistId, DateOnly date, TimeOnly time, int duration,
         Dictionary<int, List<(DateOnly Date, TimeOnly Start, int Duration)>> sessionMap)
@@ -437,9 +464,13 @@ public class BulkSchedulingService : IBulkSchedulingService
         int specialtyTypeId, DateOnly date, TimeOnly time, int duration,
         Dictionary<int, IReadOnlyList<int>> qualifiedBySpecialty,
         Dictionary<int, List<(DateOnly Date, TimeOnly Start, int Duration)>> sessionMap,
-        Dictionary<int, Therapist> therapistMap)
+        Dictionary<int, Therapist> therapistMap,
+        IReadOnlyList<PatientSlot> patientBusy)
     {
         var alternatives = new List<SuggestedAlternative>();
+        // WP-59: never suggest a time the patient is already busy (any therapist). The requested
+        // time itself is patient-free here — the patient clash is reported before alternatives are built.
+        bool PatientFree(TimeOnly t) => !patientBusy.Any(b => b.Date == date && SessionSlot.Overlaps(b.Start, b.Duration, t, duration));
 
         if (!qualifiedBySpecialty.TryGetValue(specialtyTypeId, out var qualified))
             return alternatives;
@@ -466,6 +497,7 @@ public class BulkSchedulingService : IBulkSchedulingService
         {
             if (alternatives.Count >= 4) break;
             var altTime = time.AddMinutes(offset);
+            if (!PatientFree(altTime)) continue;
             foreach (var candidateId in qualified)
             {
                 if (alternatives.Count >= 4) break;

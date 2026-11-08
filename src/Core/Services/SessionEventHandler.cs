@@ -280,6 +280,16 @@ public class SessionEventHandler : IHandleSessionEvent
             onSiteCharge = site.OnSiteTripChargeAmount;
         }
 
+        // WP-59 (F-2): double-booking guard — LAST check before the insert (all 400s first), and only
+        // when the new session itself occupies a slot (booking straight into Cancelled is not checked).
+        // ConflictException → 409.
+        if (SessionSlot.OccupiesSlot(request.AppointmentStatusId))
+        {
+            await SessionConflictGuard.EnsureNoConflictAsync(_therapySessionRepository,
+                request.SessionDate, request.SessionTime, request.Duration,
+                request.TherapistId, request.PatientId, excludeSessionId: null);
+        }
+
         var newTherapySession = await _therapySessionRepository.AddAsync(
             MapToNewSessionEvent(pProfile!, tProfile!, request, specialty, amount, derivedDiscount, onSiteCharge));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
@@ -362,6 +372,20 @@ public class SessionEventHandler : IHandleSessionEvent
             && await _transitionMoney.IsCoveredByServicePaymentAsync(sessionEventId))
         {
             throw new ArgumentException(SessionTransitionMoneyService.CoveredSessionMessage);
+        }
+
+        // WP-59 (F-2): double-booking guard, only when the edit CHANGES the slot — a new therapist, a
+        // new duration, or a reinstatement out of Cancelled. Money/notes-only edits are never checked,
+        // so legacy rows that already overlap stay editable. (PUT cannot change date/time.)
+        var resultingStatus = request.AppointmentStatusId ?? onFile.AppointmentStatusId;
+        var durationChanged = request.Duration.HasValue && request.Duration.Value != onFile.Duration;
+        var reinstated = onFile.AppointmentStatusId == SessionStatus.Cancelled
+            && resultingStatus != SessionStatus.Cancelled;
+        if (SessionSlot.OccupiesSlot(resultingStatus) && (therapistChanged || durationChanged || reinstated))
+        {
+            await SessionConflictGuard.EnsureNoConflictAsync(_therapySessionRepository,
+                onFile.SessionDate, onFile.SessionTime, request.Duration ?? onFile.Duration,
+                request.TherapistId ?? onFile.TherapistId, onFile.PatientId, excludeSessionId: sessionEventId);
         }
 
         // WP-42: the generic-PUT leg of the money-at-transition choke point — an

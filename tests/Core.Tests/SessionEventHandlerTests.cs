@@ -1116,4 +1116,143 @@ public class SessionEventHandlerTests
         Assert.True(result.IsDiscovery);
         Assert.Equal("Obs-TO", result.TherapyTypes);
     }
+
+    // ── WP-59 (F-2) — double-booking guard on create + slot-changing updates ──
+
+    private void BusyAt(DateOnly date, params TherapySession[] rows) =>
+        _mockTherapySessionRepository
+            .Setup(r => r.GetSlotCandidatesAsync(date, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int?>()))
+            .ReturnsAsync(rows);
+
+    private static TherapySession Busy(int id, int therapistId, int patientId, string date, string time, int duration,
+        int status = SessionStatus.Confirmed) => new()
+    {
+        Id = id, TherapistId = therapistId, PatientId = patientId, SessionDate = DateOnly.Parse(date),
+        SessionTime = TimeOnly.Parse(time), Duration = duration, AppointmentStatusId = status,
+    };
+
+    [Fact]
+    public async Task Wp59_CreateAsync_SameTherapistSameSlot_Throws409_NothingInserted()
+    {
+        SetupCreateAsyncWithCapture(new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        BusyAt(DateOnly.Parse("2026-07-20"), Busy(12359, therapistId: 1, patientId: 2, "2026-07-20", "10:00", 60));
+
+        var ex = await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(
+            () => _sut.CreateAsync(MakeRequest(amount: 100m, discount: 0m)));
+
+        Assert.Contains("session #12359", ex.Message);
+        _mockTherapySessionRepository.Verify(r => r.AddAsync(It.IsAny<TherapySession>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Wp59_CreateAsync_OverlapByDuration_Throws409()
+    {
+        SetupCreateAsyncWithCapture(new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        // existing 09:30–10:30; new booking 10:00 for 60 min
+        BusyAt(DateOnly.Parse("2026-07-20"), Busy(40, therapistId: 1, patientId: 2, "2026-07-20", "09:30", 60));
+
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(
+            () => _sut.CreateAsync(MakeRequest(amount: 100m, discount: 0m)));
+    }
+
+    [Fact]
+    public async Task Wp59_CreateAsync_SamePatientOtherTherapist_Throws409()
+    {
+        SetupCreateAsyncWithCapture(new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        BusyAt(DateOnly.Parse("2026-07-20"), Busy(41, therapistId: 9, patientId: 1, "2026-07-20", "10:30", 30));
+
+        var ex = await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(
+            () => _sut.CreateAsync(MakeRequest(amount: 100m, discount: 0m)));
+
+        Assert.StartsWith("This patient already has a session", ex.Message);
+    }
+
+    [Fact]
+    public async Task Wp59_CreateAsync_BackToBack_AndCancelled_Book()
+    {
+        SetupCreateAsyncWithCapture(new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        BusyAt(DateOnly.Parse("2026-07-20"),
+            Busy(42, therapistId: 1, patientId: 1, "2026-07-20", "09:00", 60),                           // ends 10:00
+            Busy(43, therapistId: 1, patientId: 1, "2026-07-20", "10:00", 60, SessionStatus.Cancelled)); // cancelled
+
+        await _sut.CreateAsync(MakeRequest(amount: 100m, discount: 0m));
+
+        Assert.NotNull(_capturedSession);
+    }
+
+    [Fact]
+    public async Task Wp59_CreateAsync_BookedStraightIntoCancelled_IsNotChecked()
+    {
+        SetupCreateAsyncWithCapture(new PatientProfile { PatientId = 1, PatientName = "P" },
+            new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        BusyAt(DateOnly.Parse("2026-07-20"), Busy(12359, therapistId: 1, patientId: 1, "2026-07-20", "10:00", 60));
+        var request = MakeRequest(amount: 100m, discount: 0m);
+        request.AppointmentStatusId = SessionStatus.Cancelled;
+
+        await _sut.CreateAsync(request);
+
+        Assert.NotNull(_capturedSession);
+    }
+
+    [Fact]
+    public async Task Wp59_UpdateAsync_ReassignIntoBusyTherapist_Throws409_NothingWritten()
+    {
+        var onFile = SessionOnFile();
+        onFile.SessionTime = TimeOnly.Parse("10:00");
+        onFile.AppointmentStatusId = SessionStatus.Confirmed;
+        BusyAt(onFile.SessionDate, Busy(50, therapistId: 2, patientId: 8, "2026-07-20", "10:00", 30));
+        var update = MakeUpdate(amount: 100m, discount: 0m);
+        update.TherapistId = 2;
+
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(() => _sut.UpdateAsync(77, update));
+
+        _mockTherapySessionRepository.Verify(r => r.GetSlotCandidatesAsync(onFile.SessionDate, 2, 1, 77), Times.Once);
+        _mockRepository.Verify(r => r.UpdateAsync(It.IsAny<int>(), It.IsAny<SessionEventUpdateRequest>(), It.IsAny<SessionMoneyPatch?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Wp59_UpdateAsync_LongerDurationOverlapsNext_Throws409()
+    {
+        var onFile = SessionOnFile(duration: 30);
+        onFile.SessionTime = TimeOnly.Parse("10:00");
+        onFile.AppointmentStatusId = SessionStatus.Confirmed;
+        BusyAt(onFile.SessionDate, Busy(51, therapistId: 1, patientId: 8, "2026-07-20", "10:30", 30));
+
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(
+            () => _sut.UpdateAsync(77, MakeUpdate(amount: 100m, discount: 0m, duration: 60)));
+    }
+
+    [Fact]
+    public async Task Wp59_UpdateAsync_ReinstateFromCancelled_IntoBusySlot_Throws409()
+    {
+        var onFile = SessionOnFile();
+        onFile.SessionTime = TimeOnly.Parse("10:00");
+        onFile.AppointmentStatusId = SessionStatus.Cancelled;
+        BusyAt(onFile.SessionDate, Busy(52, therapistId: 1, patientId: 8, "2026-07-20", "10:00", 60));
+        var update = MakeUpdate(amount: 100m, discount: 0m);
+        update.AppointmentStatusId = SessionStatus.Confirmed;
+
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(() => _sut.UpdateAsync(77, update));
+    }
+
+    [Fact]
+    public async Task Wp59_UpdateAsync_MoneyOnlyEdit_OnAlreadyOverlappingLegacyRow_IsNotChecked()
+    {
+        var onFile = SessionOnFile();
+        onFile.SessionTime = TimeOnly.Parse("10:00");
+        BusyAt(onFile.SessionDate, Busy(53, therapistId: 1, patientId: 1, "2026-07-20", "10:00", 60));
+        _mockPatientService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(new PatientProfile { PatientId = 1, PatientName = "P" });
+        _mockTherapistService.Setup(s => s.GetByIdAsync(1)).ReturnsAsync(new TherapistProfile { TherapistId = 1, TherapistName = "T", FeePerSession = 25m });
+        var update = MakeUpdate(amount: 100m, discount: 5m, duration: 60); // duration echoed unchanged
+        update.TherapistId = 1;                                             // therapist echoed unchanged
+
+        Assert.True(await _sut.UpdateAsync(77, update));
+
+        _mockTherapySessionRepository.Verify(r => r.GetSlotCandidatesAsync(
+            It.IsAny<DateOnly>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int?>()), Times.Never);
+    }
 }
