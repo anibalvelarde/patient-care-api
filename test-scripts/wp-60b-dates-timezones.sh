@@ -22,13 +22,13 @@ echo "== Q-3: Thursday 2026-11-12 → expect weekStart 2026-11-09"
 curl -s "${H[@]}" "$BASE_URL/api/sessions/2026-11-12/schedule-matrix?siteId=$SITE_ID" | grep -o '"weekStart":"[^"]*"'
 
 echo "== F-19: an unparseable route date falls back to TODAY in Panama → expect today's Panama date (after 7 PM too)"
-echo "   Panama now: $(TZ=America/Panama date '+%Y-%m-%d %H:%M')"
+echo "   UTC now: $(date -u '+%Y-%m-%d %H:%M') (Panama = UTC−5; after 19:00 Panama the UTC date is already tomorrow)"
 curl -s "${H[@]}" "$BASE_URL/api/sessions/not-a-date/schedule-matrix?siteId=$SITE_ID" | grep -o '"weekStart":"[^"]*"'
 
 echo "== F-15b: edit ONLY the notes of session $SESSION_ID"
 curl -s -o /dev/null -w "HTTP %{http_code}\n" "${H[@]}" -X PUT "$BASE_URL/api/sessions/$SESSION_ID" \
-  -d "{\"sessionTime\":\"10:00:00\",\"discount\":0,\"notes\":\"wp60 $(date +%s)\"}"
-echo "   (if the discount differs on your row the PUT changes it too — use a row with discount 0)"
+  -d "{\"sessionTime\":\"10:00:00\",\"therapyType\":\"TL\",\"discount\":0,\"notes\":\"wp60 $(date +%s)\"}"
+echo "   (use a TL row with discount 0: the PUT also writes therapyType + discount — an omitted therapyType blanks it, pre-existing, logged as a finding)"
 
 echo "== F-15a/b: newest change-log entry → expect occurredAtUtc ending in Z, changedFields = [\"Notes\"]"
 curl -s "${H[@]}" "$BASE_URL/api/admin/change-log?page=1&pageSize=1" | grep -oE '"occurredAtUtc":"[^"]*"|"changedFields":\[[^]]*\]'
