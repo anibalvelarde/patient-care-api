@@ -158,7 +158,12 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
         }
 
         var pct = await ResolveNoShowFeePctAsync(session);
-        var fee = NoShowFee(pct, session.Amount);
+        // WP-58 (owner ruling Q-1, 2026-11-08): a no-show costs what the visit would have cost, so
+        // the fee is taken on the NET (amount after the SENADIS/ad-hoc discount), not the gross.
+        // $50 TL with a $10 SENADIS discount → fee $40. (A deliberately narrower "Amount - Discount"
+        // figure in the TherapySession.AmountDue() grep sense: the service charge only, no add-ons.)
+        var net = Math.Max(session.Amount - session.DiscountAmount, 0m);
+        var fee = NoShowFee(pct, net);
 
         // WP-49: an existing late fee survives the transition and stays in GrossProfit. The
         // no-show fee lands in Amount; the late fee lives in its own column and is added on
@@ -178,11 +183,12 @@ public class SessionTransitionMoneyService : ISessionTransitionMoneyService
     }
 
     /// <summary>
-    /// round(pct% × gross amount, 2), half away from zero — matches MySQL ROUND (the WP-42A
-    /// rehearsal pinned 30% of 85.00 = 25.50 and 12.5% of 85.00 = 10.63).
+    /// round(pct% × base, 2), half away from zero — matches MySQL ROUND (the WP-42A rehearsal
+    /// pinned 30% of 85.00 = 25.50 and 12.5% of 85.00 = 10.63). Since WP-58 the base is the
+    /// session's NET (amount − discount); see PrepareNoShowAsync.
     /// </summary>
-    public static decimal NoShowFee(decimal pct, decimal grossAmount)
-        => Math.Round(pct / 100m * grossAmount, 2, MidpointRounding.AwayFromZero);
+    public static decimal NoShowFee(decimal pct, decimal baseAmount)
+        => Math.Round(pct / 100m * baseAmount, 2, MidpointRounding.AwayFromZero);
 
     private async Task<decimal> ResolveNoShowFeePctAsync(TherapySession session)
     {

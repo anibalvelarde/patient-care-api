@@ -152,13 +152,33 @@ public class SessionTransitionMoneyServiceTests
         var patch = await _sut.PrepareTransitionAsync(Session(85m, 17m, 40m, 28m, siteId: 7), 5);
 
         Assert.NotNull(patch);
-        Assert.Equal(10.63m, patch!.Amount);       // round(12.5% × 85.00, 2) — half away from zero
+        // WP-58 (Q-1): the fee is on the NET 85.00 − 17.00 = 68.00 → round(12.5% × 68.00, 2) = 8.50
+        // (was 10.63 on the gross before WP-58).
+        Assert.Equal(8.50m, patch!.Amount);
         Assert.Equal(0m, patch.DiscountAmount);
         Assert.Equal(0m, patch.ProviderAmount);    // G2: therapist rendered nothing
-        Assert.Equal(10.63m, patch.GrossProfit);   // clinic keeps 100% of the fee
+        Assert.Equal(8.50m, patch.GrossProfit);    // clinic keeps 100% of the fee
         Assert.Matches(
             new Regex(@"^\[NOSHOW-FEE \d{4}-\d{2}-\d{2}: was A:85\.00 D:17\.00 P:40\.00 G:28\.00\]$"),
             patch.NotesMarker!);
+    }
+
+    [Fact]
+    public async Task NoShow_SenadisSession_FeeIsWhatThePatientWouldHavePaid()
+    {
+        // WP-58 owner ruling Q-1 (2026-11-08): $50 TL with the $10 SENADIS discount → no-show fee
+        // $40, not the gross $50 (E2E repro #12356).
+        _mockSites.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new Site { Id = 1, SiteName = "HQ", NoShowFeePct = 100m });
+
+        var patch = await _sut.PrepareTransitionAsync(Session(50m, 10m, 16m, 24m, siteId: 1), 5);
+
+        Assert.NotNull(patch);
+        Assert.Equal(40.00m, patch!.Amount);
+        Assert.Equal(0m, patch.DiscountAmount);
+        Assert.Equal(0m, patch.ProviderAmount);
+        Assert.Equal(40.00m, patch.GrossProfit);
+        Assert.Contains("was A:50.00 D:10.00 P:16.00 G:24.00", patch.NotesMarker);
     }
 
     [Fact]

@@ -37,6 +37,8 @@ public class TherapySessionConfiguration : IEntityTypeConfiguration<TherapySessi
         // WP-49 (BR3/BR4, V034). LateFeeAppliedOn / FeeWaivedOn are DateOnly → MySQL `date`,
         // which Pomelo maps by convention; only the money column needs an explicit precision.
         builder.Property(e => e.LateFeeAmount).HasPrecision(10, 2);
+        // WP-58 (V037): legacy imported paid baseline; see TherapySession.LegacyAmountPaid.
+        builder.Property(e => e.LegacyAmountPaid).HasPrecision(10, 2);
     }
 }
 

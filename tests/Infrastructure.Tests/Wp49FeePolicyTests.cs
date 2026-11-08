@@ -106,7 +106,6 @@ public class Wp49FeePolicyTests
         SessionTime = s.SessionTime,
         TherapyType = s.TherapyTypes,
         Amount = s.Amount,
-        AmountPaid = s.AmountPaid,
         Discount = s.DiscountAmount,
         ProviderAmount = s.ProviderAmount,
         Notes = s.Notes,

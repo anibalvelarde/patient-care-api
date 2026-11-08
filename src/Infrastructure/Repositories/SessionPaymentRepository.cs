@@ -25,6 +25,13 @@ public class SessionPaymentRepository(ApplicationDbContext dbContext) :
             .ToListAsync();
     }
 
+    public async Task<decimal> GetAllocatedTotalForSessionAsync(int sessionId)
+    {
+        return await _dbContext.SessionPayments
+            .Where(sp => sp.TherapySessionId == sessionId)
+            .SumAsync(sp => (decimal?)sp.AmountAllocated) ?? 0m;
+    }
+
     public async Task DeleteByPaymentIdAsync(int paymentId)
     {
         var items = await _dbContext.SessionPayments
