@@ -116,6 +116,36 @@ public class CaretakerProfileServiceTests
         Assert.IsAssignableFrom<IEnumerable<CaretakerProfile>>(result);
     }
 
+    // WP-57: blank caretaker email must reach the DB as NULL — SystemUser.Email is UNIQUE, so a
+    // stored "" would make the second email-less caretaker create collide (uq_systemuser_email).
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(" c@t.com ", "c@t.com")]
+    public async Task CreateAsync_NormalizesBlankEmail_ToNull(string? requestEmail, string? expectedEmail)
+    {
+        var mockUserRepo = new Mock<IUserRepository>();
+        User? capturedUser = null;
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>()))
+            .Callback<User>(u => capturedUser = u)
+            .ReturnsAsync((User u) => { u.Id = 20; return u; });
+        var mockCaretakerRepo = new Mock<ICaretakerRepository>();
+        mockCaretakerRepo.Setup(r => r.AddAsync(It.IsAny<Caretaker>()))
+            .ReturnsAsync((Caretaker c) => { c.Id = 7; return c; });
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+
+        var svc = new CaretakerProfileService(Mock.Of<ILogger<CaretakerProfileService>>(), Mock.Of<ICaretakerProfileRepository>(),
+            mockCaretakerRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, Mock.Of<IPatientCaretakerRepository>());
+        var request = new CaretakerProfileRequest { FirstName = "Ana", LastName = "Ruiz", Email = requestEmail, PhoneNumber = "555" };
+
+        await svc.CreateAsync(request);
+
+        Assert.NotNull(capturedUser);
+        Assert.Equal(expectedEmail, capturedUser!.Email);
+    }
+
     // ---- WP-50B: MakeSelfCaretakerAsync ------------------------------------------------------
 
     /// <summary>Unit of work that just runs the operation — commit/rollback is the real impl's concern.</summary>

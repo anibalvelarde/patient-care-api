@@ -111,6 +111,31 @@ public class PatientCreateValidationTests : IClassFixture<AccessControlTestFacto
         body.Should().Contain("Cedula");
     }
 
+    // WP-57 (prod bug, found 2026-11-07): WP-50C made email optional in the UI (blank → field
+    // omitted), but the API kept [Required] Email → every email-less patient create was a 400.
+    // Omitted, null, blank and whitespace must all create (stored as NULL — see the service test).
+    [Theory]
+    [InlineData("omit")]
+    [InlineData("null")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Post_WithoutEmail_Creates(string emailCase)
+    {
+        var client = CreateMgrClient();
+        var suffix = $"wp57-{Guid.NewGuid().ToString("N")[..8]}";
+        var cedula = $"WP57-{suffix}";
+        object body = emailCase switch
+        {
+            "omit" => new { firstName = "WP57", lastName = $"NoEmail-{suffix}", cedula, dateOfBirth = "2015-06-01", phoneNumber = "555-0100", gender = "Female" },
+            "null" => new { firstName = "WP57", lastName = $"NoEmail-{suffix}", cedula, dateOfBirth = "2015-06-01", email = (string?)null, phoneNumber = "555-0100", gender = "Female" },
+            _ => new { firstName = "WP57", lastName = $"NoEmail-{suffix}", cedula, dateOfBirth = "2015-06-01", email = emailCase, phoneNumber = "555-0100", gender = "Female" },
+        };
+
+        var response = await client.PostAsJsonAsync("/api/patients", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+    }
+
     [Fact]
     public async Task Put_WithInvalidGender_Returns400()
     {

@@ -305,7 +305,8 @@ public class CaretakerProfileService : ICaretakerProfileService
             FirstName = request.FirstName,
             MiddleName = request.MiddleName,
             LastName = request.LastName,
-            Email = request.Email,
+            // WP-57: blank → NULL (uq_systemuser_email allows many NULLs, not many "").
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             PhoneNumber = request.PhoneNumber,
             CreatedTimestamp = DateTime.UtcNow,
             ActiveStatus = true

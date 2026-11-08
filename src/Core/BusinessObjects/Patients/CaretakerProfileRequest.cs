@@ -9,7 +9,6 @@ public class CaretakerProfileRequest
         this.FirstName = string.Empty;
         this.LastName = string.Empty;
         this.MiddleName = string.Empty;
-        this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Notes = string.Empty;
     }
@@ -20,8 +19,9 @@ public class CaretakerProfileRequest
     public string MiddleName { get; set; }
     [Required]
     public string LastName { get; set; }
-    [Required]
-    public string Email { get; set; }
+    // WP-57: optional at create (WP-50C intent; the UI omits a blank email). Blank/whitespace is
+    // stored as NULL by the service — SystemUser.Email is UNIQUE, so "" would collide.
+    public string? Email { get; set; }
     [Required]
     public string PhoneNumber { get; set; }
     
