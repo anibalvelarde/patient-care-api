@@ -133,11 +133,11 @@ public class ScheduleMatrixService : IScheduleMatrixService
         return slots;
     }
 
-    private static DateOnly GetMonday(DateOnly date)
+    // WP-60 (Q-3, owner ruling 2026-11-08): the grid is Mon–Sat, so a SUNDAY belongs to the COMING
+    // week (the Monday after it) — "Today" on a Sunday used to show the week that had just ended.
+    internal static DateOnly GetMonday(DateOnly date)
     {
-        var dayOfWeek = (int)date.DayOfWeek;
-        // DayOfWeek: Sunday=0, Monday=1, ..., Saturday=6
-        var daysToSubtract = dayOfWeek == 0 ? 6 : dayOfWeek - 1;
-        return date.AddDays(-daysToSubtract);
+        if (date.DayOfWeek == DayOfWeek.Sunday) return date.AddDays(1);
+        return date.AddDays(-((int)date.DayOfWeek - 1));
     }
 }

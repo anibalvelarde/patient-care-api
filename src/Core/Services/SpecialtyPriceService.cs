@@ -35,7 +35,7 @@ public class SpecialtyPriceService : ISpecialtyPriceService
         var specialty = await _repository.GetWithPricesAsync(specialtyTypeId);
         if (specialty == null) return null;
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = ClinicClock.Today();
         // The current row per duration = the one CurrentEffective picks for today.
         var current = SpecialtyPricing.CurrentEffective(specialty.DurationPrices, today)
             .ToDictionary(p => p.DurationMinutes, p => p.EffectiveFrom);

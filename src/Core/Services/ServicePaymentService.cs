@@ -110,7 +110,7 @@ public class ServicePaymentService : IServicePaymentService
             // Use the client's local business date (date-only, like every other payment) so the reversal
             // lines up in the history; fall back to today's UTC date only when the client omits it. The
             // exact reversal instant is preserved separately in the audit CreatedTimestamp.
-            PaymentDate = request.PaymentDate ?? DateTime.UtcNow.Date,
+            PaymentDate = request.PaymentDate ?? ClinicClock.Today().ToDateTime(TimeOnly.MinValue),
             PaymentTypeId = original.PaymentTypeId,
             ReferenceNumber = original.ReferenceNumber,
             Notes = $"Reversal of payment #{original.Id}: {request.Reason.Trim()}",
@@ -425,8 +425,8 @@ public class ServicePaymentService : IServicePaymentService
 
     private static (DateOnly from, DateOnly to) ResolveRange(DateOnly? from, DateOnly? to)
     {
-        var periodStart = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-90));
-        var periodEnd = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var periodStart = from ?? ClinicClock.Today().AddDays(-90);
+        var periodEnd = to ?? ClinicClock.Today();
         if (periodEnd < periodStart)
             throw new ArgumentException("Query parameter 'to' must be on or after 'from'.");
         return (periodStart, periodEnd);

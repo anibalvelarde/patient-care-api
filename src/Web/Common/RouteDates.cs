@@ -7,9 +7,9 @@ namespace Neurocorp.Api.Web.Common;
 public static class RouteDates
 {
     /// <summary>
-    /// Parse a route date string, falling back to today (UTC) when it cannot be parsed.
+    /// Parse a route date string, falling back to the clinic's (Panama) today — WP-60 when it cannot be parsed.
     /// Preserves the lenient behavior of the original SessionsController.ConvertStringToDateOnly.
     /// </summary>
     public static DateOnly ParseOrToday(string dateString)
-        => DateOnly.TryParse(dateString, out var date) ? date : DateOnly.FromDateTime(DateTime.UtcNow);
+        => DateOnly.TryParse(dateString, out var date) ? date : Neurocorp.Api.Core.Services.ClinicClock.Today();
 }

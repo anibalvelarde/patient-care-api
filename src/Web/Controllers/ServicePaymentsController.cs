@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.ServicePayments;
@@ -109,7 +110,7 @@ public class ServicePaymentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(QuincenaWindow))]
     public IActionResult GetQuincena([FromQuery] DateOnly? date)
     {
-        var window = _servicePaymentService.GetQuincenaWindow(date ?? DateOnly.FromDateTime(DateTime.UtcNow));
+        var window = _servicePaymentService.GetQuincenaWindow(date ?? ClinicClock.Today());
         return Ok(window);
     }
 

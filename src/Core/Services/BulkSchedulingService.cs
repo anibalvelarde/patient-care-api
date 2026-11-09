@@ -348,7 +348,7 @@ public class BulkSchedulingService : IBulkSchedulingService
             ?? throw new ArgumentException($"Treatment plan {planId} not found.");
 
         var sessions = await _sessionRepository.GetByTreatmentPlanIdAsync(planId);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = ClinicClock.Today();
 
         return new PlanProgressSummary
         {

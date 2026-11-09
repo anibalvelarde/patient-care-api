@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Neurocorp.Api.Core.BusinessObjects.Lookups;
@@ -103,13 +104,13 @@ public class BookingController : ControllerBase
         DateOnly fromDate, toDate;
         if (from != null || to != null)
         {
-            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
+            fromDate = from != null ? DateOnly.Parse(from) : ClinicClock.Today();
             toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
         }
         else
         {
             if (days > 30) days = 30;
-            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            fromDate = ClinicClock.Today();
             toDate = fromDate.AddDays(days);
         }
         var sessions = await _bookingService.GetUnconfirmedAsync(fromDate, toDate);
@@ -124,13 +125,13 @@ public class BookingController : ControllerBase
         DateOnly fromDate, toDate;
         if (from != null || to != null)
         {
-            fromDate = from != null ? DateOnly.Parse(from) : DateOnly.FromDateTime(DateTime.UtcNow);
+            fromDate = from != null ? DateOnly.Parse(from) : ClinicClock.Today();
             toDate = to != null ? DateOnly.Parse(to) : fromDate.AddDays(7);
         }
         else
         {
             if (days > 30) days = 30;
-            fromDate = DateOnly.FromDateTime(DateTime.UtcNow);
+            fromDate = ClinicClock.Today();
             toDate = fromDate.AddDays(days);
         }
         var sessions = await _bookingService.GetUpcomingAsync(fromDate, toDate);

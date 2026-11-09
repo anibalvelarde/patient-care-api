@@ -41,8 +41,8 @@ public class AccountStatementService : IAccountStatementService
         }
 
         // 2. Default date range: last 90 days
-        var periodStart = from ?? DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-90));
-        var periodEnd = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var periodStart = from ?? ClinicClock.Today().AddDays(-90);
+        var periodEnd = to ?? ClinicClock.Today();
 
         // 3. Get patients linked to caretaker
         var patients = caretaker.Patients.Select(p => new StatementPatient
@@ -137,7 +137,7 @@ public class AccountStatementService : IAccountStatementService
         {
             CaretakerId = caretaker.CaretakerId,
             CaretakerName = caretaker.CaretakerName,
-            StatementDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd"),
+            StatementDate = ClinicClock.Today().ToString("yyyy-MM-dd"),
             PeriodStart = periodStart.ToString("yyyy-MM-dd"),
             PeriodEnd = periodEnd.ToString("yyyy-MM-dd"),
             Patients = patients,

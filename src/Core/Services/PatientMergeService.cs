@@ -330,7 +330,7 @@ public class PatientMergeService : IPatientMergeService
         int remapped, int deduped, int syntheticsDeleted, IReadOnlyList<string> fieldsFilled) =>
         $"[MERGED: absorbed Patient #{snapshot.EliminatedPatientId}" +
         $" MRN {snapshot.EliminatedMrn ?? "—"} Cedula {snapshot.EliminatedCedula ?? "—"}" +
-        $" \"{snapshot.EliminatedName}\" on {DateTime.UtcNow:yyyy-MM-dd} by user {snapshot.MergedByUserId};" +
+        $" \"{snapshot.EliminatedName}\" on {ClinicClock.Today():yyyy-MM-dd} by user {snapshot.MergedByUserId};" +
         $" sessions {sessions}, plans {plans}," +
         $" caretakerLinks remapped {remapped}/deduped {deduped}/syntheticDeleted {syntheticsDeleted};" +
         $" filled {(fieldsFilled.Count > 0 ? string.Join(",", fieldsFilled) : "none")}]";
