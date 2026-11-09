@@ -94,7 +94,8 @@ public class SessionsControllerTests
     public async Task Should_Handle_BadStringDate()
     {
         // Arrange
-        var todaysDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        // WP-60: the bad-date fallback is the CLINIC (Panama) day — a UTC "today" here failed every run after 7 PM Panama.
+        var todaysDate = Neurocorp.Api.Core.Services.ClinicClock.Today();
         var badStringDate = "BadStringDateType";
         _mockSessionEventHandler
             .Setup(x => x.GetAllByTargetDateAsync(todaysDate))
