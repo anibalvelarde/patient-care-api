@@ -4,13 +4,12 @@ namespace Neurocorp.Api.Core.BusinessObjects.Sessions;
 
 public class SessionEventUpdateRequest
 {
-    public SessionEventUpdateRequest()
-    {
-        this.Notes = string.Empty;
-    }
-
     public TimeOnly SessionTime { get; set; }
-    public string TherapyType { get; set; } = string.Empty;
+    // WP-61: TherapyType, Notes and Discount are nullable — omitted means "keep what's stored", the
+    // same rule as Duration/Amount. Before WP-61 an omitted therapyType/notes wrote "" (blanking the
+    // stored value) and an omitted discount wrote 0 (a money "change" that re-derived the fee and
+    // tripped the discount-claim gate and the covered-session lock). An explicit "" still clears notes.
+    public string? TherapyType { get; set; }
     // WP-40: nullable — omitted means "keep the stored duration" (the UI edit surfaces don't
     // carry the session's duration and used to hardcode 60, silently overwriting it). A
     // provided value that CHANGES the stored duration is validated against the bookable set.
@@ -23,9 +22,9 @@ public class SessionEventUpdateRequest
     // derived from the payment ledger only (PaymentRecordService). A stale client used to send
     // back the AmountPaid it had loaded and silently erase payments recorded in the meantime.
     // Clients that still send them are harmless: unknown JSON fields are ignored.
-    public decimal Discount { get; set; }
+    public decimal? Discount { get; set; }
     public decimal ProviderAmount { get; set; }
-    public string Notes { get; set; }
+    public string? Notes { get; set; }
     public int? AppointmentStatusId { get; set; }
     public int? TherapistId { get; set; }
     public int? SiteId { get; set; }

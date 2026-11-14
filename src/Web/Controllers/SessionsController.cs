@@ -84,8 +84,10 @@ public class SessionsController : ControllerBase
         // it, so FD keeps editing non-money fields; nothing changes on the Forbid path. The
         // SENADIS floor + recompute live in the handler.
         var sessionOnFile = await _sessionEventHandler.GetByIdAsync(id);
+        // WP-61: an omitted discount (null) means "keep stored" — never a change.
         var discountChanged = sessionOnFile is not null
-            && sessionUpdateRequest.Discount != sessionOnFile.Discount;
+            && sessionUpdateRequest.Discount.HasValue
+            && sessionUpdateRequest.Discount.Value != sessionOnFile.Discount;
 
         if (discountChanged && !User.HasPermission(Permissions.SessionsDiscountEdit))
         {

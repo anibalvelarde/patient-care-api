@@ -9,8 +9,8 @@ namespace Neurocorp.Api.Core.Services;
 public static class SessionMoneyMath
 {
     /// <summary>
-    /// G1 (2026-07-27 addendum: 40 added — the price sheet carries real 40-minute interview
-    /// services): durations bookable on NEW bookings and duration-CHANGING edits only.
+    /// G1: durations bookable on NEW bookings, duration-CHANGING edits, and (WP-61) treatment-plan
+    /// lines. The set is <see cref="SpecialtyPricing.AllowedDurations"/> (40 was removed by WP-55 G5).
     /// Stored/legacy durations are never validated on reads or unrelated edits.
     /// </summary>
     public static bool IsBookableDuration(int minutes) => SpecialtyPricing.AllowedDurations.Contains(minutes);

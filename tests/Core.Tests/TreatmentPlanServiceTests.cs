@@ -20,7 +20,8 @@ public class TreatmentPlanServiceTests
         _mockPlanRepo = new Mock<ITreatmentPlanRepository>();
         _mockSessionRepo = new Mock<ITherapySessionRepository>();
         _mockSpecialtyRepo = new Mock<IRepository<SpecialtyType>>();
-        _sut = new TreatmentPlanService(logger, _mockPlanRepo.Object, _mockSessionRepo.Object, _mockSpecialtyRepo.Object);
+        _sut = new TreatmentPlanService(logger, _mockPlanRepo.Object, _mockSessionRepo.Object, _mockSpecialtyRepo.Object,
+            Mock.Of<Neurocorp.Api.Core.Interfaces.Services.ISpecialtyPriceService>());
     }
 
     private static TreatmentPlan CreatePlan(

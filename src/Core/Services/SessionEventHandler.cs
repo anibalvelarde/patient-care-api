@@ -350,6 +350,8 @@ public class SessionEventHandler : IHandleSessionEvent
         // so everything below works on the final value).
         request.Amount ??= onFile.Amount;
         var amount = request.Amount.Value;
+        // WP-61: same for an omitted discount — keep the stored one (it used to bind as 0, i.e. a change).
+        request.Discount ??= onFile.DiscountAmount;
 
         // WP-40 (G1): validate the duration only when the edit actually CHANGES it — historical
         // (legacy-import) durations must never block an unrelated edit. Null = keep stored.
@@ -409,9 +411,12 @@ public class SessionEventHandler : IHandleSessionEvent
                 moneyPatch = new SessionMoneyPatch(patch.ProviderAmount, patch.GrossProfit);
                 if (!string.IsNullOrEmpty(patch.NotesMarker))
                 {
-                    request.Notes = string.IsNullOrWhiteSpace(request.Notes)
+                    // WP-61: omitted notes = the STORED notes, so the marker is appended to them
+                    // rather than replacing them.
+                    var baseNotes = request.Notes ?? onFile.Notes;
+                    request.Notes = string.IsNullOrWhiteSpace(baseNotes)
                         ? patch.NotesMarker
-                        : $"{request.Notes}\n{patch.NotesMarker}";
+                        : $"{baseNotes}\n{patch.NotesMarker}";
                 }
             }
             else
@@ -450,7 +455,7 @@ public class SessionEventHandler : IHandleSessionEvent
             var therapistId = request.TherapistId ?? onFile.TherapistId;
             var tProfile = await _therapistService.GetByIdAsync(therapistId)
                 ?? throw new ArgumentException($"Therapist {therapistId} not found.");
-            var net = amount - request.Discount;
+            var net = amount - request.Discount.Value;
             var fee = tProfile.CalculateFee(net);
             // WP-49 Finding 1 — the highest-risk line in the WP. This recompute fires on EVERY
             // discount edit, long after a late fee was applied. Passing onFile.LateFeeAmount
@@ -549,6 +554,7 @@ public class SessionEventHandler : IHandleSessionEvent
             SessionId = s.Id,
             SessionDate = s.SessionDate,
             SpecialtyAbbreviation = s.SpecialtyType?.Abbreviation ?? SessionEvent.NotApplicable,
+            TherapistId = s.TherapistId,
             TherapistName = s.Therapist?.User?.GetFullName() ?? "Unknown",
         });
     }
