@@ -14,8 +14,14 @@ public class AuditInfo
 {
     public const string SystemActor = "System";
 
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    // WP-60 follow-up B5: audit stamps are stored as UTC (API writes DateTime.UtcNow; prod MySQL runs
+    // on UTC — gate checked 2026-11-08 via patient-care-db tools/miscellaneous-scripts/time-zone-checks.sql)
+    // but come back from MySQL as Kind=Unspecified, which serialized without 'Z'. Pin the kind so the
+    // JSON is an instant and AuditPopover.vue renders clinic-local time. Same pattern as ChangeLogDtos.
+    private DateTime _createdAt;
+    private DateTime _updatedAt;
+    public DateTime CreatedAt { get => _createdAt; set => _createdAt = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
+    public DateTime UpdatedAt { get => _updatedAt; set => _updatedAt = DateTime.SpecifyKind(value, DateTimeKind.Utc); }
     public string UpdatedBy { get; set; } = SystemActor;
 
     /// <summary>Raw updater id, resolved to <see cref="UpdatedBy"/> after materialization. Not serialized.</summary>
