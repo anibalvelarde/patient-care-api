@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Common;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
@@ -306,7 +307,8 @@ public class PatientProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(patientRequest.FirstName)) { userOnFile.FirstName = patientRequest.FirstName; }
         if (!string.IsNullOrEmpty(patientRequest.MiddleName)) { userOnFile.MiddleName = patientRequest.MiddleName; }
         if (!string.IsNullOrEmpty(patientRequest.LastName)) { userOnFile.LastName = patientRequest.LastName; }
-        if (!string.IsNullOrEmpty(patientRequest.Email)) { userOnFile.Email = patientRequest.Email; }
+        // WP-62: null = unchanged; blank clears (NULL); otherwise trimmed. Format is checked in the service.
+        if (patientRequest.Email is not null) { userOnFile.Email = EmailRules.Normalize(patientRequest.Email); }
         if (!string.IsNullOrEmpty(patientRequest.PhoneNumber)) { userOnFile.PhoneNumber = patientRequest.PhoneNumber; }
         if (userOnFile.ActiveStatus != patientRequest.ActiveStatus) { userOnFile.ActiveStatus = patientRequest.ActiveStatus; }
 

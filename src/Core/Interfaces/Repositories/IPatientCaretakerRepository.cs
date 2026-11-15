@@ -8,5 +8,6 @@ public interface IPatientCaretakerRepository
     Task<IEnumerable<PatientCaretaker>> GetByPatientIdAsync(int patientId);
     Task<PatientCaretaker?> GetByCompositeKeyAsync(int patientId, int caretakerId);
     Task AddAsync(PatientCaretaker entity);
+    Task UpdateAsync(PatientCaretaker entity); // WP-62: primary flag on an existing link
     Task DeleteAsync(PatientCaretaker entity);
 }

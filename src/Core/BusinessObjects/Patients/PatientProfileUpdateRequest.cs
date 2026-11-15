@@ -9,7 +9,6 @@ public class PatientProfileUpdateRequest
         this.FirstName = string.Empty;
         this.LastName = string.Empty;
         this.MiddleName = string.Empty;
-        this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Gender = string.Empty;
         this.DateOfBirth = DateTime.MinValue;
@@ -20,7 +19,9 @@ public class PatientProfileUpdateRequest
     public string MiddleName { get; set; }
     public string LastName { get; set; }
     public DateTime DateOfBirth { get; set; }
-    public string Email { get; set; }
+    // WP-62 (F-5): null/omitted = unchanged; "" or whitespace = CLEAR (stored NULL); anything else
+    // is trimmed and, when it differs from the address on file, format-checked (400).
+    public string? Email { get; set; }
     public string PhoneNumber { get; set; }
     // B1: empty/null means "unchanged" (the repository only applies non-empty values);
     // a supplied value must match the DB enum or MySQL 1265 surfaced as an opaque 500.

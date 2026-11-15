@@ -127,6 +127,7 @@ public class PatientProfileService : IPatientProfileService
     public async Task<PatientProfile> CreateAsync(PatientProfileRequest patientRequest)
     {
         _logger.LogInformation("Creating new patient profile from request.");
+        EmailRules.NormalizeAndValidate(patientRequest.Email); // WP-62: 400 on a malformed address
 
         // WP-36 (G3): the system mints the MRN — a client-supplied value is IGNORED, not
         // rejected. Warn instead of 400 so the old UI (which still posts the field) keeps
@@ -239,6 +240,8 @@ public class PatientProfileService : IPatientProfileService
         var profileOnFile = await this.GetByIdAsync(patientAggId);
         if (profileOnFile != null)
         {
+            EmailRules.ValidateChange(updateRequest.Email, profileOnFile.Email); // WP-62
+
             // Retire-after-backfill (WP-36/G2): new creates always mint a permanent NC MRN, so
             // this guard only fires for straggler TEMP- rows that predate the deploy-time
             // backfill (0 on prod at build time). Remove with the TEMP- convention cleanup WP.
@@ -322,8 +325,8 @@ public class PatientProfileService : IPatientProfileService
             FirstName = patientRequest.FirstName,
             MiddleName = patientRequest.MiddleName,
             LastName = patientRequest.LastName,
-            // WP-57: blank → NULL (uq_systemuser_email allows many NULLs, not many "").
-            Email = string.IsNullOrWhiteSpace(patientRequest.Email) ? null : patientRequest.Email.Trim(),
+            // WP-57/WP-62: blank → NULL (uq_systemuser_email allows many NULLs, not many ""), trimmed.
+            Email = EmailRules.Normalize(patientRequest.Email),
             PhoneNumber = patientRequest.PhoneNumber,
             CreatedTimestamp = DateTime.UtcNow,
             // WP-36 (G5): patients are ACTIVE at create — the inactive-until-MRN gate existed

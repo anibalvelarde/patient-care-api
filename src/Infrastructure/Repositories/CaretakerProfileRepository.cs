@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Common;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.BusinessObjects.Common;
 using Neurocorp.Api.Core.BusinessObjects.Patients;
@@ -164,7 +165,8 @@ public class CaretakerProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(request.FirstName)) { userOnFile.FirstName = request.FirstName; }
         if (!string.IsNullOrEmpty(request.MiddleName)) { userOnFile.MiddleName = request.MiddleName; }
         if (!string.IsNullOrEmpty(request.LastName)) { userOnFile.LastName = request.LastName; }
-        if (!string.IsNullOrEmpty(request.Email)) { userOnFile.Email = request.Email; }
+        // WP-62: null = unchanged; blank clears (NULL); otherwise trimmed. Format is checked in the service.
+        if (request.Email is not null) { userOnFile.Email = EmailRules.Normalize(request.Email); }
         if (!string.IsNullOrEmpty(request.PhoneNumber)) { userOnFile.PhoneNumber = request.PhoneNumber; }
         if (userOnFile.ActiveStatus != request.IsActive) { userOnFile.ActiveStatus = request.IsActive; }
 

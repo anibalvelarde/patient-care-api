@@ -9,7 +9,6 @@ public class CaretakerProfileUpdateRequest
         this.FirstName = string.Empty;
         this.LastName = string.Empty;
         this.MiddleName = string.Empty;
-        this.Email = string.Empty;
         this.PhoneNumber = string.Empty;
         this.Notes = string.Empty;
     }
@@ -17,7 +16,9 @@ public class CaretakerProfileUpdateRequest
     public string FirstName { get; set; }
     public string MiddleName { get; set; }
     public string LastName { get; set; }
-    public string Email { get; set; }
+    // WP-62 (F-5): null/omitted = unchanged; "" or whitespace = CLEAR (stored NULL); anything else
+    // is trimmed and, when it differs from the address on file, format-checked (400).
+    public string? Email { get; set; }
     public string PhoneNumber { get; set; }
     public string Notes {get; set; }
     public bool IsActive { get; set; }
