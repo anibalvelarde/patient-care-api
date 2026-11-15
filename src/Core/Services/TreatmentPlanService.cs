@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Neurocorp.Api.Core.BusinessObjects.Lookups;
 using Neurocorp.Api.Core.BusinessObjects.TreatmentPlans;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Repositories;
@@ -12,17 +13,20 @@ public class TreatmentPlanService : ITreatmentPlanService
     private readonly ITreatmentPlanRepository _planRepository;
     private readonly ITherapySessionRepository _sessionRepository;
     private readonly IRepository<SpecialtyType> _specialtyTypeRepository;
+    private readonly ISpecialtyPriceService _priceService;
 
     public TreatmentPlanService(
         ILogger<TreatmentPlanService> logger,
         ITreatmentPlanRepository planRepository,
         ITherapySessionRepository sessionRepository,
-        IRepository<SpecialtyType> specialtyTypeRepository)
+        IRepository<SpecialtyType> specialtyTypeRepository,
+        ISpecialtyPriceService priceService)
     {
         _logger = logger;
         _planRepository = planRepository;
         _sessionRepository = sessionRepository;
         _specialtyTypeRepository = specialtyTypeRepository;
+        _priceService = priceService;
     }
 
     public async Task<TreatmentPlanProfile> CreateAsync(TreatmentPlanRequest request)
@@ -40,27 +44,17 @@ public class TreatmentPlanService : ITreatmentPlanService
         if (discoverySession.AppointmentStatusId != SessionStatus.Completed)
             throw new ArgumentException("Discovery session must be completed before creating a treatment plan.");
 
-        // Validate lines
-        if (request.Lines.Count == 0)
-            throw new ArgumentException("Treatment plan must have at least one line.");
-
-        var allSpecialties = await _specialtyTypeRepository.GetAllAsync();
-        var specialtyMap = allSpecialties.ToDictionary(s => s.Id);
-
-        foreach (var line in request.Lines)
-        {
-            if (!specialtyMap.TryGetValue(line.SpecialtyTypeId, out var specialty))
-                throw new ArgumentException($"Specialty type {line.SpecialtyTypeId} not found.");
-            if (specialty.IsDiscovery)
-                throw new ArgumentException($"Treatment plan lines must use treatment specialties, not discovery type '{specialty.Abbreviation}'.");
-        }
+        ValidateHeader(request);
+        await ValidateLinesAsync(request.Lines.Select(l => (l.SpecialtyTypeId, l.Duration)).ToList());
 
         // Map to entity
         var plan = new TreatmentPlan
         {
             PatientId = request.PatientId,
             DiscoverySessionId = request.DiscoverySessionId,
-            CreatedByTherapistId = request.CreatedByTherapistId,
+            // WP-61 (F-8): always the discovery session's therapist — the client value is ignored
+            // (the UI used to send a hardcoded 1, crediting every plan to therapist #1).
+            CreatedByTherapistId = discoverySession.TherapistId,
             PlanStatus = TreatmentPlan.PlanStatuses.Draft,
             ResultsDocumentUrl = request.ResultsDocumentUrl,
             WeeklyFrequency = request.WeeklyFrequency,
@@ -82,19 +76,22 @@ public class TreatmentPlanService : ITreatmentPlanService
 
         // Reload with navigations
         var loaded = await _planRepository.GetByIdWithLinesAsync(saved.Id);
-        return MapToProfile(loaded!);
+        return await MapToProfileAsync(loaded!);
     }
 
     public async Task<TreatmentPlanProfile?> GetByIdAsync(int id)
     {
         var plan = await _planRepository.GetByIdWithLinesAsync(id);
-        return plan is null ? null : MapToProfile(plan);
+        return plan is null ? null : await MapToProfileAsync(plan);
     }
 
     public async Task<IReadOnlyList<TreatmentPlanProfile>> GetByPatientIdAsync(int patientId)
     {
         var plans = await _planRepository.GetByPatientIdAsync(patientId);
-        return plans.Select(MapToProfile).ToList();
+        var profiles = new List<TreatmentPlanProfile>(plans.Count);
+        foreach (var plan in plans)
+            profiles.Add(await MapToProfileAsync(plan));
+        return profiles;
     }
 
     public async Task<TreatmentPlanProfile> UpdateAsync(int id, TreatmentPlanRequest request)
@@ -102,21 +99,28 @@ public class TreatmentPlanService : ITreatmentPlanService
         var plan = await _planRepository.GetByIdWithLinesAsync(id)
             ?? throw new ArgumentException($"Treatment plan {id} not found.");
 
-        if (plan.PlanStatus != TreatmentPlan.PlanStatuses.Draft)
-            throw new ArgumentException("Only draft treatment plans can be edited.");
-
-        // Validate lines (same as create)
-        if (request.Lines.Count == 0)
-            throw new ArgumentException("Treatment plan must have at least one line.");
-
-        var allSpecialties = await _specialtyTypeRepository.GetAllAsync();
-        var specialtyMap = allSpecialties.ToDictionary(s => s.Id);
-        foreach (var line in request.Lines)
+        // WP-61 (ruling 1): Draft, or Active until its sessions are scheduled. Scheduling is one-shot
+        // and sessions copy line data when created, so once sessions exist an edit would change nothing.
+        if (!await CanEditLinesAsync(plan))
         {
-            if (!specialtyMap.TryGetValue(line.SpecialtyTypeId, out var specialty))
-                throw new ArgumentException($"Specialty type {line.SpecialtyTypeId} not found.");
-            if (specialty.IsDiscovery)
-                throw new ArgumentException($"Treatment plan lines must use treatment specialties, not discovery type '{specialty.Abbreviation}'.");
+            throw new ArgumentException(plan.PlanStatus == TreatmentPlan.PlanStatuses.Active
+                ? "Plan already has scheduled sessions — cancel and recreate it to change it."
+                : $"A {plan.PlanStatus} treatment plan cannot be edited.");
+        }
+
+        ValidateHeader(request);
+        if (plan.PlanStatus == TreatmentPlan.PlanStatuses.Active && request.Lines.Count != request.WeeklyFrequency)
+        {
+            throw new ArgumentException(
+                $"An active plan needs one line per weekly session: {request.Lines.Count} line(s) for {request.WeeklyFrequency} session(s) per week.");
+        }
+        await ValidateLinesAsync(request.Lines.Select(l => (l.SpecialtyTypeId, l.Duration)).ToList());
+
+        var byId = plan.Lines.ToDictionary(l => l.Id);
+        foreach (var line in request.Lines.Where(l => l.Id.HasValue))
+        {
+            if (!byId.ContainsKey(line.Id!.Value))
+                throw new ArgumentException($"Line {line.Id} does not belong to treatment plan {id}.");
         }
 
         // Update scalar fields
@@ -125,25 +129,28 @@ public class TreatmentPlanService : ITreatmentPlanService
         plan.DurationWeeks = request.DurationWeeks;
         plan.Notes = request.Notes;
 
-        // Replace lines
-        plan.Lines.Clear();
+        // WP-61: lines are updated IN PLACE by Id (they used to be cleared and re-added, minting new
+        // Ids on every save). Removing the missing ones is safe: no session can reference them yet.
+        var keep = request.Lines.Where(l => l.Id.HasValue).Select(l => l.Id!.Value).ToHashSet();
+        foreach (var stale in plan.Lines.Where(l => !keep.Contains(l.Id)).ToList())
+            plan.Lines.Remove(stale);
+
         foreach (var (line, i) in request.Lines.Select((l, i) => (l, i)))
         {
-            plan.Lines.Add(new TreatmentPlanLine
-            {
-                TreatmentPlanId = id,
-                SpecialtyTypeId = line.SpecialtyTypeId,
-                PreferredTherapistId = line.PreferredTherapistId,
-                DayOfWeek = line.DayOfWeek,
-                PreferredTime = line.PreferredTime,
-                Duration = line.Duration,
-                SortOrder = line.SortOrder > 0 ? line.SortOrder : (byte)i,
-            });
+            var target = line.Id.HasValue ? byId[line.Id.Value] : new TreatmentPlanLine { TreatmentPlanId = id };
+            target.SpecialtyTypeId = line.SpecialtyTypeId;
+            target.PreferredTherapistId = line.PreferredTherapistId;
+            target.DayOfWeek = line.DayOfWeek;
+            target.PreferredTime = line.PreferredTime;
+            target.Duration = line.Duration;
+            target.SortOrder = line.SortOrder > 0 ? line.SortOrder : (byte)i;
+            if (!line.Id.HasValue)
+                plan.Lines.Add(target);
         }
 
         await _planRepository.UpdateAsync(plan);
         var loaded = await _planRepository.GetByIdWithLinesAsync(id);
-        return MapToProfile(loaded!);
+        return await MapToProfileAsync(loaded!);
     }
 
     public async Task<TreatmentPlanProfile> ActivateAsync(int id)
@@ -158,6 +165,9 @@ public class TreatmentPlanService : ITreatmentPlanService
         if (lineCount != plan.WeeklyFrequency)
             throw new ArgumentException($"Cannot activate: line count ({lineCount}) does not match sessions per week ({plan.WeeklyFrequency}). Adjust the plan lines or weekly frequency first.");
 
+        // WP-61: re-checked at activation — a price can be removed after the plan was saved.
+        await ValidateLinesAsync(plan.Lines.Select(l => (l.SpecialtyTypeId, l.Duration)).ToList());
+
         // Check for existing active plan
         var existingPlans = await _planRepository.GetByPatientIdAsync(plan.PatientId);
         var activePlan = existingPlans.FirstOrDefault(p => p.PlanStatus == TreatmentPlan.PlanStatuses.Active && p.Id != id);
@@ -166,7 +176,7 @@ public class TreatmentPlanService : ITreatmentPlanService
 
         plan.PlanStatus = TreatmentPlan.PlanStatuses.Active;
         await _planRepository.UpdateAsync(plan);
-        return MapToProfile(plan);
+        return await MapToProfileAsync(plan);
     }
 
     public async Task<TreatmentPlanProfile> CompleteAsync(int id)
@@ -177,7 +187,7 @@ public class TreatmentPlanService : ITreatmentPlanService
             throw new ArgumentException($"Cannot complete a plan with status '{plan.PlanStatus}'. Only Active plans can be completed.");
         plan.PlanStatus = TreatmentPlan.PlanStatuses.Completed;
         await _planRepository.UpdateAsync(plan);
-        return MapToProfile(plan);
+        return await MapToProfileAsync(plan);
     }
 
     public async Task<TreatmentPlanProfile> CancelAsync(int id)
@@ -188,7 +198,7 @@ public class TreatmentPlanService : ITreatmentPlanService
             throw new ArgumentException("Plan is already cancelled.");
         plan.PlanStatus = TreatmentPlan.PlanStatuses.Cancelled;
         await _planRepository.UpdateAsync(plan);
-        return MapToProfile(plan);
+        return await MapToProfileAsync(plan);
     }
 
     public async Task<IReadOnlyList<ActivePlanSummary>> GetActiveSummaryAsync()
@@ -231,6 +241,63 @@ public class TreatmentPlanService : ITreatmentPlanService
         }
 
         return summaries;
+    }
+
+    private static void ValidateHeader(TreatmentPlanRequest request)
+    {
+        if (request.WeeklyFrequency < 1)
+            throw new ArgumentException("Sessions per week must be at least 1.");
+        if (request.DurationWeeks < 1)
+            throw new ArgumentException("Plan duration must be at least 1 week.");
+    }
+
+    /// <summary>
+    /// WP-61 (F-7): every line must be schedulable — a treatment (not discovery) specialty, a
+    /// bookable duration, and a price (duration row, else the specialty's default) as of today.
+    /// Duration/price problems are reported together in one message so the UI can show them all.
+    /// Scheduling still re-checks each session's own date (a future price change can bite there).
+    /// </summary>
+    private async Task ValidateLinesAsync(IReadOnlyList<(int SpecialtyTypeId, int Duration)> lines)
+    {
+        if (lines.Count == 0)
+            throw new ArgumentException("Treatment plan must have at least one line.");
+
+        var specialtyMap = (await _specialtyTypeRepository.GetAllAsync()).ToDictionary(s => s.Id);
+        var today = ClinicClock.Today();
+        var problems = new List<string>();
+        foreach (var (specialtyTypeId, duration) in lines)
+        {
+            if (!specialtyMap.TryGetValue(specialtyTypeId, out var specialty))
+                throw new ArgumentException($"Specialty type {specialtyTypeId} not found.");
+            if (specialty.IsDiscovery)
+                throw new ArgumentException($"Treatment plan lines must use treatment specialties, not discovery type '{specialty.Abbreviation}'.");
+
+            if (!SessionMoneyMath.IsBookableDuration(duration))
+            {
+                problems.Add($"{specialty.Name}: duration {duration} min is not bookable — allowed: {SessionMoneyMath.BookableDurationsDisplay}.");
+                continue;
+            }
+            var price = await _priceService.ResolvePriceAsync(specialtyTypeId, duration, today);
+            if (price.Source == AmountSource.None)
+                problems.Add(SessionMoneyMath.MissingPriceMessage(specialty.Name, duration));
+        }
+
+        if (problems.Count > 0)
+            throw new ArgumentException(string.Join(" ", problems.Distinct()));
+    }
+
+    private async Task<bool> CanEditLinesAsync(TreatmentPlan plan) => plan.PlanStatus switch
+    {
+        TreatmentPlan.PlanStatuses.Draft => true,
+        TreatmentPlan.PlanStatuses.Active => !await _sessionRepository.HasSessionsForPlanAsync(plan.Id),
+        _ => false,
+    };
+
+    private async Task<TreatmentPlanProfile> MapToProfileAsync(TreatmentPlan plan)
+    {
+        var profile = MapToProfile(plan);
+        profile.CanEditLines = await CanEditLinesAsync(plan);
+        return profile;
     }
 
     private static string BuildDisplayTitle(TreatmentPlan plan)

@@ -242,7 +242,11 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
         {
             therapySessionToUpdate.Amount = updateRequest.Amount.Value;
         }
-        therapySessionToUpdate.DiscountAmount = updateRequest.Discount;
+        // WP-61: null Discount / Notes / TherapyType = keep stored (they used to be written as 0 / "").
+        if (updateRequest.Discount.HasValue)
+        {
+            therapySessionToUpdate.DiscountAmount = updateRequest.Discount.Value;
+        }
         // WP-40: the client's providerAmount is never applied — ProviderAmount/GrossProfit come
         // from the server-derived money patch (present iff amount/discount changed).
         if (moneyPatch is not null)
@@ -250,8 +254,14 @@ public class SessionEventRepository(ApplicationDbContext dbContext) :
             therapySessionToUpdate.ProviderAmount = moneyPatch.ProviderAmount;
             therapySessionToUpdate.GrossProfit = moneyPatch.GrossProfit;
         }
-        therapySessionToUpdate.Notes = updateRequest.Notes;
-        therapySessionToUpdate.TherapyTypes = updateRequest.TherapyType;
+        if (updateRequest.Notes is not null)
+        {
+            therapySessionToUpdate.Notes = updateRequest.Notes;
+        }
+        if (updateRequest.TherapyType is not null)
+        {
+            therapySessionToUpdate.TherapyTypes = updateRequest.TherapyType;
+        }
         if (updateRequest.AppointmentStatusId.HasValue)
         {
             therapySessionToUpdate.AppointmentStatusId = updateRequest.AppointmentStatusId.Value;

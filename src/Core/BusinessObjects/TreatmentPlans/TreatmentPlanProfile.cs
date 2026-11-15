@@ -12,6 +12,12 @@ public class TreatmentPlanProfile
     public int CreatedByTherapistId { get; set; }
     public string CreatedByTherapistName { get; set; } = string.Empty;
     public string PlanStatus { get; set; } = string.Empty;
+    /// <summary>
+    /// WP-61: true while the plan's lines may still be edited — Draft, or Active with no sessions
+    /// scheduled yet. Once sessions exist the lines are locked (sessions copy line data at
+    /// scheduling, so later edits would change nothing).
+    /// </summary>
+    public bool CanEditLines { get; set; }
     public string? ResultsDocumentUrl { get; set; }
     public int WeeklyFrequency { get; set; }
     public int DurationWeeks { get; set; }

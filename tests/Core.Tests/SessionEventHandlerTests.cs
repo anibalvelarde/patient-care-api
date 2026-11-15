@@ -904,6 +904,23 @@ public class SessionEventHandlerTests
     }
 
     [Fact]
+    public async Task UpdateAsync_DiscountOmitted_KeepsStoredDiscount_AndDoesNotRecompute()
+    {
+        // WP-61: an omitted discount used to bind as 0 — a "change" that re-derived the fee and,
+        // on a payroll-covered session, tripped the covered-session lock on a notes-only edit.
+        SessionOnFile(amount: 70m, discount: 14m, providerAmount: 22.40m, grossProfit: 33.60m);
+        SetupCovered(covered: true);
+        var request = new SessionEventUpdateRequest { SessionTime = TimeOnly.Parse("11:00"), Notes = "note only" };
+
+        var ok = await _sut.UpdateAsync(77, request);
+
+        Assert.True(ok);
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u => u.Discount == 14m),
+            It.Is<SessionMoneyPatch?>(p => p == null)), Times.Once);
+    }
+
+    [Fact]
     public async Task UpdateAsync_AmountOmitted_DiscountChanged_ValidatesAgainstStoredAmount()
     {
         SessionOnFile(amount: 50m, discount: 0m);
@@ -1016,11 +1033,31 @@ public class SessionEventHandlerTests
         Assert.True(ok);
         _mockRepository.Verify(r => r.UpdateAsync(77,
             It.Is<SessionEventUpdateRequest>(u =>
-                u.Amount == 0m && u.Discount == 0m && u.Notes.Contains("familia canceló") && u.Notes.Contains(marker)),
+                u.Amount == 0m && u.Discount == 0m && u.Notes!.Contains("familia canceló") && u.Notes!.Contains(marker)),
             It.Is<SessionMoneyPatch>(p => p.ProviderAmount == 0m && p.GrossProfit == 0m)), Times.Once);
         // WP-42 rule: the zero write must NOT run the WP-40 derivation (no SENADIS floor, no fee).
         _mockTherapistService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
         _mockPatientService.Verify(s => s.GetByIdAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StatusChangesTo3_NotesOmitted_AppendsMarkerToStoredNotes()
+    {
+        // WP-61: with notes omitted, the marker used to REPLACE the stored notes (omitted bound as "").
+        var onFile = SessionOnFile(amount: 100m, discount: 0m);
+        onFile.AppointmentStatusId = 2;
+        onFile.Notes = "stored note";
+        var marker = "[CANCELLED-ZEROED 2026-11-14: was A:100.00 D:0.00 P:30.00 G:70.00]";
+        _mockTransitionMoney
+            .Setup(t => t.PrepareTransitionAsync(onFile, 3))
+            .ReturnsAsync(new SessionTransitionMoneyPatch(0m, 0m, 0m, 0m, marker));
+        var request = new SessionEventUpdateRequest { SessionTime = TimeOnly.Parse("10:00"), AppointmentStatusId = 3 };
+
+        await _sut.UpdateAsync(77, request);
+
+        _mockRepository.Verify(r => r.UpdateAsync(77,
+            It.Is<SessionEventUpdateRequest>(u => u.Notes == $"stored note\n{marker}"),
+            It.IsAny<SessionMoneyPatch?>()), Times.Once);
     }
 
     [Fact]
@@ -1038,7 +1075,7 @@ public class SessionEventHandlerTests
 
         Assert.True(ok);
         _mockRepository.Verify(r => r.UpdateAsync(77,
-            It.Is<SessionEventUpdateRequest>(u => u.Amount == 25.50m && u.Discount == 0m && u.Notes.Contains("[NOSHOW-FEE")),
+            It.Is<SessionEventUpdateRequest>(u => u.Amount == 25.50m && u.Discount == 0m && u.Notes!.Contains("[NOSHOW-FEE")),
             It.Is<SessionMoneyPatch>(p => p.ProviderAmount == 0m && p.GrossProfit == 25.50m)), Times.Once);
     }
 

@@ -308,6 +308,22 @@ public class SessionsControllerTests
         result.Should().BeOfType<NoContentResult>();
     }
 
+    [Fact]
+    public async Task UpdateSession_DiscountOmitted_WithoutClaim_Passes()
+    {
+        // WP-61: an omitted discount means "keep stored", so it is never a change. It used to
+        // bind as 0, so FD got 403 on any edit of a discounted session that didn't echo the discount.
+        var request = SetupSessionOnFile(7, storedDiscount: 20m);
+        request.Discount = null;
+        UseCaller((Neurocorp.Api.Core.Authorization.SystemClaims.PermissionClaimType,
+                   Neurocorp.Api.Web.Authorization.Permissions.AppointmentsBook));
+        _mockSessionEventHandler.Setup(x => x.UpdateAsync(7, request)).ReturnsAsync(true);
+
+        var result = await _controller.UpdateSession(7, request);
+
+        result.Should().BeOfType<NoContentResult>();
+    }
+
     // ── WP-49 (ruling 4): the AM loophole. On a FEE-BEARING session a changed discount needs
     // Sessions.Fee.Manage in ADDITION to Sessions.Discount.Edit. Without this an AM could zero
     // a manager's fee by setting discount = amount, moving the same money as a waiver but with
