@@ -48,6 +48,12 @@ public class PatientCaretakerRepository : IPatientCaretakerRepository
         await _dbContext.SaveChangesAsync();
     }
 
+    public async Task UpdateAsync(PatientCaretaker entity)
+    {
+        _dbContext.Set<PatientCaretaker>().Update(entity);
+        await _dbContext.SaveChangesAsync();
+    }
+
     public async Task DeleteAsync(PatientCaretaker entity)
     {
         _dbContext.Set<PatientCaretaker>().Remove(entity);

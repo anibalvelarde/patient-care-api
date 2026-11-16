@@ -73,7 +73,8 @@ public class TherapistProfileRepository(ApplicationDbContext dbContext) :
         if (!string.IsNullOrEmpty(therapistRequest.FirstName)) { userOnFile.FirstName = therapistRequest.FirstName; }
         if (!string.IsNullOrEmpty(therapistRequest.MiddleName)) { userOnFile.MiddleName = therapistRequest.MiddleName; }
         if (!string.IsNullOrEmpty(therapistRequest.LastName)) { userOnFile.LastName = therapistRequest.LastName; }
-        if (!string.IsNullOrEmpty(therapistRequest.Email)) { userOnFile.Email = therapistRequest.Email; }
+        // WP-62: therapists log in by email, so it can't be cleared — blank = unchanged; otherwise trimmed.
+        if (!string.IsNullOrWhiteSpace(therapistRequest.Email)) { userOnFile.Email = therapistRequest.Email.Trim(); }
         if (!string.IsNullOrEmpty(therapistRequest.PhoneNumber)) { userOnFile.PhoneNumber = therapistRequest.PhoneNumber; }
         if (userOnFile.ActiveStatus != therapistRequest.ActiveStatus) { userOnFile.ActiveStatus = therapistRequest.ActiveStatus; }
 

@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Common;
 
 using Microsoft.Extensions.Logging;
 using Neurocorp.Api.Core.BusinessObjects.Common;
@@ -106,7 +107,8 @@ public class CaretakerProfileService : ICaretakerProfileService
 
     public async Task<CaretakerProfile> CreateAsync(CaretakerProfileRequest request)
     {
-        _logger.LogInformation("Creating new patient profile from request.");
+        _logger.LogInformation("Creating new caretaker profile from request.");
+        EmailRules.NormalizeAndValidate(request.Email); // WP-62: 400 on a malformed address
         var newUser = await _userRepo.AddAsync(MapToNewUser(request));
         var newCaretaker = await _caretakerRepo.AddAsync(MapToNewCaretaker(request, newUser));
         var newRole = await _userRoleRepo.AddAsync(newCaretaker.MintNewRole());
@@ -131,6 +133,7 @@ public class CaretakerProfileService : ICaretakerProfileService
         var profileOnFile = await this.GetByIdAsync(caretakerAggId);
         if (profileOnFile != null)
         {
+            EmailRules.ValidateChange(updateRequest.Email, profileOnFile.Email); // WP-62
             await _repository.UpdateAsync(profileOnFile.CaretakerId, profileOnFile.UserId, updateRequest);
             return true;
         }
@@ -185,6 +188,9 @@ public class CaretakerProfileService : ICaretakerProfileService
             return false;
         }
 
+        // WP-62 (Q-4: at least one primary): a patient with no primary yet gets this link as primary.
+        isPrimary = isPrimary || !await PatientHasPrimaryAsync(patientId);
+
         var entity = new PatientCaretaker
         {
             PatientId = patientId,
@@ -214,8 +220,56 @@ public class CaretakerProfileService : ICaretakerProfileService
             throw new ConflictException("A self-caretaker link cannot be removed.");
         }
 
+        await EnsureNotLastPrimaryAsync(existing);
         await _patientCaretakerRepo.DeleteAsync(existing);
         return true;
+    }
+
+    // WP-62: flag or un-flag an existing link as primary. false = no such link (→ 404).
+    // Un-flagging the patient's last primary → 409 (ruling Q-4: a patient keeps at least one).
+    public async Task<bool> SetPrimaryAsync(int caretakerId, int patientId, bool isPrimary)
+    {
+        _logger.LogInformation("Setting primary={IsPrimary} on caretaker {CaretakerId} ↔ patient {PatientId}",
+            isPrimary, caretakerId, patientId);
+        var existing = await _patientCaretakerRepo.GetByCompositeKeyAsync(patientId, caretakerId);
+        if (existing == null)
+        {
+            return false;
+        }
+        if (existing.PrimaryCaretaker == isPrimary)
+        {
+            return true; // nothing to change
+        }
+        if (!isPrimary)
+        {
+            await EnsureNotLastPrimaryAsync(existing);
+        }
+
+        existing.PrimaryCaretaker = isPrimary;
+        await _patientCaretakerRepo.UpdateAsync(existing);
+        return true;
+    }
+
+    public const string LastPrimaryMessage =
+        "This is the patient's only primary caretaker. Make another caretaker primary first.";
+
+    // Check-then-write without a lock: two staff removing the patient's two primaries at the same
+    // instant could both pass. Accepted (rare, visible, fixable in the panel) — see WP-62 plan.
+    private async Task EnsureNotLastPrimaryAsync(PatientCaretaker link)
+    {
+        if (!link.PrimaryCaretaker) return;
+        var links = await _patientCaretakerRepo.GetByPatientIdAsync(link.PatientId) ?? [];
+        var otherPrimaries = links.Count(l => l.PrimaryCaretaker && l.CaretakerId != link.CaretakerId);
+        if (otherPrimaries == 0)
+        {
+            throw new ConflictException(LastPrimaryMessage);
+        }
+    }
+
+    private async Task<bool> PatientHasPrimaryAsync(int patientId)
+    {
+        var links = await _patientCaretakerRepo.GetByPatientIdAsync(patientId) ?? [];
+        return links.Any(l => l.PrimaryCaretaker);
     }
 
     // WP-50B: make an existing patient their own caretaker. Attaches a Caretaker role to the
@@ -251,6 +305,8 @@ public class CaretakerProfileService : ICaretakerProfileService
         {
             throw new ConflictException($"Patient {patientId} is already their own caretaker.");
         }
+        // WP-62 (Q-4): a patient with no primary yet gets the Self link as primary.
+        isPrimary = isPrimary || !existingLinks.Any(l => l.PrimaryCaretaker);
 
         return await _unitOfWork.ExecuteAsync(async () =>
         {
@@ -305,8 +361,8 @@ public class CaretakerProfileService : ICaretakerProfileService
             FirstName = request.FirstName,
             MiddleName = request.MiddleName,
             LastName = request.LastName,
-            // WP-57: blank → NULL (uq_systemuser_email allows many NULLs, not many "").
-            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
+            // WP-57/WP-62: blank → NULL (uq_systemuser_email allows many NULLs, not many ""), trimmed.
+            Email = EmailRules.Normalize(request.Email),
             PhoneNumber = request.PhoneNumber,
             CreatedTimestamp = DateTime.UtcNow,
             ActiveStatus = true

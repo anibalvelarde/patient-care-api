@@ -1,3 +1,4 @@
+using Neurocorp.Api.Core.Common;
 using Neurocorp.Api.Core.BusinessObjects.Therapists;
 using Neurocorp.Api.Core.Entities;
 using Neurocorp.Api.Core.Interfaces.Services;
@@ -48,6 +49,7 @@ public class TherapistProfileService : ITherapistProfileService
     public async Task<TherapistProfile> CreateAsync(TherapistProfileRequest therapistRequest)
     {
         _logger.LogInformation("Started a new Therapist Profile request.");
+        therapistRequest.Email = EmailRules.NormalizeAndValidate(therapistRequest.Email) ?? therapistRequest.Email; // WP-62
 
         var invalidIds = await GetInvalidSpecialtyIdsAsync(therapistRequest.SpecialtyIds);
         if (invalidIds.Any())
@@ -71,6 +73,12 @@ public class TherapistProfileService : ITherapistProfileService
         var profileOnFile = await this.GetByIdAsync(therapistAggId);
         if (profileOnFile != null)
         {
+            // WP-62: blank = unchanged for therapists (login identity), so only a real change is checked.
+            if (!string.IsNullOrWhiteSpace(updateRequest.Email))
+            {
+                EmailRules.ValidateChange(updateRequest.Email, profileOnFile.Email);
+            }
+
             if (updateRequest.SpecialtyIds != null)
             {
                 var invalidIds = await GetInvalidSpecialtyIdsAsync(updateRequest.SpecialtyIds);

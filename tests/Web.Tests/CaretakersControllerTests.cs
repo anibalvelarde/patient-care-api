@@ -151,4 +151,39 @@ public class CaretakersControllerTests
         Assert.Equal(777, returned.CaretakerId);
         Assert.Equal(nameof(CaretakersController.GetCaretaker), created.ActionName);
     }
+    // WP-62: PUT /api/caretakers/{id}/patients/{patientId} flips the primary flag on a link.
+    [Fact]
+    public async Task UpdatePatientLink_Returns204_WhenTheLinkExists()
+    {
+        _mockService.Setup(s => s.SetPrimaryAsync(7, 42, true)).ReturnsAsync(true);
+
+        var result = await _controller.UpdatePatientLink(7, 42, new PatientLinkUpdateRequest { IsPrimary = true });
+
+        Assert.IsType<NoContentResult>(result);
+        _mockService.Verify(s => s.SetPrimaryAsync(7, 42, true), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdatePatientLink_Returns404_WhenNoSuchLink()
+    {
+        _mockService.Setup(s => s.SetPrimaryAsync(7, 42, false)).ReturnsAsync(false);
+
+        var result = await _controller.UpdatePatientLink(7, 42, new PatientLinkUpdateRequest { IsPrimary = false });
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    // The last-primary 409s are domain ConflictExceptions: the controller must let them reach
+    // GlobalExceptionHandler (→ 409 ProblemDetails), not swallow them into a 400/404.
+    [Fact]
+    public async Task UnlinkAndUnflag_LastPrimary_ConflictPropagates()
+    {
+        var conflict = new Neurocorp.Api.Core.Exceptions.ConflictException("last primary");
+        _mockService.Setup(s => s.SetPrimaryAsync(7, 42, false)).ThrowsAsync(conflict);
+        _mockService.Setup(s => s.UnlinkPatientAsync(7, 42)).ThrowsAsync(conflict);
+
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(() =>
+            _controller.UpdatePatientLink(7, 42, new PatientLinkUpdateRequest { IsPrimary = false }));
+        await Assert.ThrowsAsync<Neurocorp.Api.Core.Exceptions.ConflictException>(() => _controller.UnlinkPatient(7, 42));
+    }
 }

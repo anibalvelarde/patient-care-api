@@ -149,11 +149,28 @@ public class CaretakersController : ControllerBase
             detail: "Link already exists or invalid data.", title: "Bad Request");
     }
 
+    // WP-62: flag / un-flag an existing link as primary. 409 when un-flagging the patient's last
+    // primary (ruling Q-4: at least one). Same claim as link/unlink — no matrix change.
+    [HttpPut("{id}/patients/{patientId}")]
+    [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdatePatientLink(int id, int patientId, [FromBody] PatientLinkUpdateRequest request)
+    {
+        if (await _caretakerProfileService.SetPrimaryAsync(id, patientId, request.IsPrimary))
+        {
+            return NoContent();
+        }
+        return NotFound();
+    }
+
     [HttpDelete("{id}/patients/{patientId}")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.CaretakersLinkPatient)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)] // WP-50: self links can't be removed
+    // WP-50: self links can't be removed; WP-62: nor the patient's last primary caretaker
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UnlinkPatient(int id, int patientId)
     {
