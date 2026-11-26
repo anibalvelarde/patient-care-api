@@ -113,13 +113,19 @@ public class CaretakerProfileService : ICaretakerProfileService
         var newCaretaker = await _caretakerRepo.AddAsync(MapToNewCaretaker(request, newUser));
         var newRole = await _userRoleRepo.AddAsync(newCaretaker.MintNewRole());
         _logger.LogInformation($"New Patient Profile was created: Uid[{newUser.Id}], Pid[{newCaretaker.Id}], Role[{newRole.UserRoleId}]");
-        return new CaretakerProfile
+
+        // WP-63B (B1): answer with the same mapper reads use, so create and GET responses match
+        // (IsActive, Notes, Audit, Patients). The hand-built fallback only covers a read-back miss.
+        var created = await GetByIdAsync(newCaretaker.Id);
+        return created ?? new CaretakerProfile
         {
             CaretakerId = newCaretaker.Id,
             UserId = newUser.Id,
             CaretakerName = $"{newUser.LastName}, {newUser.FirstName} {newUser.MiddleName}".Trim(),
             Email = newUser.Email,
             PhoneNumber = newUser.PhoneNumber,
+            Notes = newCaretaker.Notes ?? string.Empty,
+            IsActive = newUser.ActiveStatus,
             CreatedTimestamp = newUser.CreatedTimestamp,
             LastUpdated = MaxTimestamp(newUser.LastUpdatedTimestamp, newCaretaker.LastUpdatedTimestamp),
         };
