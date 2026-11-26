@@ -265,7 +265,7 @@ public class SessionFeeServiceTests
         Assert.Contains("[FEE-WAIVED", session.Notes);
         // Single-leg shape is deliberately unchanged by the run-002 consolidation.
         Assert.Contains("late 37.50 waived by u#3; reason: caretaker hospitalized]", session.Notes);
-        Assert.Equal(1, CountMarkers(session.Notes, SessionFeeService.FeeWaivedMarkerPrefix));
+        Assert.Equal(1, CountMarkers(session.Notes!, SessionFeeService.FeeWaivedMarkerPrefix));
     }
 
     [Fact]
@@ -338,7 +338,7 @@ public class SessionFeeServiceTests
 
         // One marker, both legs, the reason stored ONCE.
         Assert.Contains("late 25.50 + no-show 85.00 waived by u#7; reason: billed in error]", session.Notes);
-        Assert.Equal(1, CountMarkers(session.Notes, SessionFeeService.FeeWaivedMarkerPrefix));
+        Assert.Equal(1, CountMarkers(session.Notes!, SessionFeeService.FeeWaivedMarkerPrefix));
     }
 
     /// <summary>How many times a marker family appears in the notes — the run-002 consolidation
@@ -508,7 +508,7 @@ public class SessionFeeServiceTests
             actingUserId: 3);
 
         // Exactly one opening bracket for the marker, and it still closes at the very end.
-        var marker = session.Notes.Split('\n').Last();
+        var marker = session.Notes!.Split('\n').Last();
         Assert.StartsWith("[FEE-WAIVED ", marker);
         Assert.EndsWith("]", marker);
         Assert.Equal(1, marker.Count(c => c == '['));

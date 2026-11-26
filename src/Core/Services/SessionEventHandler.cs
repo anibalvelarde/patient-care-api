@@ -307,7 +307,7 @@ public class SessionEventHandler : IHandleSessionEvent
             AmountDue = newTherapySession.AmountDue(),
             IsPastDue = false,
             IsPaidOff = false,
-            Notes = newTherapySession.Notes,
+            Notes = newTherapySession.Notes ?? string.Empty,
             AppointmentStatusId = newTherapySession.AppointmentStatusId,
             StatusName = newTherapySession.AppointmentStatus?.Name ?? SessionStatus.Names.Proposed,
             IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
