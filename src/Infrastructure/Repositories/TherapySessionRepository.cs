@@ -15,6 +15,9 @@ public class TherapySessionRepository(ApplicationDbContext dbContext) :
         return await _dbContext.TherapySessions
             .Include(s => s.Patient).ThenInclude(p => p!.User)
             .Include(s => s.Therapist).ThenInclude(t => t!.User)
+            // WP-63B (B6): the unpaid-sessions picker shows specialty + status names.
+            .Include(s => s.SpecialtyType)
+            .Include(s => s.AppointmentStatus)
             .Where(s => patientIds.Contains(s.PatientId) && !s.IsPaidOff)
             .OrderBy(s => s.SessionDate)
             .ThenBy(s => s.SessionTime)

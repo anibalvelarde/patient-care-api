@@ -176,7 +176,11 @@ public class PaymentRecordService : IPaymentRecordService
 
         var unpaidSessions = await _sessionRepo.GetUnpaidByPatientIdsAsync(patientIds);
 
-        return unpaidSessions.Select(s => new UnpaidSessionSummary
+        // WP-63B (B6): !IsPaidOff alone also lists $0-due rows (cancelled with money zeroed,
+        // fully discounted/waived) — nothing to allocate against, so they are dropped here.
+        return unpaidSessions
+            .Where(s => s.AmountDue() > NothingDueTolerance)
+            .Select(s => new UnpaidSessionSummary
         {
             SessionId = s.Id,
             SessionDate = s.SessionDate.ToString("yyyy-MM-dd"),
@@ -192,9 +196,15 @@ public class PaymentRecordService : IPaymentRecordService
             DiscountAmount = s.DiscountAmount,
             AmountPaid = s.AmountPaid,
             AmountDue = s.AmountDue(),
-            IsPastDue = s.GetPastDue()
+            IsPastDue = s.GetPastDue(),
+            SpecialtyName = s.SpecialtyType?.Name,
+            StatusName = s.AppointmentStatus?.Name
+                ?? SessionStatus.IdToName.GetValueOrDefault(s.AppointmentStatusId, string.Empty),
         });
     }
+
+    /// <summary>WP-63B (B6): a balance at or below half a cent is "nothing due" for the picker.</summary>
+    private const decimal NothingDueTolerance = 0.005m;
 
     public async Task<IEnumerable<SessionPaymentDetail>> GetPaymentsForSessionAsync(int sessionId)
     {

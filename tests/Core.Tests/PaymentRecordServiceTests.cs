@@ -235,4 +235,54 @@ public class PaymentRecordServiceTests
         Assert.Equal(0m, left.AmountPaid);
         Assert.Equal(20m, gained.AmountPaid);
     }
+
+    // ---- WP-63B (B6): unpaid-sessions picker --------------------------------------------------
+
+    [Fact]
+    public async Task GetUnpaidSessionsForCaretaker_ExcludesZeroDueRows_AndCarriesSpecialtyAndStatus()
+    {
+        var owing = new TherapySession
+        {
+            Id = 501, PatientId = LinkedPatientId, Amount = 50m, DiscountAmount = 10m,
+            AppointmentStatusId = 4, AppointmentStatus = new AppointmentStatus { Id = 4, Name = "Completed" },
+            SpecialtyTypeId = 6, SpecialtyType = new SpecialtyType { Id = 6, Name = "Language Therapy" },
+        };
+        // Cancelled with the money zeroed by the WP-42 transition â€” IsPaidOff false, nothing due.
+        var cancelledZero = new TherapySession
+        {
+            Id = 502, PatientId = LinkedPatientId, Amount = 0m, DiscountAmount = 0m,
+            AppointmentStatusId = 3, AppointmentStatus = new AppointmentStatus { Id = 3, Name = "Cancelled" },
+        };
+        // Fully discounted (waived) â€” nothing due.
+        var waived = new TherapySession
+        {
+            Id = 503, PatientId = LinkedPatientId, Amount = 50m, DiscountAmount = 50m,
+            AppointmentStatusId = 4, AppointmentStatus = new AppointmentStatus { Id = 4, Name = "Completed" },
+        };
+        _sessions.Setup(r => r.GetUnpaidByPatientIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new List<TherapySession> { owing, cancelledZero, waived });
+
+        var result = (await _sut.GetUnpaidSessionsForCaretakerAsync(CaretakerId)).ToList();
+
+        var only = Assert.Single(result);
+        Assert.Equal(501, only.SessionId);
+        Assert.Equal(40m, only.AmountDue);
+        Assert.Equal("Language Therapy", only.SpecialtyName);
+        Assert.Equal("Completed", only.StatusName);
+    }
+
+    [Fact]
+    public async Task GetUnpaidSessionsForCaretaker_StatusName_FallsBackToCanonicalMap_SpecialtyNullable()
+    {
+        _sessions.Setup(r => r.GetUnpaidByPatientIdsAsync(It.IsAny<IEnumerable<int>>()))
+            .ReturnsAsync(new List<TherapySession>
+            {
+                new() { Id = 601, PatientId = LinkedPatientId, Amount = 30m, AppointmentStatusId = 2 },
+            });
+
+        var only = Assert.Single(await _sut.GetUnpaidSessionsForCaretakerAsync(CaretakerId));
+
+        Assert.Equal(SessionStatus.Names.Confirmed, only.StatusName);
+        Assert.Null(only.SpecialtyName);
+    }
 }
