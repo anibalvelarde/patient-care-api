@@ -202,7 +202,7 @@ public class BookingRepository : IBookingRepository
             AmountDue = ts.AmountDue(),
             IsPaidOff = ts.IsPaidOff,
             IsPastDue = ts.GetPastDue(),
-            Notes = ts.Notes,
+            Notes = ts.Notes ?? string.Empty,
             AppointmentStatusId = ts.AppointmentStatusId,
             StatusName = statusName,
             IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(ts.AppointmentStatusId),

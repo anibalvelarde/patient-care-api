@@ -183,7 +183,7 @@ public class Wp42CancellationMoneyTests
 
         var session = await GetSessionAsync(options);
         // idempotent: exactly ONE marker — the pre-existing one
-        var first = session.Notes.IndexOf("[CANCELLED-ZEROED", StringComparison.Ordinal);
+        var first = session.Notes!.IndexOf("[CANCELLED-ZEROED", StringComparison.Ordinal);
         var last = session.Notes.LastIndexOf("[CANCELLED-ZEROED", StringComparison.Ordinal);
         Assert.True(first >= 0 && first == last, $"expected a single marker, notes: {session.Notes}");
     }
@@ -351,7 +351,7 @@ public class Wp42CancellationMoneyTests
 
         var session = await GetSessionAsync(options);
         Assert.Equal(25.50m, session.Amount); // NOT 30% of 25.50
-        var first = session.Notes.IndexOf("[NOSHOW-FEE", StringComparison.Ordinal);
+        var first = session.Notes!.IndexOf("[NOSHOW-FEE", StringComparison.Ordinal);
         var last = session.Notes.LastIndexOf("[NOSHOW-FEE", StringComparison.Ordinal);
         Assert.True(first >= 0 && first == last, $"expected a single marker, notes: {session.Notes}");
     }

@@ -32,7 +32,7 @@ public class TherapySession : AuditableEntityBase
     public decimal ProviderAmount { get; set; }
     public decimal GrossProfit  { get; set; }
     public bool IsPaidOff { get; set; }
-    public string Notes { get; set; }
+    public string? Notes { get; set; }
     public string TherapyTypes { get; set; }
     public int AppointmentStatusId { get; set; } = SessionStatus.Completed;
     public int? SiteId { get; set; }

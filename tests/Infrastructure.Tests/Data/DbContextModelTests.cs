@@ -144,4 +144,21 @@ public class DbContextModelTests
             }
         }
     }
+
+    // TherapySession.Notes / TherapyTypes are nullable TEXT columns in the DB
+    // (schema/tables/TherapySession.sql). EF must model them as nullable too: a required
+    // mapping makes the MySQL reader cast DBNull → string and 500s every endpoint that
+    // loads such a row (dashboard, appointments, schedule). Found by the local-dev kit.
+    [Theory]
+    [InlineData(nameof(TherapySession.Notes))]
+    [InlineData(nameof(TherapySession.TherapyTypes))]
+    public void TherapySession_Nullable_Text_Columns_Are_Mapped_Optional(string propertyName)
+    {
+        using var context = new ApplicationDbContext(CreateInMemoryOptions($"Nullable_{propertyName}"));
+
+        var property = context.Model.FindEntityType(typeof(TherapySession))!.FindProperty(propertyName);
+
+        Assert.NotNull(property);
+        Assert.True(property!.IsNullable, $"TherapySession.{propertyName} must be optional to match the nullable DB column");
+    }
 }
