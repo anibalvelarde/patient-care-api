@@ -82,6 +82,10 @@ public class AccountStatementService : IAccountStatementService
             AmountPaid = s.AmountPaid,
             AmountDue = s.AmountDue(),
             IsPastDue = s.GetPastDue(),
+            // WP-63B (B7): $0 due is not "Paid" when the session was cancelled or its fee waived.
+            StatusName = s.AppointmentStatus?.Name
+                ?? SessionStatus.IdToName.GetValueOrDefault(s.AppointmentStatusId, string.Empty),
+            IsFeeWaived = s.FeeWaivedOn.HasValue,
             PaymentsApplied = s.SessionPayments?.Select(sp => new ChargePaymentApplied
             {
                 PaymentId = sp.PaymentId,

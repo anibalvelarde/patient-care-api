@@ -33,5 +33,18 @@ public class StatementCharge
     public decimal AmountDue { get; set; }
 
     public bool IsPastDue { get; set; }
+
+    /// <summary>
+    /// WP-63B (B7): the session's appointment status (e.g. "Completed", "Cancelled", "NoShow"),
+    /// so a $0-due line can be told apart — cancelled is not the same as paid.
+    /// </summary>
+    public string StatusName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// WP-63B (B7): a fee on this session was waived (WP-49 waive stamp,
+    /// <c>TherapySession.FeeWaivedOn</c> set) — another way a line reaches $0 without a payment.
+    /// </summary>
+    public bool IsFeeWaived { get; set; }
+
     public List<ChargePaymentApplied> PaymentsApplied { get; set; } = new();
 }

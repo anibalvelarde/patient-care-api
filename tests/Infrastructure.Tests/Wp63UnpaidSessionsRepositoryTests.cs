@@ -13,10 +13,34 @@ namespace Infrastructure.Tests.Repositories;
 public class Wp63UnpaidSessionsRepositoryTests
 {
     [Fact]
+    public async Task GetByPatientIdsAndDateRange_LoadsStatus_ForStatementCharges()
+    {
+        var options = await SeedAsync(nameof(GetByPatientIdsAndDateRange_LoadsStatus_ForStatementCharges));
+        using var context = new ApplicationDbContext(options);
+        var rows = await new TherapySessionRepository(context).GetByPatientIdsAndDateRangeAsync(
+            new[] { 63001 }, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30));
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Completed", row.AppointmentStatus?.Name); // WP-63B (B7)
+    }
+
+    [Fact]
     public async Task GetUnpaidByPatientIds_LoadsSpecialtyAndStatus()
     {
+        var options = await SeedAsync(nameof(GetUnpaidByPatientIds_LoadsSpecialtyAndStatus));
+
+        using var context = new ApplicationDbContext(options);
+        var rows = await new TherapySessionRepository(context).GetUnpaidByPatientIdsAsync(new[] { 63001 });
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Language Therapy", row.SpecialtyType?.Name);
+        Assert.Equal("Completed", row.AppointmentStatus?.Name);
+    }
+
+    private static async Task<DbContextOptions<ApplicationDbContext>> SeedAsync(string dbName)
+    {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseInMemoryDatabase(databaseName: nameof(GetUnpaidByPatientIds_LoadsSpecialtyAndStatus)).Options;
+            .UseInMemoryDatabase(databaseName: dbName).Options;
         using (var seed = new ApplicationDbContext(options))
         {
             seed.AppointmentStatuses.Add(new AppointmentStatus { Id = 4, Name = "Completed", Description = "x" });
@@ -31,12 +55,6 @@ public class Wp63UnpaidSessionsRepositoryTests
             });
             await seed.SaveChangesAsync();
         }
-
-        using var context = new ApplicationDbContext(options);
-        var rows = await new TherapySessionRepository(context).GetUnpaidByPatientIdsAsync(new[] { 63001 });
-
-        var row = Assert.Single(rows);
-        Assert.Equal("Language Therapy", row.SpecialtyType?.Name);
-        Assert.Equal("Completed", row.AppointmentStatus?.Name);
+        return options;
     }
 }
