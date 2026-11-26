@@ -48,8 +48,13 @@ Clean architecture with three layers — see [docs/architecture.md](docs/archite
 dotnet restore patient-care-api.sln
 dotnet build patient-care-api.sln
 dotnet test patient-care-api.sln
-dotnet run --project src/Web/Web.csproj   # starts on http://localhost:5245
+dotnet run --project src/Web/Web.csproj   # ⚠️ on this workstation this hits the PROD DB (see below)
 ```
+
+> ⚠️ The machine-level `DATABASE_*` env vars point at **prod**, so a bare `dotnet run` serves
+> prod data. For local testing use the PII-free kit, which runs this repo's current branch
+> against a throwaway synthetic DB (plus the UI):
+> `../patient-care-db/tools/local-dev/local-dev.sh up` (`walk`, `down`). Guide: `../patient-care-db/tools/local-dev/README.md`.
 
 ## Conventions
 
