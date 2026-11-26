@@ -14,17 +14,22 @@ public class BookingService : IBookingService
     private readonly IBookingRepository _bookingRepository;
     private readonly ITherapySessionRepository _therapySessionRepository;
     private readonly ISessionTransitionMoneyService _transitionMoney;
+    private readonly IUserNameResolver? _userNameResolver;
 
     public BookingService(ILogger<BookingService> logger, IBookingRepository bookingRepository,
         // WP-42: the money-at-transition choke point needs the raw entity (guards + originals),
         // hence the session repository alongside the SessionEvent-shaped booking repository.
         ITherapySessionRepository therapySessionRepository,
-        ISessionTransitionMoneyService transitionMoney)
+        ISessionTransitionMoneyService transitionMoney,
+        // WP-63B (B5): resolves audit.updatedBy on the lifecycle responses. Optional so existing
+        // test constructions compile unchanged; DI supplies the real one.
+        IUserNameResolver? userNameResolver = null)
     {
         _logger = logger;
         _bookingRepository = bookingRepository;
         _therapySessionRepository = therapySessionRepository;
         _transitionMoney = transitionMoney;
+        _userNameResolver = userNameResolver;
     }
 
     public async Task<IEnumerable<LookupItem>> GetStatusesAsync()
@@ -41,7 +46,7 @@ public class BookingService : IBookingService
         // with the status write. Other statuses pass through untouched (patch = null).
         await EnsureReinstateFitsAsync(sessionId, statusId);
         var patch = await PrepareTransitionAsync(sessionId, statusId);
-        return await _bookingRepository.UpdateStatusAsync(sessionId, statusId, patch);
+        return await WithAuditNamesAsync(await _bookingRepository.UpdateStatusAsync(sessionId, statusId, patch));
     }
 
     public async Task<SessionEvent> ConfirmAppointmentAsync(int sessionId, ConfirmationRequest request)
@@ -58,7 +63,7 @@ public class BookingService : IBookingService
         {
             var patch = await PrepareTransitionAsync(sessionId, 3);
             await _bookingRepository.AddConfirmationAsync(sessionId, request);
-            return await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch); // Cancelled
+            return await WithAuditNamesAsync(await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch)); // Cancelled
         }
 
         // WP-59: confirming a Cancelled session reinstates it — guard BEFORE the attempt is recorded.
@@ -72,12 +77,12 @@ public class BookingService : IBookingService
 
         if (string.Equals(result, ConfirmationValues.Confirmed, StringComparison.OrdinalIgnoreCase))
         {
-            return await _bookingRepository.UpdateStatusAsync(sessionId, 2); // Confirmed
+            return await WithAuditNamesAsync(await _bookingRepository.UpdateStatusAsync(sessionId, 2)); // Confirmed
         }
 
         // NoAnswer, LeftMessage — just return current state without changing status
-        return await _bookingRepository.GetSessionEventByIdAsync(sessionId)
-            ?? throw new ArgumentException($"Session {sessionId} not found.");
+        return await WithAuditNamesAsync(await _bookingRepository.GetSessionEventByIdAsync(sessionId)
+            ?? throw new ArgumentException($"Session {sessionId} not found."));
     }
 
     public async Task<SessionEvent> CancelAppointmentAsync(int sessionId, string? reason)
@@ -93,7 +98,18 @@ public class BookingService : IBookingService
             await _bookingRepository.AppendNotesAsync(sessionId, $"[Cancelled] {reason}");
         }
 
-        return await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch); // Cancelled
+        return await WithAuditNamesAsync(await _bookingRepository.UpdateStatusAsync(sessionId, 3, patch)); // Cancelled
+    }
+
+    // WP-63B (B5): the repository fills audit.updatedByUserId but leaves updatedBy = "System";
+    // resolve the name (same enrichment SessionEventHandler applies) before answering.
+    private async Task<SessionEvent> WithAuditNamesAsync(SessionEvent result)
+    {
+        if (_userNameResolver != null)
+        {
+            await AuditEnrichment.ResolveNamesAsync(result, _userNameResolver);
+        }
+        return result;
     }
 
     // WP-59 (F-2): moving a session OUT of Cancelled puts it back on the calendar, so the slot must
