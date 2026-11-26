@@ -411,3 +411,6 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# The VS-template [Rr]elease/ rule above (build output) also swallowed the release skill; keep it versioned.
+!.claude/skills/release/
