@@ -146,6 +146,64 @@ public class CaretakerProfileServiceTests
         Assert.Equal(expectedEmail, capturedUser!.Email);
     }
 
+    // WP-63B (B1): the create response must be the same shape reads return â€” IsActive was left
+    // false (row is active) and Notes/Audit/Patients were missing because it was hand-built.
+    [Fact]
+    public async Task CreateAsync_ReturnsProfileFromReadMapper_IncludingIsActive()
+    {
+        var mockUserRepo = new Mock<IUserRepository>();
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>()))
+            .ReturnsAsync((User u) => { u.Id = 20; return u; });
+        var mockCaretakerRepo = new Mock<ICaretakerRepository>();
+        mockCaretakerRepo.Setup(r => r.AddAsync(It.IsAny<Caretaker>()))
+            .ReturnsAsync((Caretaker c) => { c.Id = 7; return c; });
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+        var readBack = new CaretakerProfile
+        {
+            CaretakerId = 7, UserId = 20, CaretakerName = "Ruiz, Ana", Notes = "synthetic note",
+            IsActive = true, Audit = new Neurocorp.Api.Core.BusinessObjects.Common.AuditInfo()
+        };
+        var mockProfileRepo = new Mock<ICaretakerProfileRepository>();
+        mockProfileRepo.Setup(r => r.GetByIdAsync(7)).ReturnsAsync(readBack);
+
+        var svc = new CaretakerProfileService(Mock.Of<ILogger<CaretakerProfileService>>(), mockProfileRepo.Object,
+            mockCaretakerRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, Mock.Of<IPatientCaretakerRepository>());
+        var request = new CaretakerProfileRequest { FirstName = "Ana", LastName = "Ruiz", Notes = "synthetic note", PhoneNumber = "555" };
+
+        var result = await svc.CreateAsync(request);
+
+        mockProfileRepo.Verify(r => r.GetByIdAsync(7), Times.Once);
+        Assert.True(result.IsActive);
+        Assert.Equal("synthetic note", result.Notes);
+        Assert.NotNull(result.Audit);
+        Assert.Equal(7, result.CaretakerId);
+        Assert.Equal(20, result.UserId);
+    }
+
+    // WP-63B (B1): if the read-back somehow misses, the fallback still reports the row as active.
+    [Fact]
+    public async Task CreateAsync_FallbackProfile_IsActiveAndCarriesNotes_WhenReadBackMisses()
+    {
+        var mockUserRepo = new Mock<IUserRepository>();
+        mockUserRepo.Setup(r => r.AddAsync(It.IsAny<User>()))
+            .ReturnsAsync((User u) => { u.Id = 20; return u; });
+        var mockCaretakerRepo = new Mock<ICaretakerRepository>();
+        mockCaretakerRepo.Setup(r => r.AddAsync(It.IsAny<Caretaker>()))
+            .ReturnsAsync((Caretaker c) => { c.Id = 7; return c; });
+        var mockUserRoleRepo = new Mock<IUserRoleRepository>();
+        mockUserRoleRepo.Setup(r => r.AddAsync(It.IsAny<UserRole>())).ReturnsAsync(new UserRole { UserRoleId = 1 });
+
+        var svc = new CaretakerProfileService(Mock.Of<ILogger<CaretakerProfileService>>(), Mock.Of<ICaretakerProfileRepository>(),
+            mockCaretakerRepo.Object, mockUserRepo.Object, mockUserRoleRepo.Object, Mock.Of<IPatientCaretakerRepository>());
+        var request = new CaretakerProfileRequest { FirstName = "Ana", LastName = "Ruiz", Notes = "synthetic note", PhoneNumber = "555" };
+
+        var result = await svc.CreateAsync(request);
+
+        Assert.True(result.IsActive);
+        Assert.Equal("synthetic note", result.Notes);
+    }
+
     // ---- WP-50B: MakeSelfCaretakerAsync ------------------------------------------------------
 
     /// <summary>Unit of work that just runs the operation — commit/rollback is the real impl's concern.</summary>

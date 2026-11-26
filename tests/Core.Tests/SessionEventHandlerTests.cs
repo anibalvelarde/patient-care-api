@@ -190,6 +190,59 @@ public class SessionEventHandlerTests
         Assert.Empty(result);
     }
 
+    // --- WP-63B (B2): create response carries ids + site name ---
+
+    [Fact]
+    public async Task CreateAsync_ReturnsReReadSession_WithIdsAndSiteName()
+    {
+        SetupCreateAsyncDependencies();
+        _mockSpecialtyTypeRepository.Setup(r => r.GetByIdAsync(5))
+            .ReturnsAsync(new SpecialtyType { Id = 5, Abbreviation = "TC", Name = "Conduct Therapy" });
+        _mockTherapySessionRepository
+            .Setup(r => r.AddAsync(It.IsAny<TherapySession>()))
+            .ReturnsAsync((TherapySession ts) => { ts.Id = 4242; return ts; });
+        _mockRepository.Setup(r => r.GetByIdAsync(4242)).ReturnsAsync(new SessionEvent
+        {
+            SessionId = 4242, PatientId = 1, TherapistId = 1, SiteId = 3, SiteName = "Synthetic Site",
+            Amount = 100m, AmountDue = 100m, Notes = "", StatusName = "Scheduled",
+        });
+
+        var result = await _sut.CreateAsync(new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Duration = 60, SpecialtyTypeId = 5, SiteId = 3,
+        });
+
+        _mockRepository.Verify(r => r.GetByIdAsync(4242), Times.Once);
+        Assert.Equal(4242, result.SessionId);
+        Assert.Equal(1, result.PatientId);
+        Assert.Equal(1, result.TherapistId);
+        Assert.Equal("Synthetic Site", result.SiteName);
+        Assert.Equal("Scheduled", result.StatusName);
+        Assert.Equal("durationPrice", result.AmountSource); // create-only fact survives the re-read
+    }
+
+    [Fact]
+    public async Task CreateAsync_FallbackResponse_SetsIdsAndSiteName_WhenReReadMisses()
+    {
+        SetupCreateAsyncDependencies();
+        _mockSpecialtyTypeRepository.Setup(r => r.GetByIdAsync(5))
+            .ReturnsAsync(new SpecialtyType { Id = 5, Abbreviation = "TC", Name = "Conduct Therapy" });
+        _mockSiteRepository.Setup(r => r.GetByIdAsync(3))
+            .ReturnsAsync(new Site { Id = 3, SiteName = "Synthetic Site" });
+
+        var result = await _sut.CreateAsync(new SessionEventRequest
+        {
+            PatientId = 1, TherapistId = 1, SessionDate = DateOnly.Parse("2026-04-04"),
+            SessionTime = TimeOnly.Parse("10:00"), Duration = 60, SpecialtyTypeId = 5, SiteId = 3,
+        });
+
+        Assert.Equal(1, result.PatientId);
+        Assert.Equal(1, result.TherapistId);
+        Assert.Equal("Synthetic Site", result.SiteName);
+        Assert.Equal(string.Empty, result.Notes);
+    }
+
     // --- Specialty Resolution Tests (WP-9B) ---
 
     private void SetupCreateAsyncDependencies()

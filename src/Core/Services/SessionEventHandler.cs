@@ -293,9 +293,28 @@ public class SessionEventHandler : IHandleSessionEvent
         var newTherapySession = await _therapySessionRepository.AddAsync(
             MapToNewSessionEvent(pProfile!, tProfile!, request, specialty, amount, derivedDiscount, onSiteCharge));
         _logger.LogInformation($"New TherapySession was created TSid:[{newTherapySession.Id}]");
+
+        // WP-63B (B2): answer with the same mapper GET /api/sessions/{id} uses (ids, SiteName,
+        // status name, audit all populated from the persisted row). AmountSource is a create-only
+        // fact the read mapper cannot know, so it is stamped on afterwards.
+        var created = await GetByIdAsync(newTherapySession.Id);
+        if (created != null)
+        {
+            created.AmountSource = price.Source.ToWireString();
+            return created;
+        }
+
+        // Fallback (read-back miss): hand-built, but with the ids and site name the old shape dropped.
+        string? siteName = null;
+        if (newTherapySession.SiteId.HasValue)
+        {
+            siteName = (await _siteRepository.GetByIdAsync(newTherapySession.SiteId.Value))?.SiteName;
+        }
         return new SessionEvent()
         {
             SessionId = newTherapySession.Id,
+            PatientId = newTherapySession.PatientId,
+            TherapistId = newTherapySession.TherapistId,
             SessionDate = newTherapySession.SessionDate,
             SessionTime = newTherapySession.SessionTime,
             Patient = pProfile!.PatientName,
@@ -312,7 +331,7 @@ public class SessionEventHandler : IHandleSessionEvent
             StatusName = newTherapySession.AppointmentStatus?.Name ?? SessionStatus.Names.Proposed,
             IsConfirmed = SessionStatus.ConfirmedStatuses.Contains(newTherapySession.AppointmentStatusId),
             SiteId = newTherapySession.SiteId,
-            SiteName = newTherapySession.Site?.SiteName,
+            SiteName = newTherapySession.Site?.SiteName ?? siteName,
             SpecialtyTypeId = newTherapySession.SpecialtyTypeId,
             SpecialtyAbbreviation = specialty?.Abbreviation,
             SpecialtyName = specialty?.Name,

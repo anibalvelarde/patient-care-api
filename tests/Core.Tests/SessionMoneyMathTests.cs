@@ -42,6 +42,18 @@ public class SessionMoneyMathTests
         decimal flat, decimal pct, decimal net, decimal expected)
         => Assert.Equal(expected, SessionMoneyMath.ProviderFee(flat, pct, net));
 
+    // WP-63B (B3): a pct fee came back as net × pct at full scale (16.000000 on the wire).
+    // Rounded to cents with the same rounding SenadisFloor uses.
+    [Theory]
+    [InlineData("80.00", "0.200000", "16.00")]
+    [InlineData("33.33", "0.333000", "11.10")]  // 11.09889 → 11.10
+    public void ProviderFee_PercentFee_IsRoundedToCents(string net, string pct, string expected)
+    {
+        var fee = SessionMoneyMath.ProviderFee(0m, decimal.Parse(pct, System.Globalization.CultureInfo.InvariantCulture),
+            decimal.Parse(net, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(expected, fee.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     [Theory]
     [InlineData(80, 40, null, 40)]  // no on-site charge: net − fee
     [InlineData(80, 40, 25.0, 65)]  // charge adds to gross profit…

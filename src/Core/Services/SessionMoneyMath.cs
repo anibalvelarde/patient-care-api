@@ -38,9 +38,11 @@ public static class SessionMoneyMath
     /// <summary>
     /// Therapist fee on NET (WP-23 Questionnaire E): FeePctPerSession == 0 ⇒ flat FeePerSession,
     /// else net × pct. Identical semantics to the pre-WP-40 TherapistProfile.CalculateFee.
+    /// WP-63B (B3): the pct product is rounded to cents (same rounding as <see cref="SenadisFloor"/>)
+    /// — it used to leak full scale (16.000000) onto the wire and into GrossProfit.
     /// </summary>
     public static decimal ProviderFee(decimal feePerSession, decimal feePctPerSession, decimal netAmount)
-        => feePctPerSession == 0 ? feePerSession : netAmount * feePctPerSession;
+        => feePctPerSession == 0 ? feePerSession : Math.Round(netAmount * feePctPerSession, 2);
 
     /// <summary>
     /// Gross profit: net − fee, plus the on-site trip charge (WP-39 G4 ruling: the trip charge

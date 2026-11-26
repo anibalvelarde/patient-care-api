@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Neurocorp.Api.Core.BusinessObjects.Sessions;
 using Neurocorp.Api.Core.Interfaces.Services;
 using Neurocorp.Api.Web.Authorization;
@@ -20,11 +21,13 @@ public class ScheduleController : ControllerBase
         _scheduleMatrixService = scheduleMatrixService;
     }
 
+    // WP-63B (B4): siteId is REQUIRED — [BindRequired] makes Swagger say so and turns a missing
+    // value into a model-validation 400 instead of binding 0 ("Site 0 not found").
     [HttpGet("{dateString}/schedule-matrix")]
     [Authorize(Policy = AuthPolicy.PermissionPrefix + Permissions.ScheduleView)]
     [ProducesResponseType(typeof(ScheduleMatrixResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery] int siteId)
+    public async Task<IActionResult> GetScheduleMatrix(string dateString, [FromQuery, BindRequired] int siteId)
     {
         var targetDate = RouteDates.ParseOrToday(dateString);
         var result = await _scheduleMatrixService.GetMatrixAsync(targetDate, siteId);

@@ -19,4 +19,7 @@ public class UnpaidSessionSummary
     public decimal AmountPaid { get; set; }
     public decimal AmountDue { get; set; }
     public bool IsPastDue { get; set; }
+    // WP-63B (B6): lets the allocation picker tell sessions apart (and show why one is listed).
+    public string? SpecialtyName { get; set; }
+    public string StatusName { get; set; } = string.Empty;
 }
